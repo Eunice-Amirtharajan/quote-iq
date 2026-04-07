@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES_MANAGER
+  SALES_REP
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum InsightType {
+  SUMMARY
+  CONVERSION_SCORE
+  WIN_LOSS_ANALYSIS
+}
+
+model User {
+  id         String      @id @default(uuid())
+  name       String
+  email      String      @unique
+  password   String
+  role       Role        @default(SALES_REP)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  quotations Quotation[] @relation("CreatedBy")
+  clients    Client[]    @relation("CreatedBy")
+  statusChanges StatusHistory[]
+}
+
+model Client {
+  id          String      @id @default(uuid())
+  name        String
+  company     String
+  email       String
+  phone       String?
+  city        String?
+  country     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdById String
+  createdBy   User        @relation("CreatedBy", fields:[createdById], references:[id])
+  quotations  Quotation[]
+}
+
+model Quotation {
+  id              String          @id @default(uuid())
+  quotationNumber String          @unique
+  title           String
+  status          QuotationStatus @default(DRAFT)
+  notes           String?
+  taxRate         Float           @default(0)
+  subtotal        Float           @default(0)
+  taxAmount       Float           @default(0)
+  total           Float           @default(0)
+  validUntil      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  clientId        String
+  client          Client          @relation(fields:[clientId], references:[id])
+  createdById     String
+  createdBy       User            @relation("CreatedBy", fields:[createdById], references:[id])
+  items           QuotationItem[]
+  statusHistory   StatusHistory[]
+  aiInsights      AIInsight[]
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid())
+  description String
+  quantity    Float
+  unitPrice   Float
+  lineTotal   Float
+  sortOrder   Int       @default(0)
+  quotationId String
+  quotation   Quotation @relation(fields:[quotationId], references:[id], onDelete: Cascade)
+}
+
+model StatusHistory {
+  id          String          @id @default(uuid())
+  fromStatus  QuotationStatus
+  toStatus    QuotationStatus
+  note        String?
+  changedAt   DateTime        @default(now())
+  quotationId String
+  quotation   Quotation       @relation(fields:[quotationId], references:[id])
+  changedById String
+  changedBy   User            @relation(fields:[changedById], references:[id])
+}
+
+model AIInsight {
+  id          String      @id @default(uuid())
+  insightType InsightType
+  content     Json
+  generatedAt DateTime    @default(now())
+  expiresAt   DateTime
+  quotationId String?
+  quotation   Quotation?  @relation(fields:[quotationId], references:[id])
+}
