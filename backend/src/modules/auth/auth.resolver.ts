@@ -3,20 +3,20 @@ import { UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-
 import { Response } from 'express';
-import { User } from '../users/user.entity';
+import { UserType } from '../users/user.entity';
+import type { User as PrismaUser } from '@prisma/client';
 
 @Resolver()
 export class AuthResolver {
   constructor(private readonly authService: AuthService) {}
 
-  @Mutation(() => User)
+  @Mutation(() => UserType)
   async login(
     @Args('email') email: string,
     @Args('password') password: string,
     @Context() context: { res: Response },
-  ) {
+  ): Promise<PrismaUser> {
     return this.authService.login(email, password, context.res);
   }
 
@@ -26,9 +26,9 @@ export class AuthResolver {
     return this.authService.logout(context.res);
   }
 
-  @Query(() => User)
+  @Query(() => UserType)
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: User) {
+  me(@CurrentUser() user: UserType) {
     return user;
   }
 }

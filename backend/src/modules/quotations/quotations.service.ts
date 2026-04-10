@@ -1,11 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateQuotationInput } from './dto/quotation.input';
-import { Quotation, QuotationStatus } from '@prisma/client';
+import { Quotation, QuotationStatus, User } from '@prisma/client';
+import { AppLogger } from 'src/common/logger/logger.service';
+import { QuotationType } from './quotation.entity';
+import { UserType } from '../users/user.entity';
 
 @Injectable()
 export class QuotationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: AppLogger,
+  ) {}
 
   // Calculate totals — stored at write time for consistency
   private calculateTotals(
@@ -27,7 +33,13 @@ export class QuotationsService {
     return { itemsWithTotal, subtotal, taxAmount, total };
   }
 
-  findAll(userId: string, role: string): Promise<Quotation[]> {
+  findAll(user: User): Promise<Quotation[]> {
+    const userId = user.id;
+    const role = user.role;
+    this.logger.info(
+      `Fetching quotations — userId: ${userId} role: ${role}`,
+      QuotationsService.name,
+    );
     const where =
       role === 'SALES_MANAGER' || role === 'ADMIN'
         ? {}
@@ -40,7 +52,8 @@ export class QuotationsService {
     });
   }
 
-  findOne(id: string): Promise<Quotation | null> {
+  findOne(id: string): Promise<QuotationType | null> {
+    this.logger.info(`Fetching quotation: ${id}`, QuotationsService.name);
     return this.prisma.quotation.findUnique({
       where: { id },
       include: { items: true, client: true, createdBy: true },
@@ -49,8 +62,12 @@ export class QuotationsService {
 
   async create(
     input: CreateQuotationInput,
-    userId: string,
-  ): Promise<Quotation> {
+    user: UserType,
+  ): Promise<QuotationType> {
+    this.logger.info(
+      `Creating quotation — title: "${input.title}" clientId: ${input.clientId} userId: ${user.id}`,
+      QuotationsService.name,
+    );
     const taxRate = input.taxRate ?? 0;
     const { itemsWithTotal, subtotal, taxAmount, total } = this.calculateTotals(
       input.items,
@@ -59,11 +76,11 @@ export class QuotationsService {
 
     // Auto-generate quotation number
     const count = await this.prisma.quotation.count();
-    const number = `QT-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
+    const quoteNumber = `QT-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
 
     return this.prisma.quotation.create({
       data: {
-        quotationNumber: number,
+        quotationNumber: quoteNumber,
         title: input.title,
         clientId: input.clientId,
         notes: input.notes,
@@ -72,7 +89,7 @@ export class QuotationsService {
         taxAmount,
         total,
         validUntil: input.validUntil,
-        createdById: userId,
+        createdById: user.id,
         items: {
           create: itemsWithTotal.map((item, i) => ({
             ...item,
@@ -89,14 +106,28 @@ export class QuotationsService {
     status: string,
     note: string | undefined,
     userId: string,
-  ): Promise<Quotation> {
+  ): Promise<QuotationType> {
+    this.logger.info(
+      `Status update — quotationId: ${id} newStatus: ${status} userId: ${userId}`,
+      QuotationsService.name,
+    );
     const current = await this.prisma.quotation.findUnique({ where: { id } });
-
+    if (!current) {
+      this.logger.warn(
+        `Status update failed — quotation not found: ${id}`,
+        QuotationsService.name,
+      );
+      throw new NotFoundException(`Quotation ${id} not found`);
+    }
+    this.logger.info(
+      `Status transition — ${current.status} -> ${status} on quotation: ${id}`,
+      QuotationsService.name,
+    );
     // Record status change in history
     await this.prisma.statusHistory.create({
       data: {
         quotationId: id,
-        fromStatus: current!.status,
+        fromStatus: current.status,
         toStatus: status as QuotationStatus,
         note,
         changedById: userId,
@@ -111,6 +142,7 @@ export class QuotationsService {
   }
 
   async delete(id: string): Promise<boolean> {
+    this.logger.info(`Deleting quotation: ${id}`, QuotationsService.name);
     await this.prisma.quotation.delete({ where: { id } });
     return true;
   }

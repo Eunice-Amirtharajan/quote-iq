@@ -1,7 +1,7 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 
 @ObjectType()
-export class Client {
+export class ClientType {
   @Field(() => ID)
   id!: string;
 
@@ -15,13 +15,13 @@ export class Client {
   email!: string;
 
   @Field(() => String, { nullable: true })
-  phone?: string;
+  phone?: string | null;
 
   @Field(() => String, { nullable: true })
-  city?: string;
+  city?: string | null;
 
   @Field(() => String, { nullable: true })
-  country?: string;
+  country?: string | null;
 
   @Field(() => Date)
   createdAt!: Date;

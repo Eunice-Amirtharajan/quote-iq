@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 registerEnumType(Role, { name: 'Role' });
 
 @ObjectType()
-export class User {
+export class UserType {
   @Field(() => ID)
   id!: string;
 
@@ -13,7 +13,7 @@ export class User {
 
   @Field(() => String)
   email!: string;
-
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   @Field(() => Role)
   role!: Role;
 

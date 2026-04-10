@@ -1,22 +1,22 @@
 import { ObjectType, Field, ID, Float, Int } from '@nestjs/graphql';
 
 @ObjectType()
-export class QuotationItem {
+export class QuotationItemType {
   @Field(() => ID)
-    id!: string;
+  id!: string;
 
   @Field(() => String)
-    description!: string;
+  description!: string;
 
   @Field(() => Float)
-    quantity!: number;
+  quantity!: number;
 
   @Field(() => Float)
-    unitPrice!: number;
+  unitPrice!: number;
 
   @Field(() => Float)
-    lineTotal!: number;
+  lineTotal!: number;
 
   @Field(() => Int)
-    sortOrder!: number;
+  sortOrder!: number;
 }

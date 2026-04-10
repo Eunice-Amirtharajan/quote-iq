@@ -2,7 +2,16 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-type Client {
+input ClientInput {
+  city: String
+  company: String!
+  country: String
+  email: String!
+  name: String!
+  phone: String
+}
+
+type ClientType {
   city: String
   company: String!
   country: String
@@ -12,15 +21,6 @@ type Client {
   name: String!
   phone: String
   updatedAt: DateTime!
-}
-
-input ClientInput {
-  city: String
-  company: String!
-  country: String
-  email: String!
-  name: String!
-  phone: String
 }
 
 input CreateQuotationInput {
@@ -32,36 +32,70 @@ input CreateQuotationInput {
   validUntil: DateTime
 }
 
+type DashboardStatsType {
+  conversionRate: Float!
+  totalApproved: Int!
+  totalApprovedValue: Float!
+  totalPipelineValue: Float!
+  totalQuotations: Int!
+  totalRejected: Int!
+  totalSent: Int!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
 scalar DateTime
 
 type Mutation {
-  createClient(input: ClientInput!): Client!
-  createQuotation(input: CreateQuotationInput!): Quotation!
+  createClient(input: ClientInput!): ClientType!
+  createQuotation(input: CreateQuotationInput!): QuotationType!
   deleteClient(id: ID!): Boolean!
   deleteQuotation(id: ID!): Boolean!
-  login(email: String!, password: String!): User!
+  login(email: String!, password: String!): UserType!
   logout: Boolean!
-  updateClient(id: ID!, input: ClientInput!): Client!
-  updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): Quotation!
+  updateClient(id: ID!, input: ClientInput!): ClientType!
+  updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
 
 type Query {
-  client(id: ID!): Client
-  clients: [Client!]!
-  me: User!
-  quotation(id: ID!): Quotation
-  quotations: [Quotation!]!
+  client(id: ID!): ClientType
+  clients: [ClientType!]!
+  dashboardStats: DashboardStatsType!
+  me: UserType!
+  quotation(id: ID!): QuotationType
+  quotations: [QuotationType!]!
 }
 
-type Quotation {
-  client: Client
-  createdAt: DateTime!
-  createdBy: User
+input QuotationItemInput {
+  description: String!
+  quantity: Float!
+  unitPrice: Float!
+}
+
+type QuotationItemType {
+  description: String!
   id: ID!
-  items: [QuotationItem!]
+  lineTotal: Float!
+  quantity: Float!
+  sortOrder: Int!
+  unitPrice: Float!
+}
+
+enum QuotationStatus {
+  APPROVED
+  DRAFT
+  EXPIRED
+  REJECTED
+  SENT
+}
+
+type QuotationType {
+  client: ClientType
+  createdAt: DateTime!
+  createdBy: UserType
+  id: ID!
+  items: [QuotationItemType!]
   notes: String
   quotationNumber: String!
   status: QuotationStatus!
@@ -72,29 +106,6 @@ type Quotation {
   total: Float!
   updatedAt: DateTime!
   validUntil: DateTime
-}
-
-type QuotationItem {
-  description: String!
-  id: ID!
-  lineTotal: Float!
-  quantity: Float!
-  sortOrder: Int!
-  unitPrice: Float!
-}
-
-input QuotationItemInput {
-  description: String!
-  quantity: Float!
-  unitPrice: Float!
-}
-
-enum QuotationStatus {
-  APPROVED
-  DRAFT
-  EXPIRED
-  REJECTED
-  SENT
 }
 
 enum Role {
@@ -108,7 +119,7 @@ input UpdateQuotationStatusInput {
   status: String!
 }
 
-type User {
+type UserType {
   createdAt: DateTime!
   email: String!
   id: ID!

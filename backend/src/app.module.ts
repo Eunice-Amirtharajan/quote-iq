@@ -7,9 +7,12 @@ import { AuthModule } from './modules/auth/auth.module';
 import { Request, Response } from 'express';
 import { ClientsModule } from './modules/clients/clients.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { LoggerModule } from './common/logger/logger.module';
 
 @Module({
   imports: [
+    LoggerModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
@@ -23,6 +26,7 @@ import { QuotationsModule } from './modules/quotations/quotations.module';
     AuthModule,
     ClientsModule,
     QuotationsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

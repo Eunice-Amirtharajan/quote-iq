@@ -5,15 +5,15 @@ import {
   Float,
   registerEnumType,
 } from '@nestjs/graphql';
+import { QuotationItemType } from './quotation-item.entity';
+import { ClientType } from '../clients/client.entity';
+import { UserType } from '../users/user.entity';
 import { QuotationStatus } from '@prisma/client';
-import { QuotationItem } from './quotation-item.entity';
-import { Client } from '../clients/client.entity';
-import { User } from '../users/user.entity';
 
 registerEnumType(QuotationStatus, { name: 'QuotationStatus' });
 
 @ObjectType()
-export class Quotation {
+export class QuotationType {
   @Field(() => ID)
   id!: string;
 
@@ -23,11 +23,12 @@ export class Quotation {
   @Field(() => String)
   title!: string;
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   @Field(() => QuotationStatus)
   status!: QuotationStatus;
 
   @Field(() => String, { nullable: true })
-  notes?: string;
+  notes?: string | null;
 
   @Field(() => Float)
   taxRate!: number;
@@ -42,7 +43,7 @@ export class Quotation {
   total!: number;
 
   @Field(() => Date, { nullable: true })
-  validUntil?: Date;
+  validUntil?: Date | null;
 
   @Field(() => Date)
   createdAt!: Date;
@@ -50,12 +51,12 @@ export class Quotation {
   @Field(() => Date)
   updatedAt!: Date;
 
-  @Field(() => [QuotationItem], { nullable: true })
-  items?: QuotationItem[];
+  @Field(() => [QuotationItemType], { nullable: true })
+  items?: QuotationItemType[] | null;
 
-  @Field(() => Client, { nullable: true })
-  client?: Client;
+  @Field(() => ClientType, { nullable: true })
+  client?: ClientType | null;
 
-  @Field(() => User, { nullable: true })
-  createdBy?: User;
+  @Field(() => UserType, { nullable: true })
+  createdBy?: UserType | null;
 }
