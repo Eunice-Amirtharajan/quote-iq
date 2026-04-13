@@ -22,13 +22,13 @@ export class AuthResolver {
 
   @Mutation(() => Boolean)
   @UseGuards(JwtAuthGuard)
-  logout(@Context() context: { res: Response }) {
+  logout(@Context() context: { res: Response }): boolean {
     return this.authService.logout(context.res);
   }
 
   @Query(() => UserType)
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: UserType) {
+  me(@CurrentUser() user: UserType): UserType {
     return user;
   }
 }

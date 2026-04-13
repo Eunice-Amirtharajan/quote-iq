@@ -13,7 +13,7 @@ export class UserType {
 
   @Field(() => String)
   email!: string;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+
   @Field(() => Role)
   role!: Role;
 

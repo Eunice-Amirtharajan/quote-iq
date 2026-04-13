@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
-import { NotFoundException, UseGuards } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
 import { ClientsService } from './clients.service';
 import { ClientType } from './client.entity';
 import { ClientInput } from './dto/client.input';
@@ -7,8 +7,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserType } from '../users/user.entity';
 import { Role } from '@prisma/client';
-import { RolesGuard } from 'src/common/guards/roles.guard';
-import { Roles } from 'src/common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @Resolver(() => ClientType)
 @UseGuards(JwtAuthGuard)
@@ -40,10 +40,6 @@ export class ClientsResolver {
     @Args('id', { type: () => ID }) id: string,
     @Args('input') input: ClientInput,
   ): Promise<ClientType> {
-    const client = await this.clientsService.findOne(id);
-    if (!client) {
-      throw new NotFoundException(`Client ${id} not found`);
-    }
     return this.clientsService.update(id, input);
   }
 

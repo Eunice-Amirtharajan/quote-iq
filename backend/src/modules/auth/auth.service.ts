@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import * as bcrypt from 'bcrypt';
-import { AppLogger } from 'src/common/logger/logger.service';
+import { AppLogger } from '../../common/logger/logger.service';
 import type { User } from '@prisma/client';
 
 @Injectable()
@@ -33,28 +33,45 @@ export class AuthService {
         `Login failed — wrong password: ${email}`,
         AuthService.name,
       );
-      this.logger.info(`Login successful: ${user.id}`, AuthService.name);
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const token = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    try {
+      const token = this.jwtService.sign({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      });
 
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    return user;
+      res.cookie('access_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+      this.logger.info(`Login successful: ${user.id}`, AuthService.name);
+      return user;
+    } catch (error) {
+      this.logger.error(
+        `Unexpected error during login for: ${email}`,
+        error instanceof Error ? error.stack : String(error),
+        AuthService.name,
+      );
+      throw error;
+    }
   }
 
   logout(res: Response): boolean {
-    res.clearCookie('access_token');
-    return true;
+    try {
+      res.clearCookie('access_token');
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Logout failed`,
+        error instanceof Error ? error.stack : String(error),
+        AuthService.name,
+      );
+      throw error;
+    }
   }
 }

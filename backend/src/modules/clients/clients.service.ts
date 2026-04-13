@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClientInput } from './dto/client.input';
 import { ClientType } from './client.entity';
@@ -75,6 +75,10 @@ export class ClientsService {
   async update(id: string, input: ClientInput): Promise<ClientType> {
     this.logger.info(`Updating client: ${id}`, ClientsService.name);
     try {
+      const client = await this.findOne(id);
+      if (!client) {
+        throw new NotFoundException(`Client ${id} not found`);
+      }
       return await this.prisma.client.update({ where: { id }, data: input });
     } catch (error) {
       this.logger.error(
