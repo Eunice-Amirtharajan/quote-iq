@@ -12,42 +12,53 @@ import { QuotationStatus } from '@prisma/client';
 
 registerEnumType(QuotationStatus, { name: 'QuotationStatus' });
 
-@ObjectType()
+@ObjectType({
+  description: 'A sales quotation with line items and calculated totals',
+})
 export class QuotationType {
-  @Field(() => ID)
+  @Field(() => ID, { description: 'Unique identifier' })
   id!: string;
 
-  @Field(() => String)
+  @Field(() => String, {
+    description: 'Auto-generated number e.g. QT-2026-0001',
+  })
   quotationNumber!: string;
 
-  @Field(() => String)
+  @Field(() => String, { description: 'Quotation title or subject' })
   title!: string;
 
-  @Field(() => QuotationStatus)
+  @Field(() => QuotationStatus, {
+    description: 'Current status in the pipeline',
+  })
   status!: QuotationStatus;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => String, {
+    nullable: true,
+    description: 'Optional notes for the client',
+  })
   notes?: string | null;
 
-  @Field(() => Float)
+  @Field(() => Float, { description: 'Tax rate as percentage e.g. 19 for 19%' })
   taxRate!: number;
 
-  @Field(() => Float)
+  @Field(() => Float, { description: 'Sum of all line item totals before tax' })
   subtotal!: number;
 
-  @Field(() => Float)
+  @Field(() => Float, {
+    description: 'Tax amount calculated from subtotal and taxRate',
+  })
   taxAmount!: number;
 
-  @Field(() => Float)
+  @Field(() => Float, { description: 'Final total including tax' })
   total!: number;
 
   @Field(() => Date, { nullable: true })
   validUntil?: Date | null;
 
-  @Field(() => Date)
+  @Field(() => Date, { description: 'Creation timestamp' })
   createdAt!: Date;
 
-  @Field(() => Date)
+  @Field(() => Date, { description: 'Last update timestamp' })
   updatedAt!: Date;
 
   @Field(() => [QuotationItemType], { nullable: true })

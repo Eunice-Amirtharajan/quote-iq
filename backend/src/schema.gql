@@ -11,15 +11,33 @@ input ClientInput {
   phone: String
 }
 
+"""A client or prospect in the system"""
 type ClientType {
+  """City"""
   city: String
+
+  """Company or organisation name"""
   company: String!
+
+  """Country"""
   country: String
+
+  """Creation timestamp"""
   createdAt: DateTime!
+
+  """Business email address"""
   email: String!
+
+  """Unique identifier"""
   id: ID!
+
+  """Contact person name"""
   name: String!
+
+  """Phone number"""
   phone: String
+
+  """Last update timestamp"""
   updatedAt: DateTime!
 }
 
@@ -32,13 +50,27 @@ input CreateQuotationInput {
   validUntil: DateTime
 }
 
+"""Aggregated pipeline statistics for the dashboard"""
 type DashboardStatsType {
+  """Approval rate as percentage e.g. 33.3"""
   conversionRate: Float!
+
+  """Quotations that were approved"""
   totalApproved: Int!
+
+  """Total value of all APPROVED quotations"""
   totalApprovedValue: Float!
+
+  """Total value of all SENT quotations"""
   totalPipelineValue: Float!
+
+  """Total number of quotations"""
   totalQuotations: Int!
+
+  """Quotations that were rejected"""
   totalRejected: Int!
+
+  """Quotations currently in SENT status"""
   totalSent: Int!
 }
 
@@ -90,20 +122,43 @@ enum QuotationStatus {
   SENT
 }
 
+"""A sales quotation with line items and calculated totals"""
 type QuotationType {
   client: ClientType
+
+  """Creation timestamp"""
   createdAt: DateTime!
   createdBy: UserType
+
+  """Unique identifier"""
   id: ID!
   items: [QuotationItemType!]
+
+  """Optional notes for the client"""
   notes: String
+
+  """Auto-generated number e.g. QT-2026-0001"""
   quotationNumber: String!
+
+  """Current status in the pipeline"""
   status: QuotationStatus!
+
+  """Sum of all line item totals before tax"""
   subtotal: Float!
+
+  """Tax amount calculated from subtotal and taxRate"""
   taxAmount: Float!
+
+  """Tax rate as percentage e.g. 19 for 19%"""
   taxRate: Float!
+
+  """Quotation title or subject"""
   title: String!
+
+  """Final total including tax"""
   total: Float!
+
+  """Last update timestamp"""
   updatedAt: DateTime!
   validUntil: DateTime
 }
@@ -119,11 +174,23 @@ input UpdateQuotationStatusInput {
   status: String!
 }
 
+"""A platform user — manager, sales rep, or admin"""
 type UserType {
+  """Account creation timestamp"""
   createdAt: DateTime!
+
+  """Email address used for login"""
   email: String!
+
+  """Unique identifier"""
   id: ID!
+
+  """Full name"""
   name: String!
+
+  """Role determines access level"""
   role: Role!
+
+  """Last update timestamp"""
   updatedAt: DateTime!
 }
