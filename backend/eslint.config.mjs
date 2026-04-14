@@ -29,6 +29,8 @@ export default tseslint.config(
       '**/modules/**/*.service.ts',
       '**/jwt.strategy.ts',
       '**/modules/**/*.spec.ts',
+      '**/test/**/*.ts', 
+      '**/*.e2e-spec.ts',
     ],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',

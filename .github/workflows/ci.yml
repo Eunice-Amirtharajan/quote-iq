@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Unit Tests + E2E Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB:       quoteiq_test
+          POSTGRES_USER:     postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+      - name: Run migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+      - name: Seed test database
+        working-directory: backend
+        run: npx tsx src/prisma/seed.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+      - name: Run unit tests with coverage
+        working-directory: backend
+        run: npm run test:cov
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+          JWT_SECRET:   test-secret-key
+          NODE_ENV:     test
+
+      - name: Run e2e tests
+        working-directory: backend
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+          JWT_SECRET:   test-secret-key
+          NODE_ENV:     test
+          PORT:         4000
