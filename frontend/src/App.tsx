@@ -5,19 +5,35 @@ import LoginPage from "./pages/LoginPage";
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import QuotationsPage from "./pages/QuotationsPage";
+import ClientsPage from "./pages/ClientsPage";
+import QuotationDetailPage from "./pages/QuotationDetailPage";
 
 function AppContent() {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState("dashboard");
-
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   if (!user) return <LoginPage />;
 
   const renderPage = () => {
-     switch (currentPage) {
-    case 'dashboard':  return <DashboardPage />;
-    case 'quotations': return <QuotationsPage />;
-    default:           return <p className="text-gray-400">Coming soon</p>;
-  }
+    if (selectedQuoteId) {
+      return (
+        <QuotationDetailPage
+          id={selectedQuoteId}
+          onBack={() => setSelectedQuoteId(null)}
+        />
+      );
+    }
+
+    switch (currentPage) {
+      case "dashboard":
+        return <DashboardPage />;
+      case "quotations":
+        return <QuotationsPage onSelect={setSelectedQuoteId} />;
+      case "clients":
+        return <ClientsPage />;
+      default:
+        return <p className="text-gray-400">Coming soon</p>;
+    }
   };
 
   return (

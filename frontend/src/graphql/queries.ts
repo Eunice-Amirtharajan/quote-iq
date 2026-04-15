@@ -30,3 +30,58 @@ export const QUOTATIONS_QUERY = gql`
     }
   }
 `;
+
+export const CLIENTS_QUERY = gql`
+  query Clients {
+    clients {
+      id
+      name
+      company
+      email
+      phone
+      city
+      country
+      createdAt
+    }
+  }
+`;
+
+export const QUOTATION_QUERY = gql`
+  query Quotation($id: ID!) {
+    quotation(id: $id) {
+      id
+      quotationNumber
+      title
+      status
+      notes
+      taxRate
+      subtotal
+      taxAmount
+      total
+      validUntil
+      createdAt
+      client {
+        id
+        name
+        company
+        email
+        city
+        country
+      }
+      createdBy {
+        id
+        name
+        email
+        role
+      }
+      items {
+        id
+        description
+        quantity
+        unitPrice
+        lineTotal
+        sortOrder
+      }
+    }
+  }
+`;

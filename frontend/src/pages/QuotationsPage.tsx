@@ -1,4 +1,3 @@
-
 import { useQuery } from "@apollo/client/react";
 import { QUOTATIONS_QUERY } from "../graphql/queries";
 
@@ -14,7 +13,9 @@ interface Quotation {
     company: string;
   };
 }
-
+interface Props {
+  onSelect: (id: string) => void;
+}
 const STATUS_STYLES: Record<string, string> = {
   DRAFT: "bg-gray-100 text-gray-600",
   SENT: "bg-blue-50 text-blue-600",
@@ -23,7 +24,7 @@ const STATUS_STYLES: Record<string, string> = {
   EXPIRED: "bg-yellow-50 text-yellow-600",
 };
 
-export default function QuotationsPage() {
+export default function QuotationsPage({ onSelect }: Props) {
   const { data, loading, error } = useQuery<{ quotations: Quotation[] }>(
     QUOTATIONS_QUERY,
   );
@@ -82,7 +83,11 @@ export default function QuotationsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {quotations.map((q) => (
-                <tr key={q.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={q.id}
+                  onClick={() => onSelect(q.id)}
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                >
                   <td className="px-6 py-4 text-sm font-mono text-gray-500">
                     {q.quotationNumber}
                   </td>
