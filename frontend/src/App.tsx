@@ -1,19 +1,29 @@
+import { useState } from "react";
 import { AuthProvider } from "./context/AuthContext";
-import LoginPage from "./pages/LoginPage";
 import { useAuth } from "./hooks/useAuth";
+import LoginPage from "./pages/LoginPage";
+import Layout from "./components/Layout";
+import DashboardPage from "./pages/DashboardPage";
+import QuotationsPage from "./pages/QuotationsPage";
 
 function AppContent() {
   const { user } = useAuth();
+  const [currentPage, setCurrentPage] = useState("dashboard");
 
   if (!user) return <LoginPage />;
 
+  const renderPage = () => {
+     switch (currentPage) {
+    case 'dashboard':  return <DashboardPage />;
+    case 'quotations': return <QuotationsPage />;
+    default:           return <p className="text-gray-400">Coming soon</p>;
+  }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-semibold">Welcome, {user.name}</h1>
-        <p className="text-gray-500">{user.role}</p>
-      </div>
-    </div>
+    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+      {renderPage()}
+    </Layout>
   );
 }
 
