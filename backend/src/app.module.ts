@@ -9,6 +9,7 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { LoggerModule } from './common/logger/logger.module';
+import { AIModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LoggerModule } from './common/logger/logger.module';
     ClientsModule,
     QuotationsModule,
     DashboardModule,
+    AIModule,
   ],
 })
 export class AppModule {}

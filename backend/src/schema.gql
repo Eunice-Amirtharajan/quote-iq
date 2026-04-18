@@ -96,6 +96,9 @@ type Query {
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
+
+  """Generate AI summary for a quotation"""
+  quotationSummary(quotationId: ID!): QuotationSummaryType!
   quotations: [QuotationType!]!
 }
 
@@ -120,6 +123,21 @@ enum QuotationStatus {
   EXPIRED
   REJECTED
   SENT
+}
+
+"""AI-generated quotation intelligence summary"""
+type QuotationSummaryType {
+  """Key positive signals"""
+  keyPoints: [String!]!
+
+  """Action recommendation"""
+  recommendation: Recommendation!
+
+  """Risk factors to consider"""
+  riskFactors: [String!]!
+
+  """AI assessment of the deal"""
+  summary: String!
 }
 
 """A sales quotation with line items and calculated totals"""
@@ -161,6 +179,12 @@ type QuotationType {
   """Last update timestamp"""
   updatedAt: DateTime!
   validUntil: DateTime
+}
+
+enum Recommendation {
+  FOLLOW_UP
+  PROCEED
+  RECONSIDER
 }
 
 enum Role {
