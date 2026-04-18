@@ -85,3 +85,14 @@ export const QUOTATION_QUERY = gql`
     }
   }
 `;
+
+export const QUOTATION_SUMMARY_QUERY = gql`
+  query QuotationSummary($quotationId: ID!) {
+    quotationSummary(quotationId: $quotationId) {
+      summary
+      recommendation
+      keyPoints
+      riskFactors
+    }
+  }
+`;

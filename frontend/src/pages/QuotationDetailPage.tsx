@@ -1,5 +1,6 @@
 import { useQuery } from "@apollo/client/react";
 import { QUOTATION_QUERY } from "../graphql/queries";
+import AIInsightCard from "../components/AIInsightCard";
 
 interface QuotationItem {
   id: string;
@@ -226,6 +227,7 @@ export default function QuotationDetailPage({ id, onBack }: Props) {
               )}
             </div>
           </div>
+          <AIInsightCard quotationId={id} />
         </div>
       </div>
     </div>
