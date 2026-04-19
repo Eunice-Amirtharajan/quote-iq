@@ -162,7 +162,7 @@ describe("QuotationDetailPage", () => {
     );
 
     await screen.findByText("Enterprise License");
-    screen.getByText("← Back").click();
+    screen.getByText("Quotations").click();
     expect(mockOnBack).toHaveBeenCalled();
   });
 

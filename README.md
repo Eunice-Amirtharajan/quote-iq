@@ -128,3 +128,11 @@ Run `npx prisma db seed` after setting up your environment.
 - [Login Flow](docs/flow-login.md)
 - [Protected Query Flow](docs/flow-protected-query.md)
 - [Data Model](docs/data-model.md)
+
+## Demo
+
+https://quoteiq.cc
+
+Demo credentials:
+- Manager: `marcus@quoteiq.com`
+- Sales Rep: `anna@quoteiq.com`

@@ -125,7 +125,11 @@ describe('AuthService', () => {
   describe('logout', () => {
     it('clears the access_token cookie', () => {
       const result = service.logout(mockResponse);
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('access_token');
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith('access_token', {
+        httpOnly: true,
+        sameSite: 'none',
+        secure: true,
+      });
       expect(result).toBe(true);
     });
   });

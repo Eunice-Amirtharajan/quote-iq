@@ -76,15 +76,15 @@ export default function QuotationDetailPage({ id, onBack }: Props) {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-2 mb-6 text-sm">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-gray-900 transition-colors"
+          className="text-gray-400 hover:text-gray-900 transition-colors"
         >
-          ← Back
+          Quotations
         </button>
-        <span className="text-gray-200">|</span>
-        <h2 className="text-xl font-semibold text-gray-900">{q.title}</h2>
+        <span className="text-gray-300">/</span>
+        <span className="text-gray-900 font-medium">{q.title}</span>
         <span
           className={`inline-flex text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[q.status] ?? "bg-gray-100 text-gray-600"}`}
         >

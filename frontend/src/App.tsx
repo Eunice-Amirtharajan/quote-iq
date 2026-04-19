@@ -37,7 +37,13 @@ function AppContent() {
   };
 
   return (
-    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+    <Layout
+      currentPage={selectedQuoteId ? "quotations" : currentPage}
+      onNavigate={(page) => {
+        setSelectedQuoteId(null);
+        setCurrentPage(page);
+      }}
+    >
       {renderPage()}
     </Layout>
   );
