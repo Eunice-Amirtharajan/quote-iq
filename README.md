@@ -63,24 +63,38 @@ NODE_ENV="development"
 
 ```
 quote-iq/
+├── .github/
+│   └── workflows/
 ├── backend/
+│   ├── prisma/
+│   │   └── migrations/
+│   ├── src/
+│   │   ├── common/
+│   │   │   ├── decorators/
+│   │   │   ├── guards/
+│   │   │   ├── logger/
+│   │   │   └── middleware/
+│   │   ├── modules/
+│   │   │   ├── ai/
+│   │   │   ├── auth/
+│   │   │   ├── clients/
+│   │   │   ├── dashboard/
+│   │   │   ├── quotations/
+│   │   │   └── users/
+│   │   └── prisma/
+│   └── test/
+├── frontend/
 │   └── src/
-│       ├── modules/
-│       │   ├── auth/
-│       │   ├── users/
-│       │   ├── clients/
-│       │   ├── quotations/
-│       │   ├── dashboard/
-│       │   └── ai/
-│       ├── common/
-│       │   ├── guards/
-│       │   └── decorators/
-│       └── prisma/
-└── frontend/
-    └── src/
-        ├── components/
-        ├── graphql/
-        └── hooks/
+│       ├── components/
+│       ├── context/
+│       ├── graphql/
+│       ├── hooks/
+│       ├── lib/
+│       ├── pages/
+│       └── test/
+├── docs/
+├── .gitignore
+└── README.md
 ```
 
 ---
@@ -103,7 +117,14 @@ npx prisma db seed
 
 Creates three users with sample quotations across multiple clients and statuses.
 
-Demo credentials (all use `password123`):
-- `marcus@quoteiq.com` — Sales Manager
-- `anna@quoteiq.com` — Sales Rep  
-- `tom@quoteiq.com` — Sales Rep
+# Better — honest but not a security concern
+Demo credentials are configured via SEED_PASSWORD in .env.
+Default seed creates three users — manager, and two sales reps.
+Run `npx prisma db seed` after setting up your environment.
+
+## Diagrams
+
+- [Architecture](docs/architecture.md)
+- [Login Flow](docs/flow-login.md)
+- [Protected Query Flow](docs/flow-protected-query.md)
+- [Data Model](docs/data-model.md)

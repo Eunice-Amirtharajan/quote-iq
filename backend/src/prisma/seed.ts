@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding...');
-
-  const hash = await bcrypt.hash('password123', 10);
+  const seedPassword = process.env.SEED_PASSWORD ?? 'password123';
+  const hash = await bcrypt.hash(seedPassword, 10);
 
   const [, anna, tom] = await Promise.all([
     prisma.user.upsert({
