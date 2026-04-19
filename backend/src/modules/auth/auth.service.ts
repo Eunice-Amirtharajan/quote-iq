@@ -45,8 +45,8 @@ export class AuthService {
 
       res.cookie('access_token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: true,
+        sameSite: 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
       this.logger.info(`Login successful: ${user.id}`, AuthService.name);
@@ -63,7 +63,11 @@ export class AuthService {
 
   logout(res: Response): boolean {
     try {
-      res.clearCookie('access_token');
+      res.clearCookie('access_token', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+      });
       return true;
     } catch (error) {
       this.logger.error(
