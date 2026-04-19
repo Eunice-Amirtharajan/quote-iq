@@ -9,7 +9,8 @@ async function bootstrap() {
     origin: [
       'http://localhost:5173',
       'https://studio.apollographql.com',
-      'https://quote-iq-rho.vercel.app',
+      'https://quoteiq.cc',
+      'https://www.quoteiq.cc',
     ],
     credentials: true,
     methods: ['GET', 'POST'],
