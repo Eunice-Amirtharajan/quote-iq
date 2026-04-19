@@ -10,7 +10,6 @@ async function bootstrap() {
       'http://localhost:5173',
       'https://studio.apollographql.com',
       'https://quoteiq.cc',
-      'https://www.quoteiq.cc',
     ],
     credentials: true,
     methods: ['GET', 'POST'],
