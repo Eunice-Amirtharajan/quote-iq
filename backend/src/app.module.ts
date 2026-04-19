@@ -18,6 +18,9 @@ import { AIModule } from './modules/ai/ai.module';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
+      introspection: true,
+      playground: false,
+      csrfPrevention: false,
       context: ({ req, res }: { req: Request; res: Response }) => ({
         req,
         res,
