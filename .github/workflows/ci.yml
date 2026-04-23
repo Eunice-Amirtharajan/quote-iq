@@ -15,8 +15,8 @@ jobs:
       postgres:
         image: postgres:15-alpine
         env:
-          POSTGRES_DB:       quoteiq_test
-          POSTGRES_USER:     postgres
+          POSTGRES_DB: quoteiq_test
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5433:5432
@@ -64,14 +64,26 @@ jobs:
         run: npm run test:cov
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
-          JWT_SECRET:   test-secret-key
-          NODE_ENV:     test
+          JWT_SECRET: test-secret-key
+          NODE_ENV: test
 
       - name: Run e2e tests
         working-directory: backend
         run: npm run test:e2e
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
-          JWT_SECRET:   test-secret-key
-          NODE_ENV:     test
-          PORT:         4000
+          JWT_SECRET: test-secret-key
+          NODE_ENV: test
+          PORT: 4000
+
+      - name: Deploy to Vercel
+        if: success()
+        working-directory: frontend
+        run: |
+          npm install --global vercel
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
