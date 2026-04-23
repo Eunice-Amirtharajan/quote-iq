@@ -9,7 +9,7 @@ sequenceDiagram
     participant PrismaDB
 
     Browser->>ApolloClient: Submit login form
-    ApolloClient->>NestJS: POST /graphql\nlogin(email, password)
+    ApolloClient->>NestJS: POST /graphql<br/>login(email, password)
     NestJS->>PrismaDB: findUnique({ where: { email } })
     PrismaDB-->>NestJS: User record
     NestJS->>NestJS: bcrypt.compare(password, hash)
@@ -17,5 +17,5 @@ sequenceDiagram
     JwtService-->>NestJS: JWT token
     NestJS->>Browser: Set-Cookie: access_token (HttpOnly)
     NestJS-->>ApolloClient: { id, name, email, role }
-    ApolloClient->>Browser: Update AuthContext\nRender dashboard
+    ApolloClient->>Browser: Update AuthContext<br/>Render dashboard
 ```

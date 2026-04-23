@@ -9,27 +9,27 @@ graph TB
     end
 
     subgraph Backend["Backend (NestJS + GraphQL)"]
-        GQL[Apollo Server\nGraphQL API]
-        Guards[JWT Auth Guard\nRoles Guard]
-        Modules[Auth · Clients\nQuotations · Dashboard · AI]
+        GQL[Apollo Server<br/>GraphQL API]
+        Guards[JWT Auth Guard<br/>Roles Guard]
+        Modules[Auth · Clients<br/>Quotations · Dashboard · AI]
         Logger[Winston Logger]
     end
 
     subgraph Data["Data Layer"]
         Prisma[Prisma ORM]
-        DB[(PostgreSQL\nNeon DB)]
+        DB[(PostgreSQL<br/>Neon DB)]
     end
 
     subgraph AI["AI Layer"]
-        Gemini[Google Gemini AI\nDynamic Model Resolution]
+        Gemini[Google Gemini AI<br/>Dynamic Model Resolution]
         Zod[Zod Validation]
     end
 
     subgraph CI["CI/CD"]
-        GHA[GitHub Actions\nUnit + E2E Tests]
-        Docker[Docker\nPostgreSQL Test DB]
-        Railway[Railway EU\nBackend]
-        Vercel[Vercel\nFrontend]
+        GHA[GitHub Actions<br/>Unit + E2E Tests]
+        Docker[Docker<br/>PostgreSQL Test DB]
+        Railway[Railway EU<br/>Backend]
+        Vercel[Vercel<br/>Frontend]
     end
 
     UI --> Apollo
