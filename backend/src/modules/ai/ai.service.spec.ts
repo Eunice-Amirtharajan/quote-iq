@@ -174,4 +174,113 @@ describe('AIService', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });
+
+  describe('resolveModel (via onModuleInit)', () => {
+    beforeEach(() => {
+      // Reset modelName to default before each test
+      service['modelName'] = 'gemini-1.5-flash';
+    });
+
+    it('uses preferred model when available', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValue({
+          models: [
+            {
+              name: 'models/gemini-1.5-flash',
+              supportedGenerationMethods: ['generateContent'],
+            },
+          ],
+        }),
+      });
+
+      await service.onModuleInit();
+
+      expect(service['modelName']).toBe('gemini-1.5-flash');
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Using Gemini model'),
+        AIService.name,
+      );
+    });
+
+    it('falls back to first available when no preferred model found', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValue({
+          models: [
+            {
+              name: 'models/gemini-2.5-flash',
+              supportedGenerationMethods: ['generateContent'],
+            },
+          ],
+        }),
+      });
+
+      await service.onModuleInit();
+
+      expect(service['modelName']).toBe('gemini-2.5-flash');
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Falling back to'),
+        AIService.name,
+      );
+    });
+
+    it('logs warning when no models available', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValue({
+          models: [],
+        }),
+      });
+
+      await service.onModuleInit();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'No available Gemini models found',
+        AIService.name,
+      );
+    });
+
+    it('filters out models that do not support generateContent', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValue({
+          models: [
+            {
+              name: 'models/gemini-embed',
+              supportedGenerationMethods: ['embedContent'], // not generateContent
+            },
+            {
+              name: 'models/gemini-2.5-flash',
+              supportedGenerationMethods: ['generateContent'],
+            },
+          ],
+        }),
+      });
+
+      await service.onModuleInit();
+
+      expect(service['modelName']).toBe('gemini-2.5-flash');
+    });
+
+    it('logs warning and uses default when fetch fails', async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(
+        new Error('Network error'),
+      );
+
+      await service.onModuleInit();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Could not resolve Gemini model'),
+        AIService.name,
+      );
+    });
+
+    it('handles non-Error exceptions in catch block', async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce('string error');
+
+      await service.onModuleInit();
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('string error'),
+        AIService.name,
+      );
+    });
+  });
 });

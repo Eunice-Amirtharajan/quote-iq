@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
-import { MockedProvider, } from "@apollo/client/testing/react";
+import { MockedProvider } from "@apollo/client/testing/react";
 import LoginPage from "./LoginPage";
 import { LOGIN_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/AuthContext";
@@ -111,5 +111,12 @@ describe("LoginPage", () => {
     await waitFor(() => {
       expect(document.querySelector(".text-red-600")).toBeInTheDocument();
     });
+  });
+
+  it("shows demo credentials", () => {
+    renderLoginPage();
+    expect(screen.getByText("Demo credentials")).toBeInTheDocument();
+    expect(screen.getByText(/marcus@quoteiq.com/)).toBeInTheDocument();
+    expect(screen.getByText(/password123/)).toBeInTheDocument();
   });
 });

@@ -134,5 +134,5 @@ Run `npx prisma db seed` after setting up your environment.
 https://quoteiq.cc
 
 Demo credentials:
-- Manager: `marcus@quoteiq.com`
-- Sales Rep: `anna@quoteiq.com`
+- Manager: `marcus@quoteiq.com` / `password123`
+- Sales Rep: `anna@quoteiq.com` / `password123`

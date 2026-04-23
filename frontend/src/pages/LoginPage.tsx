@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { LOGIN_MUTATION } from "../graphql/mutations";
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from "../hooks/useAuth";
 import { useMutation } from "@apollo/client/react";
 
 interface LoginData {
@@ -83,10 +83,25 @@ export default function LoginPage() {
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Demo credentials
+            </p>
+            <div className="space-y-1">
+              <p className="text-xs text-gray-600">
+                <span className="font-medium">Manager:</span> marcus@quoteiq.com
+              </p>
+              <p className="text-xs text-gray-600">
+                <span className="font-medium">Sales Rep:</span> anna@quoteiq.com
+              </p>
+              <p className="text-xs text-gray-600">
+                <span className="font-medium">Password:</span> password123
+              </p>
+            </div>
+          </div>
         </form>
 
-        <p className="text-xs text-gray-400 mt-6 text-center">
-        </p>
+        <p className="text-xs text-gray-400 mt-6 text-center"></p>
       </div>
     </div>
   );
