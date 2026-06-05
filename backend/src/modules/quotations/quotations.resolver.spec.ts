@@ -209,6 +209,7 @@ describe('QuotationsResolver', () => {
         'SENT',
         'Sending',
         'user-1',
+        Role.SALES_REP,
       );
       expect(result).toMatchObject({ status: QuotationStatus.SENT });
     });
@@ -258,6 +259,7 @@ describe('QuotationsResolver', () => {
         'APPROVED',
         'Looks good',
         'user-1',
+        Role.SALES_MANAGER,
       );
       expect(result).toMatchObject({ status: QuotationStatus.APPROVED });
     });

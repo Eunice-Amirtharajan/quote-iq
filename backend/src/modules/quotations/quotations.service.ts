@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   Injectable,
   NotFoundException,
@@ -130,36 +131,35 @@ export class QuotationsService {
       const { itemsWithTotal, subtotal, taxAmount, total } =
         this.calculateTotals(input.items, taxRate);
 
-      const result = await this.prisma.$transaction(async (tx) => {
-        const result = await tx.$queryRaw<
-          [{ nextval: bigint }]
-        >`SELECT nextval('quote_number_seq')`;
+      // $transaction not supported by Neon HTTP driver — sequence + insert run
+      // sequentially. Quote numbers may have rare gaps on concurrent failures
+      // but are never duplicated (sequence is DB-level atomic).
+      const seqResult = await this.prisma.$queryRaw<
+        [{ nextval: bigint }]
+      >`SELECT nextval('quote_number_seq')`;
+      const seq = Number(seqResult[0].nextval);
+      const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
 
-        const seq = Number(result[0].nextval);
-        const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
-
-        const createdQuote = await tx.quotation.create({
-          data: {
-            quotationNumber: quoteNumber,
-            title: input.title,
-            clientId: input.clientId,
-            notes: input.notes,
-            taxRate,
-            subtotal,
-            taxAmount,
-            total,
-            validUntil: input.validUntil,
-            createdById: user.id,
-            items: {
-              create: itemsWithTotal.map((item, i) => ({
-                ...item,
-                sortOrder: i,
-              })),
-            },
+      const result = await this.prisma.quotation.create({
+        data: {
+          quotationNumber: quoteNumber,
+          title: input.title,
+          clientId: input.clientId,
+          notes: input.notes,
+          taxRate,
+          subtotal,
+          taxAmount,
+          total,
+          validUntil: input.validUntil,
+          createdById: user.id,
+          items: {
+            create: itemsWithTotal.map((item, i) => ({
+              ...item,
+              sortOrder: i,
+            })),
           },
-          include: { items: true, client: true, createdBy: true },
-        });
-        return createdQuote;
+        },
+        include: { items: true, client: true, createdBy: true },
       });
       return result;
     } catch (error) {
@@ -177,6 +177,7 @@ export class QuotationsService {
     status: QuotationStatus,
     note: string | undefined,
     userId: string,
+    userRole: Role,
   ): Promise<QuotationType> {
     this.logger.info(
       `Status update — quotationId: ${id} newStatus: ${status} userId: ${userId}`,
@@ -184,40 +185,42 @@ export class QuotationsService {
     );
 
     try {
-      const quotation = await this.prisma.$transaction(async (tx) => {
-        const current = await tx.quotation.findFirst({
-          where: { id },
-        });
-        if (!current) {
-          this.logger.warn(
-            `Status update failed — quotation not found: ${id}`,
-            QuotationsService.name,
-          );
-          throw new NotFoundException(`Quotation ${id} not found`);
-        }
-        if (!allowed[current.status].includes(status)) {
-          throw new BadRequestException(
-            `cannot transition from ${current.status} to ${status}`,
-          );
-        }
-        this.logger.info(
-          `Status transition — ${current.status} -> ${status} on quotation: ${id}`,
+      // $transaction not supported by Neon HTTP driver — sequential calls used.
+      // Guards (state machine + role check) run before any write so a failed
+      // validation never leaves partial state.
+      const current = await this.prisma.quotation.findFirst({ where: { id } });
+      if (!current) {
+        this.logger.warn(
+          `Status update failed — quotation not found: ${id}`,
           QuotationsService.name,
         );
-        await tx.statusHistory.create({
-          data: {
-            quotationId: id,
-            fromStatus: current.status,
-            toStatus: status,
-            note,
-            changedById: userId,
-          },
-        });
-        return await tx.quotation.update({
-          where: { id },
-          data: { status: status },
-          include: { items: true, client: true, createdBy: true },
-        });
+        throw new NotFoundException(`Quotation ${id} not found`);
+      }
+      if (!allowed[current.status].includes(status)) {
+        throw new BadRequestException(
+          `cannot transition from ${current.status} to ${status}`,
+        );
+      }
+      const managerOnlyTargets: QuotationStatus[] = [
+        QuotationStatus.APPROVED,
+        QuotationStatus.REJECTED,
+      ];
+      if (managerOnlyTargets.includes(status) && userRole === Role.SALES_REP) {
+        throw new ForbiddenException(
+          'Only managers can approve or reject quotations',
+        );
+      }
+      this.logger.info(
+        `Status transition — ${current.status} -> ${status} on quotation: ${id}`,
+        QuotationsService.name,
+      );
+      await this.prisma.statusHistory.create({
+        data: { quotationId: id, fromStatus: current.status, toStatus: status, note, changedById: userId },
+      });
+      const quotation = await this.prisma.quotation.update({
+        where: { id },
+        data: { status },
+        include: { items: true, client: true, createdBy: true },
       });
       return quotation;
     } catch (error) {

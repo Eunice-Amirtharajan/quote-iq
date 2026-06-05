@@ -82,6 +82,7 @@ export class QuotationsResolver {
       input.status,
       input.note,
       user.id,
+      user.role,
     );
   }
 
