@@ -47,7 +47,17 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Allow requests with no Origin header (Railway health checks, curl, same-origin)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST'],
     allowedHeaders: [
@@ -56,11 +66,20 @@ async function bootstrap() {
       'Apollo-Require-Preflight',
     ],
   });
-  // Lightweight health check for Railway and UptimeRobot
-  // GET /health → 200 { status: "ok" }
-  app.getHttpAdapter().get('/health', (_req, res: { json: (b: unknown) => void }) => {
-    res.json({ status: 'ok' });
-  });
+
+  // Health check — registered before listen() so Railway probes it immediately on deploy.
+  // No DB call — never fails due to Neon cold start.
+  app
+    .getHttpAdapter()
+    .get(
+      '/health',
+      (
+        _req: unknown,
+        res: { status: (c: number) => { json: (b: unknown) => void } },
+      ) => {
+        res.status(200).json({ status: 'ok' });
+      },
+    );
 
   await app.listen(process.env.PORT ?? 4000);
   const prisma = app.get(PrismaService);
