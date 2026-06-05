@@ -1,0 +1,259 @@
+<mxfile host="65bd71144e">
+    <diagram name="Infrastructure &amp; Observability" id="infra">
+        <mxGraphModel dx="1526" dy="689" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="QuoteIQ — Infrastructure &amp; Observability" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="377" y="20" width="900" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="dev-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;opacity=40;verticalAlign=top;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="80" width="300" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="dev-zone-label" value="Developer Machine" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="85" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="dev-code" value="Source Code&#xa;(VS Code)" style="shape=mxgraph.cisco.computers_and_peripherals.pc;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="120" width="60" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="husky-box" value="Husky Git Hooks&#xa;&#xa;pre-commit:&#xa;• TS build&#xa;• Frontend unit tests&#xa;• Backend unit tests&#xa;&#xa;pre-push:&#xa;• Backend coverage ≥90%&#xa;• Frontend coverage ≥95%" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;align=left;spacingLeft=8;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="200" width="240" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="github-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;opacity=40;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="80" width="220" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="github-zone-label" value="GitHub" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="85" width="220" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="github-repo" value="Repository&#xa;(main branch)" style="shape=mxgraph.veeam2.server;html=1;fillColor=#f5f5f5;strokeColor=#333333;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="115" width="60" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="gh-actions" value="GitHub Actions CI&#xa;&#xa;1. Backend unit tests&#xa;2. Backend E2E tests&#xa;   (Docker + Postgres)&#xa;3. Frontend unit tests&#xa;4. Build check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;fontSize=11;align=left;spacingLeft=8;" parent="1" vertex="1">
+                    <mxGeometry x="415" y="195" width="190" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;opacity=40;" parent="1" vertex="1">
+                    <mxGeometry x="680" y="80" width="260" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel-zone-label" value="Vercel (Frontend)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="680" y="85" width="260" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel-build" value="Build Pipeline&#xa;tsc -b &amp;&amp; vite build" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="120" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel-cdn" value="Global CDN Edge&#xa;&#xa;React SPA&#xa;HTML · JS · CSS&#xa;&#xa;quoteiq.cc" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="190" width="200" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="vercel-analytics" value="Vercel Analytics&#xa;Page load · Error rate&#xa;Geographic traffic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="700" y="320" width="200" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="railway-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=40;" parent="1" vertex="1">
+                    <mxGeometry x="1000" y="80" width="300" height="440" as="geometry"/>
+                </mxCell>
+                <mxCell id="railway-zone-label" value="Railway EU — europe-west4 (Backend)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1000" y="85" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-container" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=60;" parent="1" vertex="1">
+                    <mxGeometry x="1015" y="115" width="270" height="260" as="geometry"/>
+                </mxCell>
+                <mxCell id="docker-label" value="Docker Container" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="1015" y="118" width="270" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="nestjs-box" value="NestJS 11&#xa;Apollo GraphQL Server&#xa;:5000/graphql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1035" y="145" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="health-endpoint" value="GET /health&#xa;→ 200 { status: ok }&#xa;No DB call — always fast" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1035" y="225" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="prisma-box" value="Prisma ORM&#xa;PrismaNeonHttp adapter&#xa;HTTP per query (no TCP pool)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1035" y="305" width="220" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="railway-metrics" value="Railway Built-in&#xa;CPU · Memory · Network&#xa;Logs (real-time stdout)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1015" y="390" width="270" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="railway-healthcheck" value="Railway Health Check&#xa;GET /health every 30s&#xa;Auto-restart on failure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1015" y="460" width="270" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="neon-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;opacity=40;" parent="1" vertex="1">
+                    <mxGeometry x="995" y="635" width="300" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="neon-zone-label" value="Neon DB (PostgreSQL — Serverless)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1030" y="600" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="neon-db" value="&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;PostgreSQL&lt;br&gt;Pauses after 5 min idle" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1015" y="665" width="100" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="keepalive" value="4-min keepalive ping&#xa;SELECT 1 (prevents pause)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1155" y="675" width="130" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="uptime-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;opacity=40;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="440" width="300" height="250" as="geometry"/>
+                </mxCell>
+                <mxCell id="uptime-zone-label" value="UptimeRobot (External Monitoring)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="445" width="300" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="uptime-backend" value="Monitor: Backend&#xa;HEAD api.quoteiq.cc/health&#xa;Every 5 minutes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="480" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="uptime-frontend" value="Monitor: Frontend&#xa;HEAD quoteiq.cc&#xa;Every 5 minutes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="565" width="240" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="uptime-alert" value="&lt;div&gt;&lt;br&gt;&lt;/div&gt;Email Alert&lt;br&gt;Down + Recovery notification&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="650" width="240" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="user" value="User&#xa;(Browser)" style="shape=mxgraph.cisco.computers_and_peripherals.pc;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="780" y="500" width="60" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-push" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#333333;strokeWidth=2;" parent="1" source="dev-code" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="399" y="150" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-push-label" value="git push" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-push" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-husky" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;dashed=1;" parent="1" source="husky-box" target="dev-code" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-husky-label" value="blocks commit/push&#xa;on failure" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-husky" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="45" y="-15" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-vercel-deploy" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" parent="1" source="gh-actions" target="vercel-build" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="660" y="280"/>
+                            <mxPoint x="660" y="145"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-vercel-label" value="deploy on CI pass" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-vercel-deploy" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="40" y="-40" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-railway-deploy" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" parent="1" source="gh-actions" target="nestjs-box" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="640" y="280"/>
+                            <mxPoint x="640" y="60"/>
+                            <mxPoint x="1145" y="60"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-railway-label" value="Docker deploy on CI pass" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-railway-deploy" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-user-vercel" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="user" target="vercel-cdn" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="810" y="400"/>
+                            <mxPoint x="930" y="400"/>
+                            <mxPoint x="930" y="245"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-user-vercel-label" value="HTTPS quoteiq.cc" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-user-vercel" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="-12" y="10" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-user-railway" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" parent="1" source="user" target="nestjs-box" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="980" y="530"/>
+                            <mxPoint x="980" y="175"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-user-railway-label" value="GraphQL + cookie&#xa;api.quoteiq.cc/graphql" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-user-railway" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="-60" y="55" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-prisma-neon" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" parent="1" source="prisma-box" target="neon-zone" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1080" y="570" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="1420" y="335"/>
+                            <mxPoint x="1420" y="540"/>
+                            <mxPoint x="1070" y="540"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-prisma-neon-label" value="HTTPS (HTTP driver)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-prisma-neon" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-railway-health" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;dashed=1;" parent="1" source="railway-healthcheck" target="health-endpoint" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1360" y="485"/>
+                            <mxPoint x="1360" y="255"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-railway-health-label" value="GET /health every 30s" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-railway-health" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-uptime-backend" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" parent="1" source="uptime-backend" target="health-endpoint" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="990" y="515"/>
+                            <mxPoint x="990" y="255"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-uptime-backend-label" value="HEAD every 5 min" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-uptime-backend" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="-107" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-uptime-frontend" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" parent="1" source="uptime-frontend" target="vercel-cdn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-uptime-frontend-label" value="HEAD every 5 min" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-uptime-frontend" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e-keepalive" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=1;dashed=1;" parent="1" source="keepalive" target="neon-db" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e-keepalive-label" value="SELECT 1 every 4 min" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-keepalive" vertex="1" connectable="0">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="20" y="-42" as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="legend-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;opacity=80;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="730" width="300" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=11;fontStyle=1;spacingLeft=8;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="735" width="280" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-deploy" value="—— Deployment / data flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;spacingLeft=8;fontColor=#333333;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="758" width="280" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-monitor" value="- - - Monitoring / health probe" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;spacingLeft=8;fontColor=#9673a6;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="776" width="280" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-yellow" value="Yellow = quality gate / health check" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;spacingLeft=8;fontColor=#d6b656;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="794" width="280" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-blue" value="Blue = Vercel / Frontend" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;spacingLeft=8;fontColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="812" width="280" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend-green" value="Green = Railway / Backend" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;spacingLeft=8;fontColor=#82b366;" parent="1" vertex="1">
+                    <mxGeometry x="48" y="830" width="280" height="18" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

@@ -102,7 +102,7 @@ GROQ_API_KEY=""           # Groq API key — free at console.groq.com
 SEED_PASSWORD=""          # Password set for all seeded demo users (default: password123)
 PORT=5000
 NODE_ENV="development"
-CORS_ORIGIN="http://localhost:5173"
+CORS_ORIGIN="http://localhost:5173"   # Comma-separated list of allowed frontend origins
 LOG_LEVEL="info"
 ```
 
@@ -187,5 +187,32 @@ Draw.io source files are in [`docs/drawio/`](docs/drawio/). Open with [Draw.io D
 | Request Lifecycle | [sequence-request-lifecycle.drawio](docs/drawio/sequence-request-lifecycle.drawio) | GraphQL request from browser through guards, resolver, service to DB and back |
 | AI Pipeline | [ai-pipeline.drawio](docs/drawio/ai-pipeline.drawio) | Hybrid recommendation model — cache check, rules engine, Groq, Zod, hard override |
 | CI/CD Pipeline | [cicd-pipeline.drawio](docs/drawio/cicd-pipeline.drawio) | GitHub Actions → test gate → Railway Docker deploy + Vercel CDN deploy |
+| Infrastructure &amp; Observability | [infra-observability.drawio](docs/drawio/infra-observability.drawio) | Full deployment topology — Husky hooks, CI gates, Railway health check, UptimeRobot, Neon keepalive |
 
 CI/CD flow also available as a [Mermaid diagram](docs/cicd-flow.md) (renders directly on GitHub).
+
+---
+
+## Quality Gates
+
+Git hooks (via Husky) block commits and pushes that don't meet quality standards. Run `npm install` at the repo root to install them automatically.
+
+| Hook | Checks | When |
+|---|---|---|
+| `pre-commit` | Frontend TS build · Frontend unit tests · Backend unit tests | Every `git commit` (~30s) |
+| `pre-push` | Backend coverage ≥90% statements · Frontend coverage ≥95% statements | Every `git push` (~45s) |
+
+E2E tests are excluded from hooks — they require Docker and run in CI instead.
+
+---
+
+## Observability
+
+| What | Tool | Details |
+|---|---|---|
+| Uptime monitoring + alerts | UptimeRobot (free) | Probes `GET /health` (backend) and `https://quoteiq.cc` (frontend) every 5 min — email alert on down/recovery |
+| Container health check + auto-restart | Railway (built-in) | `GET /health` every 30s — Railway restarts container automatically if it fails |
+| CPU / memory / logs | Railway dashboard | Real-time metrics and stdout logs |
+| Frontend performance + errors | Vercel Analytics | Page load times, error rates, geographic traffic |
+
+The `/health` endpoint (`GET https://api.quoteiq.cc/health`) returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.

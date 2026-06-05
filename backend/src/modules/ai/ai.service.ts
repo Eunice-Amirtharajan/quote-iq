@@ -252,7 +252,10 @@ strong contradicting signals. Justify your reasoning.
     try {
       const text = await this.callGroq(prompt);
       // Strip markdown code fences if the model wraps JSON in ```json ... ```
-      const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      const cleaned = text
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
       const parsed = JSON.parse(cleaned) as unknown;
       const rawValidated = QuotationSummarySchema.parse(parsed);
       // Rules can only tighten — RECONSIDER from structured data is never overridden by AI's qualitative read
