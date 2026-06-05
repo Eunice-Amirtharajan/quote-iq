@@ -10,6 +10,7 @@ describe('QuoteIQ E2E', () => {
   let managerCookie: string;
   let clientId: string;
   let quotationId: string;
+  let managerQuotationId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -295,6 +296,26 @@ describe('QuoteIQ E2E', () => {
       quotationId = q.id;
     });
 
+    it('manager creates a quotation Anna cannot access', async () => {
+      const managerRes = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            mutation {
+              createQuotation(input: {
+                title:    "Manager Quotation"
+                clientId: "${clientId}"
+                taxRate:  0
+                items: [{ description: "Item" quantity: 1 unitPrice: 100 }]
+              }) { id }
+            }
+          `,
+        })
+        .expect(200);
+      managerQuotationId = managerRes.body.data.createQuotation.id as string;
+    });
+
     it('lists quotations for authenticated user', async () => {
       const response = await request(app.getHttpServer())
         .post('/graphql')
@@ -346,7 +367,7 @@ describe('QuoteIQ E2E', () => {
             mutation {
               updateQuotationStatus(
                 id: "${quotationId}"
-                input: { status: "SENT" note: "Sent to client" }
+                input: { status: SENT note: "Sent to client" }
               ) {
                 id status
               }
@@ -386,7 +407,7 @@ describe('QuoteIQ E2E', () => {
             mutation {
               updateQuotationStatus(
                 id: "${quotationId}"
-                input: { status: "APPROVED" note: "Looks good" }
+                input: { status: APPROVED note: "Looks good" }
               ) {
                 id status
               }
@@ -407,7 +428,7 @@ describe('QuoteIQ E2E', () => {
             mutation {
               updateQuotationStatus(
                 id: "${quotationId}"
-                input: { status: "SENT" }
+                input: { status: SENT }
               ) {
                 id status
               }
@@ -420,29 +441,14 @@ describe('QuoteIQ E2E', () => {
       expect(response.body.errors[0].message).toMatch(/cannot transition/i);
     });
 
-    it('SALES_REP cannot access a quotation created by another rep', async () => {
-      const seedQuotationRes = await request(app.getHttpServer())
-        .post('/graphql')
-        .set('Cookie', managerCookie)
-        .send({
-          query: `query { quotations { id createdBy { id } } }`,
-        })
-        .expect(200);
-
-      const otherQuotation = seedQuotationRes.body.data.quotations.find(
-        (q: { id: string; createdBy: { id: string } }) =>
-          q.id !== quotationId,
-      );
-
-      if (!otherQuotation) return;
-
+    it('SALES_REP cannot access a quotation created by another user', async () => {
       const response = await request(app.getHttpServer())
         .post('/graphql')
         .set('Cookie', authCookie)
         .send({
           query: `
             query {
-              quotation(id: "${otherQuotation.id}") {
+              quotation(id: "${managerQuotationId}") {
                 id
               }
             }

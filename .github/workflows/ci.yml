@@ -66,6 +66,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
           JWT_SECRET: test-secret-key
           NODE_ENV: test
+          GROQ_API_KEY: test-groq-key
 
       - name: Run e2e tests
         working-directory: backend
@@ -75,6 +76,9 @@ jobs:
           JWT_SECRET: test-secret-key
           NODE_ENV: test
           PORT: 4000
+          GROQ_API_KEY: test-groq-key
+          CORS_ORIGIN: http://localhost:3000
+          JWT_EXPIRES_IN: 7d
 
       - name: Deploy to Vercel
         if: success()

@@ -44,17 +44,30 @@ export async function withDbRetry<T>(
   throw new Error('unreachable');
 }
 
+function isNeonUrl(url: string): boolean {
+  return url.includes('neon.tech') || url.includes('neon.database');
+}
+
 @Injectable()
-// PrismaNeonHttp uses Neon's HTTP API instead of a persistent TCP connection.
-// Each query is a fresh HTTP request — no connection pool to time out when Neon pauses.
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new Error('DATABASE_URL is not set');
-    const adapter = new PrismaNeonHttp(connectionString, { arrayMode: false, fullResults: false });
-    super({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
+
+    if (isNeonUrl(connectionString)) {
+      // Neon serverless: use HTTP adapter — no persistent TCP connection,
+      // survives cold starts without a connection pool timeout.
+      const adapter = new PrismaNeonHttp(connectionString, {
+        arrayMode: false,
+        fullResults: false,
+      });
+      super({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
+    } else {
+      // Local / CI Docker PostgreSQL: use standard TCP driver
+      super({ datasourceUrl: connectionString });
+    }
   }
 
   async onModuleDestroy() {
