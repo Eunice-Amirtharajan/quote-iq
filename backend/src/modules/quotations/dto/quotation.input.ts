@@ -2,6 +2,15 @@ import { InputType, Field, Float } from '@nestjs/graphql';
 import { QuotationStatus } from '@prisma/client';
 
 @InputType()
+export class QuotationFilterInput {
+  @Field(() => QuotationStatus, { nullable: true })
+  status?: QuotationStatus;
+
+  @Field(() => String, { nullable: true })
+  search?: string;
+}
+
+@InputType()
 export class QuotationItemInput {
   @Field(() => String)
   description!: string;

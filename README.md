@@ -44,7 +44,9 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 - Sales reps create and manage clients and quotations with line items and tax calculation
 - Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
 - Status workflow: DRAFT → SENT (rep submits for approval) → APPROVED / REJECTED (manager)
+- Role-based transition enforcement — SALES_REP cannot approve or reject (blocked at service layer)
 - Full status history tracked on every transition
+- Quotation list filtering — status dropdown + debounced search (title, number, client name) with input sanitization (trim + 100-char cap at both frontend and backend)
 - Manager dashboard with pipeline stats, conversion rate, and approved value
 - AI-generated quotation summary with PROCEED / FOLLOW_UP / RECONSIDER recommendation
 - Hybrid recommendation model — rules-based scoring anchors the Groq prompt, hard override prevents AI from reversing a RECONSIDER verdict

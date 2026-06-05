@@ -5,8 +5,11 @@ const schema = readFileSync(join(__dirname, 'schema.gql'), 'utf-8');
 
 describe('GraphQL schema contract', () => {
   describe('Query.quotations', () => {
-    it('exposes nullable skip and take args', () => {
-      expect(schema).toContain('quotations(skip: Int, take: Int)');
+    it('exposes nullable skip, take, and filter args', () => {
+      expect(schema).toContain('quotations(');
+      expect(schema).toContain('filter: QuotationFilterInput');
+      expect(schema).toContain('skip: Int');
+      expect(schema).toContain('take: Int');
     });
   });
 

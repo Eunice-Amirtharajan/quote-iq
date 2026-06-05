@@ -335,6 +335,64 @@ describe('QuoteIQ E2E', () => {
       expect(response.body.data.quotations.length).toBeGreaterThan(0);
     });
 
+    it('filters quotations by status', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              quotations(filter: { status: DRAFT }) {
+                id title status
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      const quotations = response.body.data.quotations;
+      expect(quotations).toBeInstanceOf(Array);
+      expect(quotations.every((q: { status: string }) => q.status === 'DRAFT')).toBe(true);
+    });
+
+    it('filters quotations by search term matching title', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              quotations(filter: { search: "E2E Test" }) {
+                id title status
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      const quotations = response.body.data.quotations;
+      expect(quotations).toBeInstanceOf(Array);
+      expect(quotations.some((q: { title: string }) => q.title.includes('E2E Test'))).toBe(true);
+    });
+
+    it('filter returns empty array when no match', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              quotations(filter: { search: "zzz_no_match_xyz" }) {
+                id title
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.data.quotations).toEqual([]);
+    });
+
     it('fetches a single quotation by id', async () => {
       const response = await request(app.getHttpServer())
         .post('/graphql')

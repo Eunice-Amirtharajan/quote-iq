@@ -135,6 +135,36 @@ describe('QuotationsService', () => {
         expect.objectContaining({ where: { createdById: 'user-1' } }),
       );
     });
+    it('applies status filter when provided', async () => {
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
+        status: QuotationStatus.SENT,
+      });
+      expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: QuotationStatus.SENT }),
+        }),
+      );
+    });
+
+    it('applies search filter across title, quotationNumber, and client name', async () => {
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
+        search: 'enterprise',
+      });
+      expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                title: expect.objectContaining({ contains: 'enterprise' }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
     it('throws and logs error when prisma fails', async () => {
       mockPrismaService.quotation.findMany.mockRejectedValue(
         new Error('DB error'),

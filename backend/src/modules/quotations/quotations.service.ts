@@ -6,7 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateQuotationInput } from './dto/quotation.input';
+import {
+  CreateQuotationInput,
+  QuotationFilterInput,
+} from './dto/quotation.input';
 import { QuotationStatus, Role } from '@prisma/client';
 import { AppLogger } from '../../common/logger/logger.service';
 import { QuotationType } from './quotation.entity';
@@ -52,7 +55,12 @@ export class QuotationsService {
     return { itemsWithTotal, subtotal, taxAmount, total };
   }
 
-  async findAll(user: UserType, take = 20, skip = 0): Promise<QuotationType[]> {
+  async findAll(
+    user: UserType,
+    take = 20,
+    skip = 0,
+    filter?: QuotationFilterInput,
+  ): Promise<QuotationType[]> {
     try {
       const userId = user.id;
       const role = user.role;
@@ -60,12 +68,40 @@ export class QuotationsService {
         `Fetching quotations — userId: ${userId} role: ${role}`,
         QuotationsService.name,
       );
-      const where =
+      const ownerWhere =
         role === Role.SALES_MANAGER || role === Role.ADMIN
           ? {}
           : { createdById: userId };
+      const statusWhere = filter?.status ? { status: filter.status } : {};
+      const rawSearch = filter?.search?.trim().slice(0, 100) ?? '';
+      const searchWhere = rawSearch
+        ? {
+            OR: [
+              {
+                title: {
+                  contains: rawSearch,
+                  mode: 'insensitive' as const,
+                },
+              },
+              {
+                quotationNumber: {
+                  contains: rawSearch,
+                  mode: 'insensitive' as const,
+                },
+              },
+              {
+                client: {
+                  name: {
+                    contains: rawSearch,
+                    mode: 'insensitive' as const,
+                  },
+                },
+              },
+            ],
+          }
+        : {};
       return await this.prisma.quotation.findMany({
-        where,
+        where: { ...ownerWhere, ...statusWhere, ...searchWhere },
         include: { items: true, client: true, createdBy: true },
         take: Math.min(take, 100),
         skip,

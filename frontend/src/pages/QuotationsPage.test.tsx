@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
@@ -47,21 +47,21 @@ const mockOnSelect = vi.fn();
 
 const successMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY },
+    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
     result:  { data: { quotations: mockQuotations } },
   },
 ];
 
 const emptyMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY },
+    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
     result:  { data: { quotations: [] } },
   },
 ];
 
 const errorMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY },
+    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
     error:   new Error('Failed to fetch'),
   },
 ];
@@ -82,9 +82,10 @@ function renderAs(
 describe('QuotationsPage', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('shows loading state initially', () => {
+  it('shows loading state initially with skeleton rows', () => {
     renderAs(mockRep, successMock);
     expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   it('renders quotation list after loading', async () => {
@@ -106,8 +107,8 @@ describe('QuotationsPage', () => {
   it('renders status badges', async () => {
     renderAs(mockRep, successMock);
     await screen.findByText('Enterprise License');
-    expect(screen.getByText('APPROVED')).toBeInTheDocument();
-    expect(screen.getByText('SENT')).toBeInTheDocument();
+    expect(screen.getAllByText('APPROVED').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SENT').length).toBeGreaterThan(0);
   });
 
   it('renders totals correctly', async () => {
@@ -125,6 +126,23 @@ describe('QuotationsPage', () => {
   it('shows empty state when no quotations', async () => {
     renderAs(mockRep, emptyMock);
     expect(await screen.findByText('No quotations yet')).toBeInTheDocument();
+  });
+
+  it('shows filter-specific empty message when filter active and no results', async () => {
+    const statusMock: MockLink.MockedResponse[] = [
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+        result: { data: { quotations: mockQuotations } },
+      },
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { filter: { status: 'EXPIRED' } } },
+        result: { data: { quotations: [] } },
+      },
+    ];
+    renderAs(mockRep, statusMock);
+    await screen.findByText('Enterprise License');
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'EXPIRED' } });
+    expect(await screen.findByText('No quotations match your filter')).toBeInTheDocument();
   });
 
   it('shows error state when query fails', async () => {
@@ -173,5 +191,90 @@ describe('QuotationsPage', () => {
     await screen.findByText('Create your first quotation');
     await user.click(screen.getByText('Create your first quotation'));
     expect(screen.getByRole('dialog', { name: 'Create quotation' })).toBeInTheDocument();
+  });
+
+  it('renders search input and status dropdown', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+    expect(screen.getByPlaceholderText('Search by title, number, or client...')).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'All statuses' })).toBeInTheDocument();
+  });
+
+  it('updates search input value when changed', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+    const input = screen.getByPlaceholderText('Search by title, number, or client...');
+    fireEvent.change(input, { target: { value: 'Enterprise' } });
+    expect(input).toHaveValue('Enterprise');
+  });
+
+  it('updates status filter when dropdown changes', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'DRAFT' } });
+    expect(select).toHaveValue('DRAFT');
+  });
+
+  it('refetches with status filter and shows empty state', async () => {
+    const statusMock: MockLink.MockedResponse[] = [
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+        result: { data: { quotations: mockQuotations } },
+      },
+      {
+        request: {
+          query: QUOTATIONS_QUERY,
+          variables: { filter: { status: 'DRAFT' } },
+        },
+        result: { data: { quotations: [] } },
+      },
+    ];
+    renderAs(mockRep, statusMock);
+    await screen.findByText('Enterprise License');
+
+    const select = screen.getByRole('combobox');
+    fireEvent.change(select, { target: { value: 'DRAFT' } });
+    expect(await screen.findByText('No quotations match your filter')).toBeInTheDocument();
+  });
+
+  it('shows typed search text in input immediately without waiting for debounce', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+
+    const input = screen.getByPlaceholderText('Search by title, number, or client...');
+    fireEvent.change(input, { target: { value: 'Cloud' } });
+    expect(input).toHaveValue('Cloud');
+    // List still shows full results — debounce has not fired yet
+    expect(screen.getByText('Enterprise License')).toBeInTheDocument();
+  });
+
+  it('shows clear button when search has text and clears on click', async () => {
+    const user = userEvent.setup();
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+
+    const input = screen.getByPlaceholderText('Search by title, number, or client...');
+    fireEvent.change(input, { target: { value: 'Cloud' } });
+    const clearBtn = screen.getByRole('button', { name: 'Clear search' });
+    expect(clearBtn).toBeInTheDocument();
+
+    await user.click(clearBtn);
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
+  });
+
+  it('clears previous debounce timer when search changes again', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+
+    const input = screen.getByPlaceholderText('Search by title, number, or client...');
+    // first change sets a timer; second change clears it and sets a new one
+    fireEvent.change(input, { target: { value: 'Ent' } });
+    fireEvent.change(input, { target: { value: 'Enterprise' } });
+    expect(input).toHaveValue('Enterprise');
+    // full list still visible — debounce not yet fired, query unchanged
+    expect(screen.getByText('Enterprise License')).toBeInTheDocument();
   });
 });

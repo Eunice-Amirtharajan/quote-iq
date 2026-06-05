@@ -15,8 +15,8 @@ export const DASHBOARD_STATS_QUERY = gql`
 `;
 
 export const QUOTATIONS_QUERY = gql`
-  query Quotations {
-    quotations {
+  query Quotations($filter: QuotationFilterInput) {
+    quotations(filter: $filter) {
       id
       quotationNumber
       title

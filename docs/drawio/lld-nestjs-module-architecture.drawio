@@ -43,7 +43,7 @@
         <mxCell id="auth-resolver" value="AuthResolver&#xa;login · logout · me" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="120" width="120" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="quotations-resolver" value="QuotationsResolver&#xa;quotations · quotation&#xa;createQuotation&#xa;updateStatus · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="quotations-resolver" value="QuotationsResolver&#xa;quotations(filter?) · quotation&#xa;createQuotation&#xa;updateStatus · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="190" width="120" height="70" as="geometry" />
         </mxCell>
         <mxCell id="clients-resolver" value="ClientsResolver&#xa;clients · client&#xa;create · update · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
@@ -63,7 +63,7 @@
         <mxCell id="auth-service" value="AuthService&#xa;login · logout&#xa;bcrypt · JWT sign" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="120" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="quotations-service" value="QuotationsService&#xa;findAll · findOne · create&#xa;updateStatus · delete&#xa;calculateTotals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="quotations-service" value="QuotationsService&#xa;findAll(filter?) · findOne · create&#xa;updateStatus(role guard)&#xa;delete · calculateTotals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="200" width="120" height="80" as="geometry" />
         </mxCell>
         <mxCell id="clients-service" value="ClientsService&#xa;findAll · findOne&#xa;create · update · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
@@ -77,7 +77,7 @@
         </mxCell>
 
         <!-- PRISMA -->
-        <mxCell id="prisma-service" value="PrismaService&#xa;$connect · $disconnect&#xa;$transaction · $queryRaw" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="prisma-service" value="PrismaService&#xa;$connect · $disconnect&#xa;$queryRaw (Neon HTTP)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="860" y="300" width="140" height="70" as="geometry" />
         </mxCell>
 
@@ -85,7 +85,7 @@
         <mxCell id="postgres-db" value="PostgreSQL&#xa;(Neon DB)" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1080" y="290" width="100" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="gemini-api" value="Google Gemini API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="gemini-api" value="Groq API&#xa;(Llama 3.3 70B)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="860" y="470" width="140" height="50" as="geometry" />
         </mxCell>
         <mxCell id="zod" value="Zod Schema&#xa;QuotationSummarySchema" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">

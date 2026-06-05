@@ -99,7 +99,12 @@ type Query {
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
-  quotations(skip: Int, take: Int): [QuotationType!]!
+  quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
+}
+
+input QuotationFilterInput {
+  search: String
+  status: QuotationStatus
 }
 
 input QuotationItemInput {

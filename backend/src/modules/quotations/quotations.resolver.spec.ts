@@ -63,6 +63,7 @@ describe('QuotationsResolver', () => {
         mockUser,
         undefined,
         undefined,
+        undefined,
       );
       expect(result).toEqual([mockQuotation]);
     });

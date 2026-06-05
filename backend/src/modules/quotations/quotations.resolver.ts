@@ -8,6 +8,7 @@ import { QuotationsService } from './quotations.service';
 import { QuotationType } from './quotation.entity';
 import {
   CreateQuotationInput,
+  QuotationFilterInput,
   UpdateQuotationStatusInput,
 } from './dto/quotation.input';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -31,8 +32,10 @@ export class QuotationsResolver {
     @CurrentUser() user: UserType,
     @Args('take', { nullable: true, type: () => Int }) take?: number,
     @Args('skip', { nullable: true, type: () => Int }) skip?: number,
+    @Args('filter', { nullable: true, type: () => QuotationFilterInput })
+    filter?: QuotationFilterInput,
   ): Promise<QuotationType[]> {
-    return this.quotationsService.findAll(user, take, skip);
+    return this.quotationsService.findAll(user, take, skip, filter);
   }
 
   @Query(() => QuotationType, { nullable: true })
