@@ -16,13 +16,14 @@ interface StatCardProps {
   label: string;
   value: string | number;
   sub?: string;
+  alert?: boolean;
 }
 
-function StatCard({ label, value, sub }: Readonly<StatCardProps>) {
+function StatCard({ label, value, sub, alert }: Readonly<StatCardProps>) {
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-6">
+    <div className={`bg-white rounded-xl border p-6 ${alert ? "border-amber-300 bg-amber-50" : "border-gray-100"}`}>
       <p className="text-sm text-gray-500 mb-1">{label}</p>
-      <p className="text-2xl font-semibold text-gray-900">{value}</p>
+      <p className={`text-2xl font-semibold ${alert ? "text-amber-600" : "text-gray-900"}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
   );
@@ -72,7 +73,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-3">
         <StatCard
           label="Pipeline Value"
           value={`€${(stats?.totalPipelineValue ?? 0).toLocaleString()}`}

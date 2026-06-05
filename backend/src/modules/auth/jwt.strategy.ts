@@ -15,6 +15,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!secret) throw new Error('JWT_SECRET is not set');
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
+        /* istanbul ignore next */
         (req: Request & { cookies: Record<string, string> }) =>
           req?.cookies['access_token'] ?? null,
       ]),

@@ -53,5 +53,13 @@ describe('DashboardResolver', () => {
       expect(mockDashboardService.getStats).toHaveBeenCalledWith(mockUser);
       expect(result).toEqual(mockStats);
     });
+
+    it('propagates error when service throws', async () => {
+      mockDashboardService.getStats.mockRejectedValue(new Error('DB error'));
+
+      await expect(resolver.dashboardStats(mockUser)).rejects.toThrow(
+        'DB error',
+      );
+    });
   });
 });

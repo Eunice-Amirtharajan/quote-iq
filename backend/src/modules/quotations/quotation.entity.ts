@@ -52,9 +52,6 @@ export class QuotationType {
   @Field(() => Float, { description: 'Final total including tax' })
   total!: number;
 
-  @Field(() => Date, { nullable: true })
-  validUntil?: Date | null;
-
   @Field(() => Date, { description: 'Creation timestamp' })
   createdAt!: Date;
 
@@ -87,7 +84,6 @@ type _ScalarFieldsMatch =
     | 'subtotal'
     | 'taxAmount'
     | 'total'
-    | 'validUntil'
     | 'createdAt'
     | 'updatedAt'
     | 'clientId'

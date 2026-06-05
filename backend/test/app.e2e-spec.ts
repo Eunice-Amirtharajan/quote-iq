@@ -23,6 +23,21 @@ describe('QuoteIQ E2E', () => {
   });
 
   afterAll(async () => {
+    // Clean up test data created during the run so repeated runs don't pollute the shared DB.
+    // Quotations must be deleted before the client (no cascade on Client → Quotation).
+    const toDelete = [quotationId, managerQuotationId].filter(Boolean);
+    for (const id of toDelete) {
+      await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query: `mutation { deleteQuotation(id: "${id}") }` });
+    }
+    if (clientId) {
+      await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query: `mutation { deleteClient(id: "${clientId}") }` });
+    }
     await app.close();
   });
 

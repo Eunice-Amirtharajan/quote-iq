@@ -99,7 +99,6 @@ QUOTATION:
 
 <quotation_data>
 - Title: ${quotation.title}
-${quotation.validUntil ? `- Valid Until: ${quotation.validUntil.toISOString().split('T')[0]}` : ''}
 ${quotation.notes ? `- Notes: ${quotation.notes}` : ''}
 
 LINE ITEMS:

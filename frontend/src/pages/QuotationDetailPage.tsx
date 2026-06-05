@@ -24,7 +24,6 @@ interface QuotationDetail {
   subtotal: number;
   taxAmount: number;
   total: number;
-  validUntil: string | null;
   createdAt: string;
   client: {
     name: string;
@@ -45,7 +44,6 @@ const STATUS_STYLES: Record<string, string> = {
   SENT: "bg-blue-50 text-blue-600",
   APPROVED: "bg-green-50 text-green-600",
   REJECTED: "bg-red-50 text-red-600",
-  EXPIRED: "bg-yellow-50 text-yellow-600",
 };
 
 interface Props {
@@ -156,6 +154,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
     );
 
   const q = data?.quotation;
+
   if (!q)
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -287,14 +286,6 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
                   {new Date(q.createdAt).toLocaleDateString("en-DE")}
                 </p>
               </div>
-              {q.validUntil && (
-                <div>
-                  <p className="text-xs text-gray-400">Valid Until</p>
-                  <p className="text-sm text-gray-700">
-                    {new Date(q.validUntil).toLocaleDateString("en-DE")}
-                  </p>
-                </div>
-              )}
               <div>
                 <p className="text-xs text-gray-400">Created By</p>
                 <p className="text-sm text-gray-700">{q.createdBy.name}</p>

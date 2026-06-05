@@ -34,7 +34,6 @@ const baseQuotation = {
   subtotal: 6000,
   taxAmount: 1140,
   total: 7140,
-  validUntil: null as string | null,
   createdAt: "2026-04-10T00:00:00.000Z",
   client: {
     name: "Hans Bauer",
@@ -148,22 +147,6 @@ describe("QuotationDetailPage", () => {
     expect(await screen.findByText("Annual license fee")).toBeInTheDocument();
   });
 
-  it("renders validUntil when present", async () => {
-    const withValidUntil = {
-      ...baseQuotation,
-      validUntil: "2026-12-31T00:00:00.000Z",
-    };
-    renderAs(mockManager, makeMock(withValidUntil));
-    await screen.findByText("Enterprise License");
-    expect(screen.getByText("Valid Until")).toBeInTheDocument();
-  });
-
-  it("does not render validUntil section when null", async () => {
-    renderAs(mockManager, makeMock(baseQuotation));
-    await screen.findByText("Enterprise License");
-    expect(screen.queryByText("Valid Until")).not.toBeInTheDocument();
-  });
-
   it("does not render location when city and country are null", async () => {
     const noLocation = {
       ...baseQuotation,
@@ -274,6 +257,76 @@ describe("QuotationDetailPage", () => {
       expect(
         await screen.findByText("Transition not allowed"),
       ).toBeInTheDocument();
+    });
+
+    it("shows not-found state when quotation data is null", async () => {
+      const mockOnBack = vi.fn();
+      const mocks: MockLink.MockedResponse[] = [
+        {
+          request: { query: QUOTATION_QUERY, variables: { id: "q-missing" } },
+          result: { data: { quotation: null } },
+        },
+      ];
+      render(
+        <AuthContext.Provider value={{ user: mockRep, setUser: vi.fn() }}>
+          <MockedProvider mocks={mocks}>
+            <QuotationDetailPage id="q-missing" onBack={mockOnBack} />
+          </MockedProvider>
+        </AuthContext.Provider>,
+      );
+      expect(await screen.findByText("Quotation not found or access denied.")).toBeInTheDocument();
+      await userEvent.setup().click(screen.getByText("← Back to Quotations"));
+      expect(mockOnBack).toHaveBeenCalled();
+    });
+
+    it("calls updateQuotationStatus with APPROVED when Approve is clicked", async () => {
+      const user = userEvent.setup();
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      const approvedQuotation = { ...baseQuotation, status: "APPROVED" };
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(sentQuotation),
+        {
+          request: {
+            query: UPDATE_QUOTATION_STATUS_MUTATION,
+            variables: { id: "q-1", input: { status: "APPROVED" } },
+          },
+          result: { data: { updateQuotationStatus: { id: "q-1", status: "APPROVED" } } },
+        },
+        ...makeMock(approvedQuotation),
+      ];
+
+      renderAs(mockManager, mocks);
+      await screen.findByText("Approve");
+      await user.click(screen.getByText("Approve"));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Approving…")).not.toBeInTheDocument();
+      });
+    });
+
+    it("calls updateQuotationStatus with REJECTED when Reject is clicked", async () => {
+      const user = userEvent.setup();
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      const rejectedQuotation = { ...baseQuotation, status: "REJECTED" };
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(sentQuotation),
+        {
+          request: {
+            query: UPDATE_QUOTATION_STATUS_MUTATION,
+            variables: { id: "q-1", input: { status: "REJECTED" } },
+          },
+          result: { data: { updateQuotationStatus: { id: "q-1", status: "REJECTED" } } },
+        },
+        ...makeMock(rejectedQuotation),
+      ];
+
+      renderAs(mockManager, mocks);
+      await screen.findByText("Reject");
+      await user.click(screen.getByText("Reject"));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Rejecting…")).not.toBeInTheDocument();
+      });
     });
   });
 });

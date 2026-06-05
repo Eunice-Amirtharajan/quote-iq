@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
@@ -40,8 +40,7 @@ const createMock: MockLink.MockedResponse = {
         title: 'New Service',
         clientId: 'c-1',
         notes: undefined,
-        taxRate: 19,
-        validUntil: undefined,
+        taxRate: 0,
         items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
       },
     },
@@ -57,8 +56,7 @@ const createErrorMock: MockLink.MockedResponse = {
         title: 'New Service',
         clientId: 'c-1',
         notes: undefined,
-        taxRate: 19,
-        validUntil: undefined,
+        taxRate: 0,
         items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
       },
     },
@@ -190,7 +188,7 @@ describe('CreateQuotationModal', () => {
     expect(await screen.findByText('Client not found')).toBeInTheDocument();
   });
 
-  it('shows validation error when quantity is zero', async () => {
+  it('shows validation error when quantity is empty', async () => {
     const user = userEvent.setup();
     renderModal([clientsMock]);
     await screen.findByRole('option', { name: /Hans Bauer/i });
@@ -203,7 +201,6 @@ describe('CreateQuotationModal', () => {
 
     const qtyInputs = screen.getAllByPlaceholderText('Qty');
     await user.clear(qtyInputs[0]);
-    await user.type(qtyInputs[0], '0');
 
     const priceInputs = screen.getAllByPlaceholderText('0.00');
     await user.type(priceInputs[0], '100');
@@ -215,7 +212,7 @@ describe('CreateQuotationModal', () => {
     ).toBeInTheDocument();
   });
 
-  it('submits with notes and validUntil filled in', async () => {
+  it('submits with notes filled in', async () => {
     const user = userEvent.setup();
     const createWithNotesMock: MockLink.MockedResponse = {
       request: {
@@ -225,8 +222,7 @@ describe('CreateQuotationModal', () => {
             title: 'New Service',
             clientId: 'c-1',
             notes: 'Some notes',
-            taxRate: 19,
-            validUntil: new Date('2026-12-31').toISOString(),
+            taxRate: 0,
             items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
           },
         },
@@ -250,7 +246,6 @@ describe('CreateQuotationModal', () => {
     await user.type(priceInputs[0], '1000');
 
     await user.type(screen.getByPlaceholderText(/Optional notes/i), 'Some notes');
-    await user.type(screen.getByDisplayValue(''), '2026-12-31');
 
     await user.click(screen.getByText('Create Quotation'));
   });
@@ -265,5 +260,61 @@ describe('CreateQuotationModal', () => {
     const removeButtons = screen.getAllByLabelText('Remove item');
     await user.click(removeButtons[0]);
     expect(screen.getAllByPlaceholderText('Description')).toHaveLength(1);
+  });
+
+  it('disables Add item button at the 10-item limit', async () => {
+    const user = userEvent.setup();
+    renderModal([clientsMock]);
+
+    for (let i = 0; i < 9; i++) {
+      await user.click(screen.getByText('+ Add item'));
+    }
+
+    expect(screen.getAllByPlaceholderText('Description')).toHaveLength(10);
+    expect(screen.getByText('+ Add item')).toBeDisabled();
+  });
+
+  it('strips HTML tags from title input', async () => {
+    const user = userEvent.setup();
+    renderModal([clientsMock]);
+
+    const titleInput = screen.getByPlaceholderText(/Software Development/i);
+    await user.type(titleInput, '<script>alert(1)</script>');
+    expect(titleInput).toHaveValue('alert(1)');
+  });
+
+  it('updates tax rate when changed', async () => {
+    const user = userEvent.setup();
+    renderModal([clientsMock]);
+
+    const taxInput = screen.getByDisplayValue('0');
+    await user.clear(taxInput);
+    await user.type(taxInput, '21');
+    expect(taxInput).toHaveValue(21);
+  });
+
+  it('blocks e and E keys in tax rate input', async () => {
+    const user = userEvent.setup();
+    renderModal([clientsMock]);
+
+    const taxInput = screen.getByDisplayValue('0');
+    await user.type(taxInput, 'e');
+    expect(taxInput).toHaveValue(0);
+  });
+
+  it('shows red counter when notes reaches max length', () => {
+    renderModal([clientsMock]);
+
+    const notesArea = screen.getByPlaceholderText(/Optional notes/i);
+    fireEvent.change(notesArea, { target: { value: 'a'.repeat(500) } });
+    expect(screen.getByText('500/500')).toHaveClass('text-red-500');
+  });
+
+  it('shows red counter when title reaches max length', () => {
+    renderModal([clientsMock]);
+
+    const titleInput = screen.getByPlaceholderText(/Software Development/i);
+    fireEvent.change(titleInput, { target: { value: 'a'.repeat(100) } });
+    expect(screen.getByText('100/100')).toHaveClass('text-red-500');
   });
 });

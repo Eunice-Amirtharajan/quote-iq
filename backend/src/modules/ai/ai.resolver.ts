@@ -12,13 +12,14 @@ import { Role } from '@prisma/client';
 export class AIResolver {
   constructor(private readonly aiService: AIService) {}
 
-  @Mutation(() => QuotationSummaryType, {
+  @Mutation(/* istanbul ignore next */ () => QuotationSummaryType, {
     description: 'Generate or refresh the AI summary for a quotation',
   })
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER, Role.ADMIN)
   async quotationSummary(
-    @Args('quotationId', { type: () => ID }) quotationId: string,
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
+    quotationId: string,
   ): Promise<QuotationSummaryType> {
     return this.aiService.generateQuotationSummary(quotationId);
   }

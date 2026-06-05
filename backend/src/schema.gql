@@ -47,7 +47,6 @@ input CreateQuotationInput {
   notes: String
   taxRate: Float
   title: String!
-  validUntil: DateTime
 }
 
 """Aggregated pipeline statistics for the dashboard"""
@@ -183,7 +182,6 @@ type QuotationType {
 
   """Last update timestamp"""
   updatedAt: DateTime!
-  validUntil: DateTime
 }
 
 enum Recommendation {

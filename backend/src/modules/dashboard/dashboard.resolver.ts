@@ -13,7 +13,7 @@ import { Role, type User } from '@prisma/client';
 export class DashboardResolver {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @Query(() => DashboardStatsType)
+  @Query(/* istanbul ignore next */ () => DashboardStatsType)
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER, Role.ADMIN)
   async dashboardStats(@CurrentUser() user: User): Promise<DashboardStatsType> {

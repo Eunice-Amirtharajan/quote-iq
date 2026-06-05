@@ -20,6 +20,20 @@ function calcTotals(
 
 async function main() {
   console.log('Seeding...');
+
+  // Remove clients left behind by e2e test runs (they write to the shared DB).
+  // Quotations and their items/history/insights cascade-delete via the Quotation relation.
+  const staleClients = await prisma.client.findMany({
+    where: { email: { in: ['test@client.de', 'updated@client.de'] } },
+    select: { id: true },
+  });
+  if (staleClients.length > 0) {
+    const ids = staleClients.map((c) => c.id);
+    await prisma.quotation.deleteMany({ where: { clientId: { in: ids } } });
+    await prisma.client.deleteMany({ where: { id: { in: ids } } });
+    console.log(`Removed ${staleClients.length} stale e2e client(s).`);
+  }
+
   const seedPassword = process.env.SEED_PASSWORD ?? 'password123';
   const hash = await bcrypt.hash(seedPassword, 10);
 

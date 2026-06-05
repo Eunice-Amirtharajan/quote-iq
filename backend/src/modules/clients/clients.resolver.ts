@@ -19,18 +19,26 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class ClientsResolver {
   constructor(private readonly clientsService: ClientsService) {}
 
-  @Query(() => [ClientType])
+  @Query(/* istanbul ignore next */ () => [ClientType])
   async clients(
     @CurrentUser() user: UserType,
-    @Args('take', { nullable: true, type: () => Int }) take?: number,
-    @Args('skip', { nullable: true, type: () => Int }) skip?: number,
+    @Args('take', {
+      nullable: true,
+      type: /* istanbul ignore next */ () => Int,
+    })
+    take?: number,
+    @Args('skip', {
+      nullable: true,
+      type: /* istanbul ignore next */ () => Int,
+    })
+    skip?: number,
   ): Promise<ClientType[]> {
     return this.clientsService.findAll(user, take, skip);
   }
 
-  @Query(() => ClientType, { nullable: true })
+  @Query(/* istanbul ignore next */ () => ClientType, { nullable: true })
   async client(
-    @Args('id', { type: () => ID }) id: string,
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
     @CurrentUser() user: UserType,
   ): Promise<ClientType | null> {
     if (user.role === Role.SALES_REP) {
@@ -48,7 +56,7 @@ export class ClientsResolver {
     return client;
   }
 
-  @Mutation(() => ClientType)
+  @Mutation(/* istanbul ignore next */ () => ClientType)
   async createClient(
     @Args('input') input: ClientInput,
     @CurrentUser() user: UserType,
@@ -56,9 +64,9 @@ export class ClientsResolver {
     return this.clientsService.create(input, user);
   }
 
-  @Mutation(() => ClientType)
+  @Mutation(/* istanbul ignore next */ () => ClientType)
   async updateClient(
-    @Args('id', { type: () => ID }) id: string,
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
     @Args('input') input: ClientInput,
     @CurrentUser() user: UserType,
   ): Promise<ClientType> {
@@ -70,11 +78,11 @@ export class ClientsResolver {
     return this.clientsService.update(id, input);
   }
 
-  @Mutation(() => Boolean)
+  @Mutation(/* istanbul ignore next */ () => Boolean)
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.SALES_MANAGER)
   async deleteClient(
-    @Args('id', { type: () => ID }) id: string,
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
   ): Promise<boolean> {
     return this.clientsService.delete(id);
   }

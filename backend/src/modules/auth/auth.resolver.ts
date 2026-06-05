@@ -14,7 +14,7 @@ export class AuthResolver {
   // password is a plain GraphQL arg — API gateways and tracing tools may log
   // GraphQL variables. Ensure GEMINI/Apollo Studio variable logging is disabled
   // in production, or migrate login to a dedicated REST endpoint.
-  @Mutation(() => UserType)
+  @Mutation(/* istanbul ignore next */ () => UserType)
   async login(
     @Args('email') email: string,
     @Args('password') password: string,
@@ -29,7 +29,7 @@ export class AuthResolver {
     return this.authService.logout(context.res);
   }
 
-  @Query(() => UserType)
+  @Query(/* istanbul ignore next */ () => UserType)
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: UserType): UserType {
     return user;

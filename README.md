@@ -13,7 +13,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 |---|---|
 | Frontend | React 18 · TypeScript · Tailwind CSS · Apollo Client |
 | Backend | NestJS · GraphQL (Apollo Server, code-first) · Prisma ORM |
-| Database | PostgreSQL (Neon DB — serverless, HTTP driver) |
+| Database | PostgreSQL (Neon DB — serverless, WebSocket driver) |
 | Auth | JWT in HttpOnly cookies · Role-based access control |
 | AI | Groq API (Llama 3.3 70B) · Zod response validation |
 | Infra | Railway (backend, EU region) · Vercel (frontend) · Neon DB |
@@ -30,7 +30,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 **JWT in HttpOnly cookies over localStorage** — prevents XSS token theft. Apollo Client sends the cookie automatically via `credentials: 'include'` — no manual header management needed.
 
-**Neon HTTP driver over pg pool** — Neon free tier pauses compute after 5 minutes of inactivity. The `PrismaNeonHttp` adapter sends every query as a stateless HTTP request — no persistent TCP connection to time out. Cold starts are absorbed transparently by the retry helper and the 4-minute keepalive ping.
+**Neon WebSocket driver over pg pool** — Neon free tier pauses compute after 5 minutes of inactivity. The `PrismaNeon` WebSocket adapter maintains a lightweight connection and supports full Prisma transactions (implicit and explicit), including nested writes and `update+include`. A 4-minute keepalive ping prevents cold starts on the free tier. The initial implementation used `PrismaNeonHttp` (stateless HTTP per query) but was switched to `PrismaNeon` when nested Prisma writes — which use implicit transactions — failed with "Transactions are not supported in HTTP mode".
 
 **Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on 503/429 errors — self-healing without manual intervention.
 
@@ -159,7 +159,7 @@ quote-iq/
 │       │   ├── dashboard/
 │       │   ├── quotations/
 │       │   └── users/
-│       └── prisma/          # PrismaService with Neon HTTP adapter + retry helper
+│       └── prisma/          # PrismaService with Neon WebSocket adapter + keepalive ping
 ├── frontend/
 │   └── src/
 │       ├── components/      # AIInsightCard, CreateQuotationModal, Layout
@@ -202,7 +202,7 @@ Git hooks (via Husky) block commits and pushes that don't meet quality standards
 | Hook | Checks | When |
 |---|---|---|
 | `pre-commit` | Frontend TS build · Frontend unit tests · Backend unit tests | Every `git commit` (~30s) |
-| `pre-push` | Backend coverage ≥90% statements · Frontend coverage ≥95% statements | Every `git push` (~45s) |
+| `pre-push` | Backend: ≥90% statements, ≥75% branches, ≥70% functions, ≥90% lines · Frontend: ≥95% statements, ≥90% branches, ≥90% functions, ≥95% lines | Every `git push` (~45s) |
 
 E2E tests are excluded from hooks — they require Docker and run in CI instead.
 

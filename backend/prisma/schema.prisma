@@ -65,7 +65,7 @@ model Quotation {
   subtotal        Float           @default(0)
   taxAmount       Float           @default(0)
   total           Float           @default(0)
-  validUntil      DateTime?
+
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   clientId        String
@@ -101,8 +101,8 @@ model StatusHistory {
   changedAt   DateTime        @default(now())
   quotationId String
   quotation   Quotation       @relation(fields:[quotationId], references:[id], onDelete: Cascade)
-  changedById String
-  changedBy   User            @relation(fields:[changedById], references:[id], onDelete: Cascade)
+  changedById String?
+  changedBy   User?           @relation(fields:[changedById], references:[id], onDelete: SetNull)
   @@index([quotationId])
 }
 

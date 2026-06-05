@@ -61,7 +61,6 @@ const mockQuotation = {
   taxAmount: 1140,
   taxRate: 19,
   notes: null,
-  validUntil: null,
   clientId: 'c-1',
   createdAt: new Date(),
   items: [
@@ -248,6 +247,67 @@ describe('AIService', () => {
       const result = await service.generateQuotationSummary('q-1');
 
       expect(result.summary).toBe('Fenced summary');
+    });
+
+    it('computes PROCEED when client has strong approval history and deal within range', async () => {
+      // 4 approved out of 5 = 80% approval rate, deal matches average closely
+      const clientHistory = Array.from({ length: 5 }, (_, i) => ({
+        ...mockQuotation,
+        id: `q-old-${i}`,
+        status: i < 4 ? 'APPROVED' : 'DRAFT',
+        total: 7000,
+      }));
+
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue(clientHistory);
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result).toBeDefined();
+      // computeRecommendation returns PROCEED; AI mock returns PROCEED too
+      expect(result.recommendation).toBe(Recommendation.PROCEED);
+    });
+
+    it('deletes corrupt cache entry and regenerates', async () => {
+      // Cache exists but content is invalid JSON — triggers the delete-and-regenerate path
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue({
+        id: 'insight-corrupt',
+        content: '{not valid json',
+      });
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(mockPrismaService.aIInsight.delete).toHaveBeenCalledWith({
+        where: { id: 'insight-corrupt' },
+      });
+      expect(result.summary).toBe('Test summary');
+    });
+
+    it('throws InternalServerErrorException when quotation has missing relations', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        ...mockQuotation,
+        client: null,
+        createdBy: null,
+      });
+
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'Quotation has missing relations',
+      );
+    });
+
+    it('throws after all Groq models fail with transient errors', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      // Simulate transient 503 on every model attempt
+      mockCreate.mockRejectedValue(new Error('503 Service Unavailable'));
+
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        '503',
+      );
+      // Should have tried multiple models
+      expect(mockCreate).toHaveBeenCalledTimes(3);
     });
   });
 });

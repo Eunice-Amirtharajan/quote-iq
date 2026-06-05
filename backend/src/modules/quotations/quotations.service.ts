@@ -167,16 +167,13 @@ export class QuotationsService {
       const { itemsWithTotal, subtotal, taxAmount, total } =
         this.calculateTotals(input.items, taxRate);
 
-      // $transaction not supported by Neon HTTP driver — sequence + insert run
-      // sequentially. Quote numbers may have rare gaps on concurrent failures
-      // but are never duplicated (sequence is DB-level atomic).
       const seqResult = await this.prisma.$queryRaw<
         [{ nextval: bigint }]
       >`SELECT nextval('quote_number_seq')`;
       const seq = Number(seqResult[0].nextval);
       const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
 
-      const result = await this.prisma.quotation.create({
+      return await this.prisma.quotation.create({
         data: {
           quotationNumber: quoteNumber,
           title: input.title,
@@ -186,7 +183,6 @@ export class QuotationsService {
           subtotal,
           taxAmount,
           total,
-          validUntil: input.validUntil,
           createdById: user.id,
           items: {
             create: itemsWithTotal.map((item, i) => ({
@@ -197,7 +193,6 @@ export class QuotationsService {
         },
         include: { items: true, client: true, createdBy: true },
       });
-      return result;
     } catch (error) {
       this.logger.error(
         `Failed to create quotation — title: "${input.title}" clientId: ${input.clientId} userId: ${user.id}`,
@@ -251,7 +246,13 @@ export class QuotationsService {
         QuotationsService.name,
       );
       await this.prisma.statusHistory.create({
-        data: { quotationId: id, fromStatus: current.status, toStatus: status, note, changedById: userId },
+        data: {
+          quotationId: id,
+          fromStatus: current.status,
+          toStatus: status,
+          note,
+          changedById: userId,
+        },
       });
       const quotation = await this.prisma.quotation.update({
         where: { id },

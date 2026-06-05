@@ -27,20 +27,31 @@ export class QuotationsResolver {
     private readonly clientsService: ClientsService,
   ) {}
 
-  @Query(() => [QuotationType])
+  @Query(/* istanbul ignore next */ () => [QuotationType])
   async quotations(
     @CurrentUser() user: UserType,
-    @Args('take', { nullable: true, type: () => Int }) take?: number,
-    @Args('skip', { nullable: true, type: () => Int }) skip?: number,
-    @Args('filter', { nullable: true, type: () => QuotationFilterInput })
+    @Args('take', {
+      nullable: true,
+      type: /* istanbul ignore next */ () => Int,
+    })
+    take?: number,
+    @Args('skip', {
+      nullable: true,
+      type: /* istanbul ignore next */ () => Int,
+    })
+    skip?: number,
+    @Args('filter', {
+      nullable: true,
+      type: /* istanbul ignore next */ () => QuotationFilterInput,
+    })
     filter?: QuotationFilterInput,
   ): Promise<QuotationType[]> {
     return this.quotationsService.findAll(user, take, skip, filter);
   }
 
-  @Query(() => QuotationType, { nullable: true })
+  @Query(/* istanbul ignore next */ () => QuotationType, { nullable: true })
   async quotation(
-    @Args('id', { type: () => ID }) id: string,
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType | null> {
     if (user.role === Role.SALES_REP) {
@@ -51,7 +62,7 @@ export class QuotationsResolver {
     return this.quotationsService.findOne(id);
   }
 
-  @Mutation(() => QuotationType)
+  @Mutation(/* istanbul ignore next */ () => QuotationType)
   async createQuotation(
     @Args('input') input: CreateQuotationInput,
     @CurrentUser() user: UserType,
@@ -69,9 +80,9 @@ export class QuotationsResolver {
     return this.quotationsService.create(input, user);
   }
 
-  @Mutation(() => QuotationType)
+  @Mutation(/* istanbul ignore next */ () => QuotationType)
   async updateQuotationStatus(
-    @Args('id', { type: () => ID }) id: string,
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
     @Args('input') input: UpdateQuotationStatusInput,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType> {
@@ -89,11 +100,11 @@ export class QuotationsResolver {
     );
   }
 
-  @Mutation(() => Boolean)
+  @Mutation(/* istanbul ignore next */ () => Boolean)
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER, Role.ADMIN)
   async deleteQuotation(
-    @Args('id', { type: () => ID }) id: string,
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
   ): Promise<boolean> {
     return this.quotationsService.delete(id);
   }

@@ -65,6 +65,12 @@ describe('ClientsResolver', () => {
       );
       expect(result).toEqual([mockClient]);
     });
+
+    it('forwards take and skip to service', async () => {
+      mockClientsService.findAll.mockResolvedValue([mockClient]);
+      await resolver.clients(mockUser as UserType, 10, 20);
+      expect(mockClientsService.findAll).toHaveBeenCalledWith(mockUser, 10, 20);
+    });
   });
 
   describe('client', () => {
@@ -99,6 +105,13 @@ describe('ClientsResolver', () => {
       const result = await resolver.client('c-1', manager as UserType);
       expect(mockClientsService.findOwner).not.toHaveBeenCalled();
       expect(result).toEqual(mockClient);
+    });
+
+    it('returns null when findOne returns null for non-SALES_REP user', async () => {
+      const manager = { ...mockUser, role: Role.SALES_MANAGER };
+      mockClientsService.findOne.mockResolvedValue(null);
+      const result = await resolver.client('c-999', manager as UserType);
+      expect(result).toBeNull();
     });
   });
 
@@ -174,6 +187,27 @@ describe('ClientsResolver', () => {
         ),
       ).rejects.toThrow('Forbidden');
       expect(mockClientsService.update).not.toHaveBeenCalled();
+    });
+
+    it('allows ADMIN to update any client', async () => {
+      const admin = { ...mockUser, role: Role.ADMIN };
+      const input = {
+        name: 'Admin Updated',
+        company: 'Admin GmbH',
+        email: 'admin@test.de',
+      };
+      mockClientsService.findOwner.mockResolvedValue({
+        createdById: 'user-999',
+      });
+      mockClientsService.update.mockResolvedValue({ ...mockClient, ...input });
+
+      const result = await resolver.updateClient(
+        'c-1',
+        input as ClientInput,
+        admin as UserType,
+      );
+      expect(mockClientsService.update).toHaveBeenCalledWith('c-1', input);
+      expect(result).toMatchObject(input);
     });
 
     it('allows SALES_MANAGER to update any client', async () => {

@@ -16,6 +16,7 @@ interface Quotation {
     company: string;
   };
 }
+
 interface Props {
   onSelect: (id: string) => void;
 }
@@ -24,10 +25,9 @@ const STATUS_STYLES: Record<string, string> = {
   SENT: "bg-blue-50 text-blue-600",
   APPROVED: "bg-green-50 text-green-600",
   REJECTED: "bg-red-50 text-red-600",
-  EXPIRED: "bg-yellow-50 text-yellow-600",
 };
 
-const ALL_STATUSES = ["DRAFT", "SENT", "APPROVED", "REJECTED", "EXPIRED"];
+const ALL_STATUSES = ["DRAFT", "SENT", "APPROVED", "REJECTED"];
 
 export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const { user } = useAuth();
@@ -138,7 +138,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {["Number", "Title", "Client", "Status", "Total", "Date"].map((h) => (
+                  {["Number", "Title", "Client", "Status", "Total", "Created On"].map((h) => (
                     <th key={h} className="text-left text-xs font-medium text-gray-400 px-6 py-3">
                       {h}
                     </th>

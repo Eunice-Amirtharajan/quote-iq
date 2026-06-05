@@ -67,6 +67,18 @@ describe('QuotationsResolver', () => {
       );
       expect(result).toEqual([mockQuotation]);
     });
+
+    it('forwards take, skip, and filter to service', async () => {
+      const filter = { status: QuotationStatus.DRAFT, search: 'enterprise' };
+      mockQuotationsService.findAll.mockResolvedValue([mockQuotation]);
+      await resolver.quotations(mockUser, 5, 10, filter);
+      expect(mockQuotationsService.findAll).toHaveBeenCalledWith(
+        mockUser,
+        5,
+        10,
+        filter,
+      );
+    });
   });
 
   describe('quotation', () => {
@@ -103,6 +115,13 @@ describe('QuotationsResolver', () => {
       const result = await resolver.quotation('q-1', manager);
       expect(mockQuotationsService.findOwner).not.toHaveBeenCalled();
       expect(result).toEqual(mockQuotation);
+    });
+
+    it('returns null from findOne when quotation not found for SALES_MANAGER', async () => {
+      const manager = { ...mockUser, role: Role.SALES_MANAGER };
+      mockQuotationsService.findOne.mockResolvedValue(null);
+      const result = await resolver.quotation('q-999', manager);
+      expect(result).toBeNull();
     });
   });
 

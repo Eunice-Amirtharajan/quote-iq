@@ -3,7 +3,7 @@ import { PrismaService, isDbConnectionError, withDbRetry } from './prisma.servic
 import { Logger } from '@nestjs/common';
 
 jest.mock('@prisma/adapter-neon', () => ({
-  PrismaNeonHttp: jest.fn().mockImplementation(() => ({
+  PrismaNeon: jest.fn().mockImplementation(() => ({
     provider: 'postgres',
     adapterName: 'neon',
     connect: jest.fn(),
@@ -18,7 +18,7 @@ jest.mock('@prisma/adapter-neon', () => ({
 
 const mockLogger = { warn: jest.fn() };
 
-describe('PrismaService', () => {
+describe('PrismaService — Neon URL', () => {
   let service: PrismaService;
 
   beforeEach(async () => {
@@ -40,6 +40,28 @@ describe('PrismaService', () => {
       .mockResolvedValue(undefined);
     await service.onModuleDestroy();
     expect(disconnectSpy).toHaveBeenCalled();
+  });
+});
+
+describe('PrismaService — local PostgreSQL URL', () => {
+  let service: PrismaService;
+  const savedUrl = process.env.DATABASE_URL;
+
+  beforeEach(async () => {
+    process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/testdb';
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [PrismaService],
+    }).compile();
+    service = module.get<PrismaService>(PrismaService);
+  });
+
+  afterEach(() => {
+    process.env.DATABASE_URL = savedUrl;
+    jest.clearAllMocks();
+  });
+
+  it('is defined when using local postgres URL', () => {
+    expect(service).toBeDefined();
   });
 });
 

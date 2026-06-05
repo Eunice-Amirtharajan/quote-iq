@@ -58,7 +58,6 @@ export const QUOTATION_QUERY = gql`
       subtotal
       taxAmount
       total
-      validUntil
       createdAt
       client {
         id

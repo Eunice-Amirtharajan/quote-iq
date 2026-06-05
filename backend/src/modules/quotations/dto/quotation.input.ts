@@ -36,9 +36,6 @@ export class CreateQuotationInput {
   @Field(() => Float, { nullable: true })
   taxRate?: number;
 
-  @Field(() => Date, { nullable: true })
-  validUntil?: Date;
-
   @Field(() => [QuotationItemInput])
   items!: QuotationItemInput[];
 }

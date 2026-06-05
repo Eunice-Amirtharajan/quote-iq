@@ -3,7 +3,11 @@ import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { Role, User } from '@prisma/client';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { QuotationStatus } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
@@ -19,7 +23,6 @@ const mockPrismaService = {
   statusHistory: {
     create: jest.fn(),
   },
-  $transaction: jest.fn(),
   $queryRaw: jest.fn(),
 };
 
@@ -135,6 +138,7 @@ describe('QuotationsService', () => {
         expect.objectContaining({ where: { createdById: 'user-1' } }),
       );
     });
+
     it('applies status filter when provided', async () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
@@ -169,11 +173,9 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findMany.mockRejectedValue(
         new Error('DB error'),
       );
-
       await expect(
         service.findAll(mockUser(Role.SALES_MANAGER)),
       ).rejects.toThrow('DB error');
-
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });
@@ -191,11 +193,11 @@ describe('QuotationsService', () => {
       const result = await service.findOne('q-999');
       expect(result).toBeNull();
     });
+
     it('throws and logs error when prisma fails', async () => {
       mockPrismaService.quotation.findFirst.mockRejectedValue(
         new Error('DB error'),
       );
-
       await expect(service.findOne('q-1')).rejects.toThrow('DB error');
       expect(mockLogger.error).toHaveBeenCalled();
     });
@@ -271,21 +273,30 @@ describe('QuotationsService', () => {
       clientId: 'c-1',
       taxRate: 19,
       notes: 'Annual license',
-      validUntil: new Date(),
       items: [
         { description: 'Software License', quantity: 1, unitPrice: 5000 },
         { description: 'Support Package', quantity: 2, unitPrice: 500 },
       ],
     };
 
+    const mockCreatedQuotation = {
+      id: 'q-1',
+      title: 'Enterprise License',
+      items: [],
+      client: {},
+      createdBy: {},
+    };
+
     beforeEach(() => {
       mockPrismaService.$queryRaw = jest
         .fn()
         .mockResolvedValue([{ nextval: BigInt(1) }]);
+      mockPrismaService.quotation.create.mockResolvedValue(
+        mockCreatedQuotation,
+      );
     });
 
     it('generates correct quotation number', async () => {
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
       await service.create(mockInput, mockUser);
       expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -297,7 +308,6 @@ describe('QuotationsService', () => {
     });
 
     it('calculates correct totals from line items', async () => {
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
       await service.create(mockInput, mockUser);
       expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -311,7 +321,6 @@ describe('QuotationsService', () => {
     });
 
     it('sets createdById from user', async () => {
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
       await service.create(mockInput, mockUser);
       expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -321,7 +330,6 @@ describe('QuotationsService', () => {
     });
 
     it('defaults taxRate to 0 when not provided', async () => {
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
       const inputWithoutTax = { ...mockInput, taxRate: undefined };
       await service.create(inputWithoutTax, mockUser);
       expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
@@ -331,24 +339,63 @@ describe('QuotationsService', () => {
       );
     });
 
-    it('throws and logs error when prisma fails', async () => {
-      mockPrismaService.quotation.create.mockRejectedValue(new Error('DB error'));
-      await expect(service.create(mockInput, mockUser)).rejects.toThrow('DB error');
+    it('passes items as nested create with correct sortOrder', async () => {
+      await service.create(mockInput, mockUser);
+      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            items: {
+              create: expect.arrayContaining([
+                expect.objectContaining({ sortOrder: 0 }),
+                expect.objectContaining({ sortOrder: 1 }),
+              ]),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('returns the quotation returned by prisma create', async () => {
+      const result = await service.create(mockInput, mockUser);
+      expect(result).toEqual(mockCreatedQuotation);
+    });
+
+    it('throws and logs error when prisma create fails', async () => {
+      mockPrismaService.quotation.create.mockRejectedValue(
+        new Error('DB error'),
+      );
+      await expect(service.create(mockInput, mockUser)).rejects.toThrow(
+        'DB error',
+      );
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });
 
   describe('updateStatus', () => {
-    const draftQuotation = { id: 'q-1', status: QuotationStatus.DRAFT, title: 'Test', total: 5000 };
+    const draftQuotation = {
+      id: 'q-1',
+      status: QuotationStatus.DRAFT,
+      title: 'Test',
+      total: 5000,
+    };
     const sentQuotation = { ...draftQuotation, status: QuotationStatus.SENT };
-    const approvedQuotation = { ...draftQuotation, status: QuotationStatus.APPROVED };
+    const approvedQuotation = {
+      ...draftQuotation,
+      status: QuotationStatus.APPROVED,
+    };
 
     it('records status history and updates quotation', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
       mockPrismaService.quotation.update.mockResolvedValue(sentQuotation);
 
-      await service.updateStatus('q-1', 'SENT', 'Sending to client', 'user-1', Role.SALES_REP);
+      await service.updateStatus(
+        'q-1',
+        'SENT',
+        'Sending to client',
+        'user-1',
+        Role.SALES_REP,
+      );
 
       expect(mockPrismaService.statusHistory.create).toHaveBeenCalled();
       expect(mockPrismaService.quotation.update).toHaveBeenCalled();
@@ -359,7 +406,13 @@ describe('QuotationsService', () => {
       mockPrismaService.statusHistory.create.mockResolvedValue({});
       mockPrismaService.quotation.update.mockResolvedValue(sentQuotation);
 
-      const result = await service.updateStatus('q-1', 'SENT', undefined, 'user-1', Role.SALES_REP);
+      const result = await service.updateStatus(
+        'q-1',
+        'SENT',
+        undefined,
+        'user-1',
+        Role.SALES_REP,
+      );
 
       expect(result).toMatchObject({ status: QuotationStatus.SENT });
     });
@@ -368,7 +421,13 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateStatus('q-999', 'SENT', undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-999',
+          'SENT',
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toThrow(NotFoundException);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining('q-999'),
@@ -380,7 +439,13 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
 
       await expect(
-        service.updateStatus('q-1', QuotationStatus.APPROVED, undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-1',
+          QuotationStatus.APPROVED,
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
     });
@@ -389,7 +454,13 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
 
       await expect(
-        service.updateStatus('q-1', QuotationStatus.REJECTED, undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-1',
+          QuotationStatus.REJECTED,
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toThrow(ForbiddenException);
       expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
     });
@@ -400,7 +471,11 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.update.mockResolvedValue(approvedQuotation);
 
       const result = await service.updateStatus(
-        'q-1', QuotationStatus.APPROVED, undefined, 'manager-1', Role.SALES_MANAGER,
+        'q-1',
+        QuotationStatus.APPROVED,
+        undefined,
+        'manager-1',
+        Role.SALES_MANAGER,
       );
       expect(result).toMatchObject({ status: QuotationStatus.APPROVED });
     });
@@ -409,7 +484,13 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(approvedQuotation);
 
       await expect(
-        service.updateStatus('q-1', QuotationStatus.SENT, undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-1',
+          QuotationStatus.SENT,
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toThrow(BadRequestException);
       expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
     });
@@ -418,24 +499,46 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateStatus('q-999', QuotationStatus.SENT, undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-999',
+          QuotationStatus.SENT,
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toThrow(NotFoundException);
       expect(mockLogger.error).not.toHaveBeenCalled();
     });
 
     it('throws when prisma findFirst fails', async () => {
-      mockPrismaService.quotation.findFirst.mockRejectedValue(new Error('DB error'));
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        new Error('DB error'),
+      );
 
       await expect(
-        service.updateStatus('q-1', 'SENT', undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-1',
+          'SENT',
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toThrow('DB error');
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
     it('logs String(error) when a non-Error is thrown', async () => {
-      mockPrismaService.quotation.findFirst.mockRejectedValue('plain string error');
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        'plain string error',
+      );
       await expect(
-        service.updateStatus('q-1', 'SENT', undefined, 'user-1', Role.SALES_REP),
+        service.updateStatus(
+          'q-1',
+          'SENT',
+          undefined,
+          'user-1',
+          Role.SALES_REP,
+        ),
       ).rejects.toBe('plain string error');
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.any(String),
@@ -460,9 +563,7 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findMany.mockRejectedValue(
         'plain string error',
       );
-      await expect(service.findAll(mockUser)).rejects.toBe(
-        'plain string error',
-      );
+      await expect(service.findAll(mockUser)).rejects.toBe('plain string error');
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.any(String),
         'plain string error',
@@ -496,7 +597,9 @@ describe('QuotationsService', () => {
 
     it('create logs String(error) when non-Error is thrown', async () => {
       mockPrismaService.$queryRaw.mockResolvedValue([{ nextval: BigInt(1) }]);
-      mockPrismaService.quotation.create.mockRejectedValue('plain string error');
+      mockPrismaService.quotation.create.mockRejectedValue(
+        'plain string error',
+      );
       await expect(
         service.create(
           {

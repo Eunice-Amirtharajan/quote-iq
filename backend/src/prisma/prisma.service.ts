@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { PrismaNeonHttp } from '@prisma/adapter-neon';
+import { PrismaNeon } from '@prisma/adapter-neon';
 
 interface SimpleLogger {
   warn(message: string, context?: string): void;
@@ -51,18 +51,16 @@ function isNeonUrl(url: string): boolean {
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
-
   constructor() {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new Error('DATABASE_URL is not set');
 
     if (isNeonUrl(connectionString)) {
-      // Neon serverless: use HTTP adapter — no persistent TCP connection,
-      // survives cold starts without a connection pool timeout.
-      const adapter = new PrismaNeonHttp(connectionString, {
-        arrayMode: false,
-        fullResults: false,
-      });
+      // Neon serverless: WebSocket adapter — full transaction support, lower
+      // latency than HTTP for multi-query operations (single round-trip per
+      // query over a persistent WebSocket, vs. one HTTP request each).
+      // PrismaNeon manages the Pool internally; pass the connection string directly.
+      const adapter = new PrismaNeon({ connectionString });
       super({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
     } else {
       // Local / CI Docker PostgreSQL: use standard TCP driver
