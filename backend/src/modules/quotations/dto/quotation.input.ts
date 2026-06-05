@@ -1,4 +1,5 @@
 import { InputType, Field, Float } from '@nestjs/graphql';
+import { QuotationStatus } from '@prisma/client';
 
 @InputType()
 export class QuotationItemInput {
@@ -35,8 +36,8 @@ export class CreateQuotationInput {
 
 @InputType()
 export class UpdateQuotationStatusInput {
-  @Field(() => String)
-  status!: string;
+  @Field(() => QuotationStatus)
+  status!: QuotationStatus;
 
   @Field(() => String, { nullable: true })
   note?: string;

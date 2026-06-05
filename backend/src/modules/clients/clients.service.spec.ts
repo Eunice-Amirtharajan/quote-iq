@@ -5,6 +5,7 @@ import { AppLogger } from '../../common/logger/logger.service';
 import { Role } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { NotFoundException } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const mockPrismaService = {
   client: {
@@ -164,7 +165,11 @@ describe('ClientsService', () => {
     });
 
     it('throws NotFoundException when client does not exist', async () => {
-      mockPrismaService.client.findUnique.mockResolvedValue(null);
+      const p2025 = new PrismaClientKnownRequestError('Not found', {
+        code: 'P2025',
+        clientVersion: '0',
+      });
+      mockPrismaService.client.update.mockRejectedValue(p2025);
 
       await expect(
         service.update('c-999', {

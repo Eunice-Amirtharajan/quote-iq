@@ -1,5 +1,5 @@
-import { useQuery } from "@apollo/client/react";
-import { QUOTATION_SUMMARY_QUERY } from "../graphql/queries";
+import { useMutation } from "@apollo/client/react";
+import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 
 interface QuotationSummary {
@@ -19,15 +19,21 @@ interface Props {
   quotationId: string;
 }
 
-export default function AIInsightCard({ quotationId }: Props) {
+export default function AIInsightCard({ quotationId }: Readonly<Props>) {
   const { user } = useAuth();
 
-  const { data, loading, error } = useQuery<{
+  const [generateSummary, { data, loading, error, called }] = useMutation<{
     quotationSummary: QuotationSummary;
-  }>(QUOTATION_SUMMARY_QUERY, { variables: { quotationId } });
+  }>(QUOTATION_SUMMARY_MUTATION);
+
   // Only managers see AI insights
   if (user?.role === "SALES_REP") return null;
-  if (loading)
+
+  const handleGenerate = () => {
+    void generateSummary({ variables: { quotationId } });
+  };
+
+  if (loading) {
     return (
       <div className="bg-white rounded-xl border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-3">
@@ -41,8 +47,31 @@ export default function AIInsightCard({ quotationId }: Props) {
         </div>
       </div>
     );
+  }
 
-  if (error || !data) return null;
+  if (!called || error || !data) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-900">AI Insight</h3>
+        </div>
+        <p className="text-xs text-gray-400 mb-3">
+          Generate an AI-powered analysis of this quotation.
+        </p>
+        <button
+          onClick={handleGenerate}
+          className="w-full text-xs font-medium bg-gray-900 text-white py-2 px-3 rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          {error ? "Retry" : "Generate Insight"}
+        </button>
+        {error && (
+          <p className="text-xs text-red-500 mt-2">
+            Analysis failed. Please try again.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const { summary, recommendation, keyPoints, riskFactors } =
     data.quotationSummary;
@@ -52,11 +81,20 @@ export default function AIInsightCard({ quotationId }: Props) {
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-gray-900">AI Insight</h3>
-        <span
-          className={`text-xs font-medium px-2 py-1 rounded-full ${style.badge}`}
-        >
-          {style.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-xs font-medium px-2 py-1 rounded-full ${style.badge}`}
+          >
+            {style.label}
+          </span>
+          <button
+            onClick={handleGenerate}
+            title="Regenerate"
+            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+          >
+            ↺
+          </button>
+        </div>
       </div>
 
       <p className="text-sm text-gray-600 mb-4 leading-relaxed">{summary}</p>

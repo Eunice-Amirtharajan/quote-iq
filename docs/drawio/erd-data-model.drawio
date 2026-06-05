@@ -1,0 +1,121 @@
+<mxfile host="app.diagrams.net" modified="2026-05-31" version="21.0.0">
+  <diagram name="ERD - Data Model" id="erd">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="QuoteIQ — Entity Relationship Diagram" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="427" y="20" width="800" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- USER table -->
+        <mxCell id="user-header" value="User" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="200" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="user-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;email: String (unique)&#xa;password: String (bcrypt)&#xa;role: ADMIN | SALES_MANAGER | SALES_REP&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="115" width="200" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- CLIENT table -->
+        <mxCell id="client-header" value="Client" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="200" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="client-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;company: String&#xa;email: String&#xa;phone: String?&#xa;city: String?&#xa;country: String?&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="355" width="200" height="170" as="geometry" />
+        </mxCell>
+
+        <!-- QUOTATION table -->
+        <mxCell id="quotation-header" value="Quotation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="80" width="220" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;quotationNumber: String (unique)&#xa;title: String&#xa;status: DRAFT|SENT|APPROVED|REJECTED|EXPIRED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;validUntil: DateTime?&#xa;🔗 clientId: UUID (FK → Client)&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="420" y="115" width="220" height="250" as="geometry" />
+        </mxCell>
+
+        <!-- QUOTATION_ITEM table -->
+        <mxCell id="item-header" value="QuotationItem" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="430" width="220" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="item-fields" value="🔑 id: UUID (PK)&#xa;description: String&#xa;quantity: Float&#xa;unitPrice: Float&#xa;lineTotal: Float (qty × unitPrice)&#xa;sortOrder: Int&#xa;🔗 quotationId: UUID (FK → Quotation)&#xa;&#xa;INDEX: quotationId" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="420" y="465" width="220" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- STATUS_HISTORY table -->
+        <mxCell id="history-header" value="StatusHistory" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="750" y="80" width="220" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="history-fields" value="🔑 id: UUID (PK)&#xa;fromStatus: QuotationStatus&#xa;toStatus: QuotationStatus&#xa;note: String?&#xa;changedAt: DateTime&#xa;🔗 quotationId: UUID (FK → Quotation)&#xa;🔗 changedById: UUID (FK → User)&#xa;&#xa;INDEX: quotationId" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="750" y="115" width="220" height="160" as="geometry" />
+        </mxCell>
+
+        <!-- AI_INSIGHT table -->
+        <mxCell id="ai-header" value="AIInsight" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="750" y="360" width="220" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="ai-fields" value="🔑 id: UUID (PK)&#xa;insightType: SUMMARY|CONVERSION_SCORE|WIN_LOSS_ANALYSIS&#xa;content: Json&#xa;generatedAt: DateTime&#xa;expiresAt: DateTime&#xa;🔗 quotationId: UUID? (FK → Quotation)&#xa;&#xa;INDEX: quotationId" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="750" y="395" width="220" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- RELATIONSHIPS -->
+        <!-- User → Client (1:many) -->
+        <mxCell id="r1" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#6c8ebf;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.7;" edge="1" source="user-fields" target="client-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r1-label" value="creates" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- User → Quotation (1:many) -->
+        <mxCell id="r2" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="user-fields" target="quotation-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r2-label" value="creates" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Client → Quotation (1:many) -->
+        <mxCell id="r3" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="client-fields" target="quotation-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r3-label" value="has" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Quotation → QuotationItem (1:many) -->
+        <mxCell id="r4" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="quotation-fields" target="item-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r4-label" value="contains" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Quotation → StatusHistory (1:many) -->
+        <mxCell id="r5" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="quotation-fields" target="history-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r5-label" value="tracks" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Quotation → AIInsight (1:many) -->
+        <mxCell id="r6" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERone;html=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="quotation-fields" target="ai-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r6-label" value="cached in" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- User → StatusHistory -->
+        <mxCell id="r7" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#6c8ebf;strokeWidth=2;dashed=1;" edge="1" source="user-fields" target="history-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r7-label" value="changes" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

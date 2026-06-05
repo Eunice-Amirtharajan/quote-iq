@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { join } from 'path';
+import { join } from 'node:path';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { Request, Response } from 'express';
@@ -18,9 +18,9 @@ import { AIModule } from './modules/ai/ai.module';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
-      introspection: true,
-      playground: false,
-      csrfPrevention: false,
+      introspection: process.env.NODE_ENV !== 'production',
+      playground: process.env.NODE_ENV !== 'production',
+      csrfPrevention: true,
       context: ({ req, res }: { req: Request; res: Response }) => ({
         req,
         res,

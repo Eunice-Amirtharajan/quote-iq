@@ -11,6 +11,9 @@ import type { User as PrismaUser } from '@prisma/client';
 export class AuthResolver {
   constructor(private readonly authService: AuthService) {}
 
+  // password is a plain GraphQL arg — API gateways and tracing tools may log
+  // GraphQL variables. Ensure GEMINI/Apollo Studio variable logging is disabled
+  // in production, or migrate login to a dedicated REST endpoint.
   @Mutation(() => UserType)
   async login(
     @Args('email') email: string,

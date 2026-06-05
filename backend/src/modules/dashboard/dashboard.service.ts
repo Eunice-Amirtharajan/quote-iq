@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardStatsType } from './dashboard.entity';
-import { Role, User } from '@prisma/client';
+import { QuotationStatus, Role, User } from '@prisma/client';
 import { AppLogger } from '../../common/logger/logger.service';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class DashboardService {
 
   async getStats(user: User): Promise<DashboardStatsType> {
     this.logger.info(
-      `Getting quote stats for: ${user.email} having role: ${user.role}`,
+      `Getting quote stats — userId: ${user.id} role: ${user.role}`,
       DashboardService.name,
     );
     try {
@@ -29,26 +29,30 @@ export class DashboardService {
         approvedAgg,
       ] = await Promise.all([
         this.prisma.quotation.count({ where }),
-        this.prisma.quotation.count({ where: { ...where, status: 'SENT' } }),
         this.prisma.quotation.count({
-          where: { ...where, status: 'APPROVED' },
+          where: { ...where, status: QuotationStatus.SENT },
         }),
         this.prisma.quotation.count({
-          where: { ...where, status: 'REJECTED' },
+          where: { ...where, status: QuotationStatus.APPROVED },
+        }),
+        this.prisma.quotation.count({
+          where: { ...where, status: QuotationStatus.REJECTED },
         }),
         this.prisma.quotation.aggregate({
-          where: { ...where, status: 'SENT' },
+          where: { ...where, status: QuotationStatus.SENT },
           _sum: { total: true },
         }),
         this.prisma.quotation.aggregate({
-          where: { ...where, status: 'APPROVED' },
+          where: { ...where, status: QuotationStatus.APPROVED },
           _sum: { total: true },
         }),
       ]);
 
       const conversionRate =
-        totalQuotations > 0
-          ? Math.round((totalApproved / totalQuotations) * 100 * 10) / 10
+        totalQuotations > 0 && totalApproved + totalRejected > 0
+          ? Math.round(
+              (totalApproved / (totalApproved + totalRejected)) * 100 * 10,
+            ) / 10
           : 0;
       this.logger.info(
         `Quote stats retrieval is successful`,

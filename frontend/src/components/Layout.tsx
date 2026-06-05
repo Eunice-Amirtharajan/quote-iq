@@ -1,12 +1,20 @@
-
 import { useMutation } from "@apollo/client/react";
 import { LOGOUT_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
+import { client } from "../lib/apollo";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "dashboard" },
-  { label: "Quotations", href: "quotations" },
-  { label: "Clients", href: "clients" },
+  { label: "Dashboard", href: "dashboard", roles: ["SALES_MANAGER", "ADMIN"] },
+  {
+    label: "Quotations",
+    href: "quotations",
+    roles: ["SALES_REP", "SALES_MANAGER", "ADMIN"],
+  },
+  {
+    label: "Clients",
+    href: "clients",
+    roles: ["SALES_REP", "SALES_MANAGER", "ADMIN"],
+  },
 ];
 
 interface LayoutProps {
@@ -19,11 +27,17 @@ export default function Layout({
   children,
   currentPage,
   onNavigate,
-}: LayoutProps) {
+}: Readonly<LayoutProps>) {
   const { user, setUser } = useAuth();
   const [logout] = useMutation(LOGOUT_MUTATION, {
-    onCompleted: () => setUser(null),
+    onCompleted: () => {
+      setUser(null);
+      void client.clearStore();
+    },
   });
+  const visibleNav = NAV_ITEMS.filter((item) =>
+    item.roles.includes(user?.role ?? ""),
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -34,7 +48,7 @@ export default function Layout({
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {visibleNav.map((item) => (
             <button
               key={item.href}
               onClick={() => onNavigate(item.href)}
@@ -57,7 +71,7 @@ export default function Layout({
             {user?.role.replace("_", " ")}
           </p>
           <button
-            onClick={() => logout()}
+            onClick={() => { void logout(); }}
             className="w-full text-left text-xs text-gray-500 hover:text-gray-900 transition-colors"
           >
             Sign out

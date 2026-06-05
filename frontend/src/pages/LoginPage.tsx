@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const { setUser } = useAuth();
+  const showDemo = import.meta.env.VITE_SHOW_DEMO_CREDENTIALS === "true";
 
   const [login, { loading }] = useMutation<LoginData>(LOGIN_MUTATION, {
     onCompleted: (data) => {
@@ -27,10 +28,10 @@ export default function LoginPage() {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    await login({ variables: { email, password } });
+    void login({ variables: { email, password } });
   };
 
   return (
@@ -83,22 +84,26 @@ export default function LoginPage() {
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <p className="text-xs font-medium text-gray-500 mb-2">
-              Demo credentials
-            </p>
-            <div className="space-y-1">
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Manager:</span> marcus@quoteiq.com
+          {showDemo && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <p className="text-xs font-medium text-gray-500 mb-2">
+                Demo credentials
               </p>
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Sales Rep:</span> anna@quoteiq.com
-              </p>
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Password:</span> password123
-              </p>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Manager:</span>{" "}
+                  marcus@quoteiq.com
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Sales Rep:</span>{" "}
+                  anna@quoteiq.com
+                </p>
+                <p className="text-xs text-gray-600">
+                  <span className="font-medium">Password:</span> password123
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </form>
 
         <p className="text-xs text-gray-400 mt-6 text-center"></p>

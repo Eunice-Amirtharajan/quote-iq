@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import AIInsightCard from "./AIInsightCard";
-import { QUOTATION_SUMMARY_QUERY } from "../graphql/queries";
-import { AuthContext } from "../context/AuthContext";
+import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
+import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
 const mockManager = {
@@ -33,7 +34,7 @@ const mockSummary = {
 const successMock: MockLink.MockedResponse[] = [
   {
     request: {
-      query: QUOTATION_SUMMARY_QUERY,
+      query: QUOTATION_SUMMARY_MUTATION,
       variables: { quotationId: "q-1" },
     },
     result: { data: { quotationSummary: mockSummary } },
@@ -59,36 +60,42 @@ describe("AIInsightCard", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows loading state initially for manager", () => {
+  it("shows generate button initially for manager", () => {
     renderCard(mockManager);
+    expect(screen.getByRole("button", { name: /generate insight/i })).toBeInTheDocument();
+  });
+
+  it("shows loading state while mutation is in flight", async () => {
+    renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(screen.getByText("Analysing...")).toBeInTheDocument();
   });
 
-  it("renders summary after loading", async () => {
+  it("renders summary after generate is clicked", async () => {
     renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(
       await screen.findByText("Strong deal with good client history."),
     ).toBeInTheDocument();
   });
 
-  it("renders PROCEED recommendation badge", async () => {
+  it("renders PROCEED recommendation badge after generation", async () => {
     renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(await screen.findByText("Proceed")).toBeInTheDocument();
   });
 
-  it("renders key points", async () => {
+  it("renders key points after generation", async () => {
     renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     await screen.findByText("Strong deal with good client history.");
-    expect(
-      screen.getByText("Client has 80% approval rate"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Deal size is within normal range"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Client has 80% approval rate")).toBeInTheDocument();
+    expect(screen.getByText("Deal size is within normal range")).toBeInTheDocument();
   });
 
-  it("renders risk factors", async () => {
+  it("renders risk factors after generation", async () => {
     renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     await screen.findByText("Strong deal with good client history.");
     expect(screen.getByText("Payment terms not confirmed")).toBeInTheDocument();
   });
@@ -97,21 +104,18 @@ describe("AIInsightCard", () => {
     const reconsiderMock: MockLink.MockedResponse[] = [
       {
         request: {
-          query: QUOTATION_SUMMARY_QUERY,
+          query: QUOTATION_SUMMARY_MUTATION,
           variables: { quotationId: "q-1" },
         },
         result: {
           data: {
-            quotationSummary: {
-              ...mockSummary,
-              recommendation: "RECONSIDER",
-            },
+            quotationSummary: { ...mockSummary, recommendation: "RECONSIDER" },
           },
         },
       },
     ];
-
     renderCard(mockManager, reconsiderMock);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(await screen.findByText("Reconsider")).toBeInTheDocument();
   });
 
@@ -119,21 +123,33 @@ describe("AIInsightCard", () => {
     const followUpMock: MockLink.MockedResponse[] = [
       {
         request: {
-          query: QUOTATION_SUMMARY_QUERY,
+          query: QUOTATION_SUMMARY_MUTATION,
           variables: { quotationId: "q-1" },
         },
         result: {
           data: {
-            quotationSummary: {
-              ...mockSummary,
-              recommendation: "FOLLOW_UP",
-            },
+            quotationSummary: { ...mockSummary, recommendation: "FOLLOW_UP" },
           },
         },
       },
     ];
-
     renderCard(mockManager, followUpMock);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(await screen.findByText("Follow Up")).toBeInTheDocument();
+  });
+
+  it("shows error message when mutation fails", async () => {
+    const errorMock: MockLink.MockedResponse[] = [
+      {
+        request: {
+          query: QUOTATION_SUMMARY_MUTATION,
+          variables: { quotationId: "q-1" },
+        },
+        error: new Error("AI service unavailable"),
+      },
+    ];
+    renderCard(mockManager, errorMock);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    expect(await screen.findByText(/analysis failed/i)).toBeInTheDocument();
   });
 });

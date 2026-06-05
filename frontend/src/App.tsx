@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthProvider";
 import { useAuth } from "./hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
 import Layout from "./components/Layout";
@@ -10,7 +10,9 @@ import QuotationDetailPage from "./pages/QuotationDetailPage";
 
 function AppContent() {
   const { user } = useAuth();
-  const [currentPage, setCurrentPage] = useState("dashboard");
+  const [currentPage, setCurrentPage] = useState(
+    user?.role === "SALES_REP" ? "quotations" : "dashboard",
+  );
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   if (!user) return <LoginPage />;
 

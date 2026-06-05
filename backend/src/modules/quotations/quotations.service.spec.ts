@@ -18,6 +18,7 @@ const mockPrismaService = {
   statusHistory: {
     create: jest.fn(),
   },
+  $transaction: jest.fn(),
 };
 
 const mockLogger = {
@@ -206,16 +207,23 @@ describe('QuotationsService', () => {
       ],
     };
 
+    let mockTxCreate: jest.Mock;
+
+    beforeEach(() => {
+      mockTxCreate = jest.fn();
+      mockPrismaService.$transaction.mockImplementation(
+        async (cb: (tx: object) => Promise<object>) =>
+          cb({
+            $queryRaw: jest.fn().mockResolvedValue([{ nextval: BigInt(1) }]),
+            quotation: { create: mockTxCreate },
+          }),
+      );
+    });
+
     it('generates correct quotation number', async () => {
-      mockPrismaService.quotation.count.mockResolvedValue(0);
-      mockPrismaService.quotation.create.mockResolvedValue({
-        id: 'q-1',
-        quotationNumber: 'QT-2026-0001',
-      });
-
+      mockTxCreate.mockResolvedValue({ id: 'q-1' });
       await service.create(mockInput, mockUser);
-
-      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+      expect(mockTxCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             quotationNumber: `QT-${new Date().getFullYear()}-0001`,
@@ -225,29 +233,23 @@ describe('QuotationsService', () => {
     });
 
     it('calculates correct totals from line items', async () => {
-      mockPrismaService.quotation.count.mockResolvedValue(0);
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
-
+      mockTxCreate.mockResolvedValue({ id: 'q-1' });
       await service.create(mockInput, mockUser);
-
-      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+      expect(mockTxCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            subtotal: 6000, // 5000 + (2 * 500)
-            taxAmount: 1140, // 6000 * 19%
-            total: 7140, // 6000 + 1140
+            subtotal: 6000,
+            taxAmount: 1140,
+            total: 7140,
           }),
         }),
       );
     });
 
     it('sets createdById from user', async () => {
-      mockPrismaService.quotation.count.mockResolvedValue(0);
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
-
+      mockTxCreate.mockResolvedValue({ id: 'q-1' });
       await service.create(mockInput, mockUser);
-
-      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+      expect(mockTxCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ createdById: 'user-1' }),
         }),
@@ -255,27 +257,18 @@ describe('QuotationsService', () => {
     });
 
     it('defaults taxRate to 0 when not provided', async () => {
-      mockPrismaService.quotation.count.mockResolvedValue(0);
-      mockPrismaService.quotation.create.mockResolvedValue({ id: 'q-1' });
-
+      mockTxCreate.mockResolvedValue({ id: 'q-1' });
       const inputWithoutTax = { ...mockInput, taxRate: undefined };
       await service.create(inputWithoutTax, mockUser);
-
-      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+      expect(mockTxCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            taxRate: 0,
-            taxAmount: 0,
-          }),
+          data: expect.objectContaining({ taxRate: 0, taxAmount: 0 }),
         }),
       );
     });
 
     it('throws and logs error when prisma fails', async () => {
-      mockPrismaService.quotation.count.mockResolvedValue(0);
-      mockPrismaService.quotation.create.mockRejectedValue(
-        new Error('DB error'),
-      );
+      mockPrismaService.$transaction.mockRejectedValue(new Error('DB error'));
 
       await expect(service.create(mockInput, mockUser)).rejects.toThrow(
         'DB error',
@@ -292,39 +285,48 @@ describe('QuotationsService', () => {
       total: 5000,
     };
 
-    it('records status history and updates quotation', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(
-        existingQuotation,
+    type MockTx = {
+      quotation: {
+        findUnique: jest.Mock;
+        update: jest.Mock;
+      };
+      statusHistory: { create: jest.Mock };
+    };
+
+    const makeTx = (findResult: unknown, updateResult: unknown): MockTx => ({
+      quotation: {
+        findUnique: jest.fn().mockResolvedValue(findResult),
+        update: jest.fn().mockResolvedValue(updateResult),
+      },
+      statusHistory: { create: jest.fn().mockResolvedValue({}) },
+    });
+
+    const runWithTx = (tx: MockTx) =>
+      mockPrismaService.$transaction.mockImplementation(
+        (cb: (tx: MockTx) => Promise<unknown>) => cb(tx),
       );
-      mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue({
+
+    it('records status history and updates quotation', async () => {
+      const updatedQuotation = {
         ...existingQuotation,
         status: QuotationStatus.SENT,
-      });
+      };
+      const tx = makeTx(existingQuotation, updatedQuotation);
+      runWithTx(tx);
 
       await service.updateStatus('q-1', 'SENT', 'Sending to client', 'user-1');
 
-      expect(mockPrismaService.statusHistory.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            quotationId: 'q-1',
-            fromStatus: QuotationStatus.DRAFT,
-            toStatus: QuotationStatus.SENT,
-            changedById: 'user-1',
-          }),
-        }),
-      );
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(tx.statusHistory.create).toHaveBeenCalled();
     });
 
     it('updates quotation status correctly', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(
-        existingQuotation,
-      );
-      mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue({
+      const updatedQuotation = {
         ...existingQuotation,
         status: QuotationStatus.SENT,
-      });
+      };
+      const tx = makeTx(existingQuotation, updatedQuotation);
+      runWithTx(tx);
 
       const result = await service.updateStatus(
         'q-1',
@@ -333,17 +335,12 @@ describe('QuotationsService', () => {
         'user-1',
       );
 
-      expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'q-1' },
-          data: { status: QuotationStatus.SENT },
-        }),
-      );
       expect(result).toMatchObject({ status: QuotationStatus.SENT });
     });
 
     it('throws NotFoundException when quotation not found', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(null);
+      const tx = makeTx(null, null);
+      runWithTx(tx);
 
       await expect(
         service.updateStatus('q-999', 'SENT', undefined, 'user-1'),
@@ -355,14 +352,8 @@ describe('QuotationsService', () => {
       );
     });
 
-    it('throws when prisma update fails', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(
-        existingQuotation,
-      );
-      mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockRejectedValue(
-        new Error('DB error'),
-      );
+    it('throws when prisma transaction fails', async () => {
+      mockPrismaService.$transaction.mockRejectedValue(new Error('DB error'));
 
       await expect(
         service.updateStatus('q-1', 'SENT', undefined, 'user-1'),

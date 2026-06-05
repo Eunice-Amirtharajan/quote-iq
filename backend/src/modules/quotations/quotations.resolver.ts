@@ -1,5 +1,9 @@
-import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { Resolver, Query, Mutation, Args, ID, Int } from '@nestjs/graphql';
+import {
+  ForbiddenException,
+  NotFoundException,
+  UseGuards,
+} from '@nestjs/common';
 import { QuotationsService } from './quotations.service';
 import { QuotationType } from './quotation.entity';
 import {
@@ -12,21 +16,35 @@ import { UserType } from '../users/user.entity';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { ClientsService } from '../clients/clients.service';
 
 @Resolver(() => QuotationType)
 @UseGuards(JwtAuthGuard)
 export class QuotationsResolver {
-  constructor(private readonly quotationsService: QuotationsService) {}
+  constructor(
+    private readonly quotationsService: QuotationsService,
+    private readonly clientsService: ClientsService,
+  ) {}
 
   @Query(() => [QuotationType])
-  async quotations(@CurrentUser() user: UserType): Promise<QuotationType[]> {
-    return this.quotationsService.findAll(user);
+  async quotations(
+    @CurrentUser() user: UserType,
+    @Args('take', { nullable: true, type: () => Int }) take?: number,
+    @Args('skip', { nullable: true, type: () => Int }) skip?: number,
+  ): Promise<QuotationType[]> {
+    return this.quotationsService.findAll(user, take, skip);
   }
 
   @Query(() => QuotationType, { nullable: true })
   async quotation(
     @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() user: UserType,
   ): Promise<QuotationType | null> {
+    if (user.role === Role.SALES_REP) {
+      const owner = await this.quotationsService.findOwner(id);
+      if (!owner) return null;
+      if (user.id !== owner.createdById) throw new ForbiddenException();
+    }
     return this.quotationsService.findOne(id);
   }
 
@@ -35,6 +53,16 @@ export class QuotationsResolver {
     @Args('input') input: CreateQuotationInput,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType> {
+    const clientOwner = await this.clientsService.findOwner(input.clientId);
+    if (!clientOwner)
+      throw new NotFoundException(`Client ${input.clientId} not found`);
+    // SALES_REP may only quote against clients they own; managers can quote any client
+    if (
+      user.role !== Role.ADMIN &&
+      user.role !== Role.SALES_MANAGER &&
+      user.id !== clientOwner.createdById
+    )
+      throw new ForbiddenException();
     return this.quotationsService.create(input, user);
   }
 
@@ -44,6 +72,11 @@ export class QuotationsResolver {
     @Args('input') input: UpdateQuotationStatusInput,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType> {
+    if (user.role === Role.SALES_REP) {
+      const owner = await this.quotationsService.findOwner(id);
+      if (!owner) throw new NotFoundException(`Quotation ${id} not found`);
+      if (user.id !== owner.createdById) throw new ForbiddenException();
+    }
     return this.quotationsService.updateStatus(
       id,
       input.status,

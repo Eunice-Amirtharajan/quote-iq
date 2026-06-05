@@ -1,3 +1,9 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { AIService } from './ai.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { AppLogger } from '../../common/logger/logger.service';
+import { Recommendation } from './ai-insight.entity';
+
 // Mock the Google Generative AI module
 jest.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
@@ -19,7 +25,7 @@ jest.mock('@google/generative-ai', () => ({
 }));
 
 // Mock fetch for model resolution
-global.fetch = jest.fn().mockResolvedValue({
+globalThis.fetch = jest.fn().mockResolvedValue({
   json: jest.fn().mockResolvedValue({
     models: [
       {
@@ -35,6 +41,10 @@ const mockPrismaService = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
   },
+  aIInsight: {
+    findFirst: jest.fn().mockResolvedValue(null),
+    upsert: jest.fn().mockResolvedValue({}),
+  },
 };
 
 const mockLogger = {
@@ -43,11 +53,7 @@ const mockLogger = {
   error: jest.fn(),
   debug: jest.fn(),
 };
-import { Test, TestingModule } from '@nestjs/testing';
-import { AIService } from './ai.service';
-import { PrismaService } from '../../prisma/prisma.service';
-import { AppLogger } from '../../common/logger/logger.service';
-import { Recommendation } from './ai-insight.entity';
+
 const mockQuotation = {
   id: 'q-1',
   quotationNumber: 'QT-2026-0001',
@@ -101,6 +107,7 @@ describe('AIService', () => {
       expect(result.recommendation).toBe(Recommendation.PROCEED);
       expect(result.keyPoints).toEqual(['Point 1', 'Point 2']);
       expect(result.riskFactors).toEqual(['Risk 1']);
+      expect(mockPrismaService.aIInsight.upsert).toHaveBeenCalled();
     });
 
     it('throws when quotation not found', async () => {
@@ -182,7 +189,7 @@ describe('AIService', () => {
     });
 
     it('uses preferred model when available', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
         json: jest.fn().mockResolvedValue({
           models: [
             {
@@ -203,7 +210,7 @@ describe('AIService', () => {
     });
 
     it('falls back to first available when no preferred model found', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
         json: jest.fn().mockResolvedValue({
           models: [
             {
@@ -224,7 +231,7 @@ describe('AIService', () => {
     });
 
     it('logs warning when no models available', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
         json: jest.fn().mockResolvedValue({
           models: [],
         }),
@@ -239,12 +246,12 @@ describe('AIService', () => {
     });
 
     it('filters out models that do not support generateContent', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
         json: jest.fn().mockResolvedValue({
           models: [
             {
               name: 'models/gemini-embed',
-              supportedGenerationMethods: ['embedContent'], // not generateContent
+              supportedGenerationMethods: ['embedContent'],
             },
             {
               name: 'models/gemini-2.5-flash',
@@ -260,7 +267,7 @@ describe('AIService', () => {
     });
 
     it('logs warning and uses default when fetch fails', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(
+      (globalThis.fetch as jest.Mock).mockRejectedValueOnce(
         new Error('Network error'),
       );
 
@@ -273,7 +280,7 @@ describe('AIService', () => {
     });
 
     it('handles non-Error exceptions in catch block', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce('string error');
+      (globalThis.fetch as jest.Mock).mockRejectedValueOnce('string error');
 
       await service.onModuleInit();
 

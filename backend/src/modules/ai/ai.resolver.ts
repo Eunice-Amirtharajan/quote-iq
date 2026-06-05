@@ -1,4 +1,4 @@
-import { Resolver, Query, Args, ID } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, ID } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AIService } from './ai.service';
 import { QuotationSummaryType } from './ai-insight.entity';
@@ -12,8 +12,8 @@ import { Role } from '@prisma/client';
 export class AIResolver {
   constructor(private readonly aiService: AIService) {}
 
-  @Query(() => QuotationSummaryType, {
-    description: 'Generate AI summary for a quotation',
+  @Mutation(() => QuotationSummaryType, {
+    description: 'Generate or refresh the AI summary for a quotation',
   })
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER, Role.ADMIN)

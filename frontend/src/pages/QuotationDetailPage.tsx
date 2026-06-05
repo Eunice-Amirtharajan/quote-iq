@@ -50,7 +50,7 @@ interface Props {
   onBack: () => void;
 }
 
-export default function QuotationDetailPage({ id, onBack }: Props) {
+export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { data, loading, error } = useQuery<{ quotation: QuotationDetail }>(
     QUOTATION_QUERY,
     { variables: { id } },

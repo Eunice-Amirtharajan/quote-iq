@@ -1,0 +1,122 @@
+<mxfile host="app.diagrams.net" modified="2026-05-31" version="21.0.0">
+  <diagram name="Sequence - Request Lifecycle" id="req-lifecycle">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="QuoteIQ — GraphQL Request Lifecycle (Authenticated Query)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="227" y="20" width="1200" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Participants -->
+        <mxCell id="p1" value="Browser&#xa;(Apollo Client)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="Apollo Server&#xa;/graphql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="JwtAuthGuard&#xa;JwtStrategy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="RolesGuard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" value="Resolver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p6" value="Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="80" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p7" value="Prisma / DB" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="70" width="80" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Lifelines -->
+        <mxCell id="ll1" style="edgeStyle=none;html=1;strokeColor=#6c8ebf;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="130" /><mxPoint x="120" y="900" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="ll2" style="edgeStyle=none;html=1;strokeColor=#82b366;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="310" y="130" /><mxPoint x="310" y="900" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="ll3" style="edgeStyle=none;html=1;strokeColor=#d6b656;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="500" y="130" /><mxPoint x="500" y="900" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="ll4" style="edgeStyle=none;html=1;strokeColor=#d6b656;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="690" y="130" /><mxPoint x="690" y="900" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="ll5" style="edgeStyle=none;html=1;strokeColor=#82b366;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="880" y="130" /><mxPoint x="880" y="900" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="ll6" style="edgeStyle=none;html=1;strokeColor=#82b366;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1070" y="130" /><mxPoint x="1070" y="900" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="ll7" style="edgeStyle=none;html=1;strokeColor=#b85450;dashed=1;endArrow=none;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1240" y="130" /><mxPoint x="1240" y="900" /></Array></mxGeometry>
+        </mxCell>
+
+        <!-- Messages -->
+        <mxCell id="m1" value="POST /graphql + Cookie: access_token" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="180" /><mxPoint x="310" y="180" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m1-label" value="POST /graphql + Cookie: access_token" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m1"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="m2" value="Parse GraphQL operation" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="310" y="210" /><mxPoint x="500" y="210" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m2-label" value="Invoke JwtAuthGuard" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m2"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="note-jwt" value="Extract cookie → verify JWT → validate payload&#xa;findUnique(payload.sub) → attach req.user" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
+          <mxGeometry x="520" y="225" width="280" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m3" value="401 Unauthorized" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;dashed=1;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="500" y="285" /><mxPoint x="120" y="285" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m3-label" value="[if invalid/expired] → 401 Unauthorized" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="m3"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="m4" value="Check @Roles() metadata" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="500" y="320" /><mxPoint x="690" y="320" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m4-label" value="RolesGuard — required.includes(user.role)" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m4"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="m5" value="403 Forbidden" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;dashed=1;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="690" y="355" /><mxPoint x="120" y="355" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m5-label" value="[if insufficient role] → 403 Forbidden" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="m5"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="m6" value="@CurrentUser() injects req.user" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="690" y="390" /><mxPoint x="880" y="390" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m6-label" value="Route to Resolver method" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m6"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="note-ownership" value="Resolver performs ownership check&#xa;(e.g. SALES_REP can only access own records)" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#d5e8d4;strokeColor=#82b366;size=15;" vertex="1" parent="1">
+          <mxGeometry x="900" y="405" width="260" height="45" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m7" value="Delegate to Service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="880" y="465" /><mxPoint x="1070" y="465" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="m8" value="Prisma query (findMany / findUnique / create)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1070" y="500" /><mxPoint x="1240" y="500" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="m9" value="Result rows" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;dashed=1;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1240" y="530" /><mxPoint x="1070" y="530" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="m10" value="Typed result (QuotationType[])" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;dashed=1;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1070" y="560" /><mxPoint x="880" y="560" /></Array></mxGeometry>
+        </mxCell>
+
+        <mxCell id="m11" value="GraphQL response { data: { ... } }" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;dashed=1;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="310" y="600" /><mxPoint x="120" y="600" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="m11-label" value="200 OK — { data: { ... } } → Apollo InMemoryCache → React re-renders" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m11"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

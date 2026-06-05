@@ -1,10 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateQuotationInput } from './dto/quotation.input';
-import { QuotationStatus } from '@prisma/client';
+import { QuotationStatus, Role } from '@prisma/client';
 import { AppLogger } from '../../common/logger/logger.service';
 import { QuotationType } from './quotation.entity';
 import { UserType } from '../users/user.entity';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+const allowed: Record<QuotationStatus, QuotationStatus[]> = {
+  [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
+  [QuotationStatus.SENT]: [QuotationStatus.APPROVED, QuotationStatus.REJECTED],
+  [QuotationStatus.APPROVED]: [],
+  [QuotationStatus.REJECTED]: [],
+  [QuotationStatus.EXPIRED]: [],
+};
 
 @Injectable()
 export class QuotationsService {
@@ -38,7 +51,7 @@ export class QuotationsService {
     return { itemsWithTotal, subtotal, taxAmount, total };
   }
 
-  async findAll(user: UserType): Promise<QuotationType[]> {
+  async findAll(user: UserType, take = 20, skip = 0): Promise<QuotationType[]> {
     try {
       const userId = user.id;
       const role = user.role;
@@ -47,17 +60,39 @@ export class QuotationsService {
         QuotationsService.name,
       );
       const where =
-        role === 'SALES_MANAGER' || role === 'ADMIN'
+        role === Role.SALES_MANAGER || role === Role.ADMIN
           ? {}
           : { createdById: userId };
       return await this.prisma.quotation.findMany({
         where,
         include: { items: true, client: true, createdBy: true },
+        take: Math.min(take, 100),
+        skip,
         orderBy: { createdAt: 'desc' },
       });
     } catch (error) {
       this.logger.error(
         `Failed while retrieving all quotations for:${user.id}`,
+        error instanceof Error ? error.stack : String(error),
+        QuotationsService.name,
+      );
+      throw error;
+    }
+  }
+
+  async findOwner(id: string): Promise<{ createdById: string } | null> {
+    this.logger.info(
+      `Fetching owner for quotation id:${id}`,
+      QuotationsService.name,
+    );
+    try {
+      return await this.prisma.quotation.findUnique({
+        where: { id },
+        select: { createdById: true },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch owner for quotation id:${id}`,
         error instanceof Error ? error.stack : String(error),
         QuotationsService.name,
       );
@@ -95,31 +130,38 @@ export class QuotationsService {
       const { itemsWithTotal, subtotal, taxAmount, total } =
         this.calculateTotals(input.items, taxRate);
 
-      // Auto-generate quotation number
-      const count = await this.prisma.quotation.count();
-      const quoteNumber = `QT-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
+      const result = await this.prisma.$transaction(async (tx) => {
+        const result = await tx.$queryRaw<
+          [{ nextval: bigint }]
+        >`SELECT nextval('quote_number_seq')`;
 
-      return await this.prisma.quotation.create({
-        data: {
-          quotationNumber: quoteNumber,
-          title: input.title,
-          clientId: input.clientId,
-          notes: input.notes,
-          taxRate,
-          subtotal,
-          taxAmount,
-          total,
-          validUntil: input.validUntil,
-          createdById: user.id,
-          items: {
-            create: itemsWithTotal.map((item, i) => ({
-              ...item,
-              sortOrder: i,
-            })),
+        const seq = Number(result[0].nextval);
+        const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
+
+        const createdQuote = await tx.quotation.create({
+          data: {
+            quotationNumber: quoteNumber,
+            title: input.title,
+            clientId: input.clientId,
+            notes: input.notes,
+            taxRate,
+            subtotal,
+            taxAmount,
+            total,
+            validUntil: input.validUntil,
+            createdById: user.id,
+            items: {
+              create: itemsWithTotal.map((item, i) => ({
+                ...item,
+                sortOrder: i,
+              })),
+            },
           },
-        },
-        include: { items: true, client: true, createdBy: true },
+          include: { items: true, client: true, createdBy: true },
+        });
+        return createdQuote;
       });
+      return result;
     } catch (error) {
       this.logger.error(
         `Failed to create quotation — title: "${input.title}" clientId: ${input.clientId} userId: ${user.id}`,
@@ -132,7 +174,7 @@ export class QuotationsService {
 
   async updateStatus(
     id: string,
-    status: string,
+    status: QuotationStatus,
     note: string | undefined,
     userId: string,
   ): Promise<QuotationType> {
@@ -140,41 +182,52 @@ export class QuotationsService {
       `Status update — quotationId: ${id} newStatus: ${status} userId: ${userId}`,
       QuotationsService.name,
     );
-    const current = await this.prisma.quotation.findUnique({ where: { id } });
-    if (!current) {
-      this.logger.warn(
-        `Status update failed — quotation not found: ${id}`,
-        QuotationsService.name,
-      );
-      throw new NotFoundException(`Quotation ${id} not found`);
-    }
-    this.logger.info(
-      `Status transition — ${current.status} -> ${status} on quotation: ${id}`,
-      QuotationsService.name,
-    );
-    try {
-      // Record status change in history
-      await this.prisma.statusHistory.create({
-        data: {
-          quotationId: id,
-          fromStatus: current.status,
-          toStatus: status as QuotationStatus,
-          note,
-          changedById: userId,
-        },
-      });
 
-      return await this.prisma.quotation.update({
-        where: { id },
-        data: { status: status as QuotationStatus },
-        include: { items: true, client: true, createdBy: true },
+    try {
+      const quotation = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.quotation.findUnique({
+          where: { id },
+        });
+        if (!current) {
+          this.logger.warn(
+            `Status update failed — quotation not found: ${id}`,
+            QuotationsService.name,
+          );
+          throw new NotFoundException(`Quotation ${id} not found`);
+        }
+        if (!allowed[current.status].includes(status)) {
+          throw new BadRequestException(
+            `cannot transition from ${current.status} to ${status}`,
+          );
+        }
+        this.logger.info(
+          `Status transition — ${current.status} -> ${status} on quotation: ${id}`,
+          QuotationsService.name,
+        );
+        await tx.statusHistory.create({
+          data: {
+            quotationId: id,
+            fromStatus: current.status,
+            toStatus: status,
+            note,
+            changedById: userId,
+          },
+        });
+        return await tx.quotation.update({
+          where: { id },
+          data: { status: status },
+          include: { items: true, client: true, createdBy: true },
+        });
       });
+      return quotation;
     } catch (error) {
-      this.logger.error(
-        `Unexpected error while updating the quotation: "${id}"`,
-        error instanceof Error ? error.stack : String(error),
-        QuotationsService.name,
-      );
+      if (!(error instanceof HttpException)) {
+        this.logger.error(
+          `Unexpected error while updating the quotation: "${id}"`,
+          error instanceof Error ? error.stack : String(error),
+          QuotationsService.name,
+        );
+      }
       throw error;
     }
   }
@@ -185,6 +238,12 @@ export class QuotationsService {
       await this.prisma.quotation.delete({ where: { id } });
       return true;
     } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Quotation ${id} not found`);
+      }
       this.logger.error(
         `Unexpected error while deleting the quotation: "${id}"`,
         error instanceof Error ? error.stack : String(error),

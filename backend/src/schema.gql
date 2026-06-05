@@ -86,20 +86,20 @@ type Mutation {
   deleteQuotation(id: ID!): Boolean!
   login(email: String!, password: String!): UserType!
   logout: Boolean!
+
+  """Generate or refresh the AI summary for a quotation"""
+  quotationSummary(quotationId: ID!): QuotationSummaryType!
   updateClient(id: ID!, input: ClientInput!): ClientType!
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
 
 type Query {
   client(id: ID!): ClientType
-  clients: [ClientType!]!
+  clients(skip: Int, take: Int): [ClientType!]!
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
-
-  """Generate AI summary for a quotation"""
-  quotationSummary(quotationId: ID!): QuotationSummaryType!
-  quotations: [QuotationType!]!
+  quotations(skip: Int, take: Int): [QuotationType!]!
 }
 
 input QuotationItemInput {
@@ -142,15 +142,15 @@ type QuotationSummaryType {
 
 """A sales quotation with line items and calculated totals"""
 type QuotationType {
-  client: ClientType
+  client: ClientType!
 
   """Creation timestamp"""
   createdAt: DateTime!
-  createdBy: UserType
+  createdBy: UserType!
 
   """Unique identifier"""
   id: ID!
-  items: [QuotationItemType!]
+  items: [QuotationItemType!]!
 
   """Optional notes for the client"""
   notes: String
@@ -195,7 +195,7 @@ enum Role {
 
 input UpdateQuotationStatusInput {
   note: String
-  status: String!
+  status: QuotationStatus!
 }
 
 """A platform user — manager, sales rep, or admin"""

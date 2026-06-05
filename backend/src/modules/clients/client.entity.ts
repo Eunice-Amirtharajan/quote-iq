@@ -1,4 +1,5 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
+import type { Client } from '@prisma/client';
 
 @ObjectType({ description: 'A client or prospect in the system' })
 export class ClientType {
@@ -28,4 +29,24 @@ export class ClientType {
 
   @Field(() => Date, { description: 'Last update timestamp' })
   updatedAt!: Date;
+
+  createdById!: string;
 }
+
+type _ScalarFieldsMatch =
+  ClientType extends Pick<
+    Client,
+    | 'id'
+    | 'name'
+    | 'company'
+    | 'email'
+    | 'phone'
+    | 'city'
+    | 'country'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'createdById' // kept on class for service-layer use; not exposed in schema
+  >
+    ? true
+    : never;
+void (true as _ScalarFieldsMatch);

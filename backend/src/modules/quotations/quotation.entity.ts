@@ -8,7 +8,7 @@ import {
 import { QuotationItemType } from './quotation-item.entity';
 import { ClientType } from '../clients/client.entity';
 import { UserType } from '../users/user.entity';
-import { QuotationStatus } from '@prisma/client';
+import { QuotationStatus, type Quotation } from '@prisma/client';
 
 registerEnumType(QuotationStatus, { name: 'QuotationStatus' });
 
@@ -61,12 +61,38 @@ export class QuotationType {
   @Field(() => Date, { description: 'Last update timestamp' })
   updatedAt!: Date;
 
-  @Field(() => [QuotationItemType], { nullable: true })
-  items?: QuotationItemType[] | null;
+  @Field(() => [QuotationItemType])
+  items!: QuotationItemType[];
 
-  @Field(() => ClientType, { nullable: true })
-  client?: ClientType | null;
+  @Field(() => ClientType)
+  client!: ClientType;
 
-  @Field(() => UserType, { nullable: true })
-  createdBy?: UserType | null;
+  @Field(() => UserType)
+  createdBy!: UserType;
+
+  createdById!: string;
+
+  clientId!: string;
 }
+
+type _ScalarFieldsMatch =
+  QuotationType extends Pick<
+    Quotation,
+    | 'id'
+    | 'quotationNumber'
+    | 'title'
+    | 'status'
+    | 'notes'
+    | 'taxRate'
+    | 'subtotal'
+    | 'taxAmount'
+    | 'total'
+    | 'validUntil'
+    | 'createdAt'
+    | 'updatedAt'
+    | 'clientId'
+    | 'createdById'
+  >
+    ? true
+    : never;
+void (true as _ScalarFieldsMatch);

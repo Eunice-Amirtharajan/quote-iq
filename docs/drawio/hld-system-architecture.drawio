@@ -1,0 +1,165 @@
+<mxfile host="app.diagrams.net" modified="2026-05-31" version="21.0.0">
+  <diagram name="HLD - System Architecture" id="hld">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="QuoteIQ — High Level System Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="427" y="20" width="800" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- USER ZONE -->
+        <mxCell id="user-zone" value="Users" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];shape=mxgraph.lean_mapping.electronic_info_flow_edge;strokeColor=#666666;fillColor=#f5f5f5;fontColor=#333333;fontSize=11;fontStyle=1;verticalAlign=top;html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="user-zone-label" value="Users" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="220" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="browser" value="Browser&#xa;(React SPA)" style="shape=mxgraph.cisco.computers_and_peripherals.pc;html=1;pointerEvents=1;dashed=0;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="110" y="110" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="mobile" value="Mobile Browser" style="shape=mxgraph.cisco.computers_and_peripherals.mobile_phone;html=1;pointerEvents=1;dashed=0;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="110" width="40" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- FRONTEND ZONE -->
+        <mxCell id="frontend-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;verticalAlign=top;fontSize=12;fontStyle=1;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="60" y="260" width="220" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="frontend-zone-label" value="Frontend — Vercel CDN" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="265" width="220" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="react" value="React 18&#xa;TypeScript" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="300" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="apollo-client" value="Apollo Client&#xa;InMemoryCache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="360" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="tailwind" value="Tailwind CSS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="300" width="60" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- BACKEND ZONE -->
+        <mxCell id="backend-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;verticalAlign=top;fontSize=12;fontStyle=1;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="380" y="80" width="560" height="460" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-zone-label" value="Backend — Railway EU (Docker)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="85" width="560" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nestjs" value="NestJS 11&#xa;Apollo Server (GraphQL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="490" y="120" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="guards" value="JwtAuthGuard&#xa;RolesGuard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="420" y="200" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="auth-module" value="Auth Module&#xa;JWT · bcrypt · Cookies" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="200" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="logger" value="Winston Logger" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="720" y="200" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="quotations-module" value="Quotations Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="390" y="290" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="clients-module" value="Clients Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="550" y="290" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="dashboard-module" value="Dashboard Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="710" y="290" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ai-module" value="AI Module&#xa;Gemini · Zod · Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="370" width="140" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prisma" value="Prisma ORM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="490" y="460" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- DATA ZONE -->
+        <mxCell id="data-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="380" y="580" width="260" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="data-zone-label" value="Data Layer — Neon DB (PostgreSQL)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="585" width="260" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="postgres" value="PostgreSQL&#xa;Users · Clients · Quotations&#xa;QuotationItems · StatusHistory · AIInsight" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="450" y="615" width="120" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- AI ZONE -->
+        <mxCell id="ai-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="700" y="580" width="240" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="ai-zone-label" value="External AI — Google Cloud" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="585" width="240" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="gemini" value="Google Gemini API&#xa;gemini-1.5-flash" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="760" y="615" width="120" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- CONNECTIONS -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="browser" target="apollo-client" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1-label" value="HTTPS" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="e1">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="apollo-client" target="nestjs" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2-label" value="GraphQL + HttpOnly Cookie" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="e2">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="nestjs" target="guards" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="nestjs" target="auth-module" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="guards" target="quotations-module" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="guards" target="clients-module" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="guards" target="dashboard-module" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="guards" target="ai-module" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="quotations-module" target="prisma" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="clients-module" target="prisma" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="dashboard-module" target="prisma" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="ai-module" target="prisma" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="prisma" target="postgres" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" edge="1" source="ai-module" target="gemini" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14-label" value="HTTPS (Gemini API)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="e14">
+          <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

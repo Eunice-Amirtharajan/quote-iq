@@ -1,13 +1,13 @@
-
-import { useQuery } from '@apollo/client/react';
-import { DASHBOARD_STATS_QUERY } from '../graphql/queries';
+import { useQuery } from "@apollo/client/react";
+import { DASHBOARD_STATS_QUERY } from "../graphql/queries";
+import { useAuth } from "../hooks/useAuth";
 
 interface DashboardStats {
-  totalQuotations:    number;
-  totalSent:          number;
-  totalApproved:      number;
-  totalRejected:      number;
-  conversionRate:     number;
+  totalQuotations: number;
+  totalSent: number;
+  totalApproved: number;
+  totalRejected: number;
+  conversionRate: number;
   totalPipelineValue: number;
   totalApprovedValue: number;
 }
@@ -15,10 +15,10 @@ interface DashboardStats {
 interface StatCardProps {
   label: string;
   value: string | number;
-  sub?:  string;
+  sub?: string;
 }
 
-function StatCard({ label, value, sub }: StatCardProps) {
+function StatCard({ label, value, sub }: Readonly<StatCardProps>) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-6">
       <p className="text-sm text-gray-500 mb-1">{label}</p>
@@ -29,21 +29,25 @@ function StatCard({ label, value, sub }: StatCardProps) {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const { data, loading, error } = useQuery<{ dashboardStats: DashboardStats }>(
     DASHBOARD_STATS_QUERY,
+    { skip: user?.role === "SALES_REP" },
   );
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-gray-400 text-sm">Loading...</p>
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-400 text-sm">Loading...</p>
+      </div>
+    );
 
-  if (error) return (
-    <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
-      Failed to load dashboard stats
-    </div>
-  );
+  if (error)
+    return (
+      <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
+        Failed to load dashboard stats
+      </div>
+    );
 
   const stats = data?.dashboardStats;
 
@@ -61,10 +65,7 @@ export default function DashboardPage() {
           value={stats?.totalSent ?? 0}
           sub="Awaiting response"
         />
-        <StatCard
-          label="Approved"
-          value={stats?.totalApproved ?? 0}
-        />
+        <StatCard label="Approved" value={stats?.totalApproved ?? 0} />
         <StatCard
           label="Conversion Rate"
           value={`${stats?.conversionRate ?? 0}%`}

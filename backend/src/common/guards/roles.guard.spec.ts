@@ -32,10 +32,10 @@ describe('RolesGuard', () => {
     } as unknown as ExecutionContext;
   };
 
-  it('allows access when no roles required', () => {
+  it('denies access when no roles required (misconfiguration guard)', () => {
     reflector.getAllAndOverride.mockReturnValue(null);
     const result = guard.canActivate(mockContext('SALES_REP'));
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 
   it('allows access when user has required role', () => {

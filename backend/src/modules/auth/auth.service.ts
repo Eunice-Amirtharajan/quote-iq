@@ -5,6 +5,7 @@ import { Response } from 'express';
 import * as bcrypt from 'bcrypt';
 import { AppLogger } from '../../common/logger/logger.service';
 import type { User } from '@prisma/client';
+import ms, { StringValue } from 'ms';
 
 @Injectable()
 export class AuthService {
@@ -15,28 +16,26 @@ export class AuthService {
   ) {}
 
   async login(email: string, password: string, res: Response): Promise<User> {
-    this.logger.info(`Login attempt: ${email}`, AuthService.name);
-    const user = (await this.prisma.user.findUnique({
+    this.logger.info(`Login attempt`, AuthService.name);
+    const user = await this.prisma.user.findUnique({
       where: { email },
-    })) as User;
+    });
     if (!user) {
-      this.logger.warn(
-        `Login failed — user not found: ${email}`,
-        AuthService.name,
-      );
+      this.logger.warn(`Login failed — user not found`, AuthService.name);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       this.logger.warn(
-        `Login failed — wrong password: ${email}`,
+        `Login failed — wrong password — userId: ${user.id}`,
         AuthService.name,
       );
       throw new UnauthorizedException('Invalid credentials');
     }
 
     try {
+      const maxAge = ms((process.env.JWT_EXPIRES_IN ?? '7d') as StringValue);
       const token = this.jwtService.sign({
         sub: user.id,
         email: user.email,
@@ -47,13 +46,16 @@ export class AuthService {
         httpOnly: true,
         secure: true,
         sameSite: 'none',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: maxAge,
       });
-      this.logger.info(`Login successful: ${user.id}`, AuthService.name);
+      this.logger.info(
+        `Login successful — userId: ${user.id}`,
+        AuthService.name,
+      );
       return user;
     } catch (error) {
       this.logger.error(
-        `Unexpected error during login for: ${email}`,
+        `Unexpected error during login — userId: ${user.id}`,
         error instanceof Error ? error.stack : String(error),
         AuthService.name,
       );

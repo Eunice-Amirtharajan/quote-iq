@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { MockedProvider } from "@apollo/client/testing/react";
 import LoginPage from "./LoginPage";
 import { LOGIN_MUTATION } from "../graphql/mutations";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
 const mockSetUser = vi.fn();
@@ -113,10 +113,19 @@ describe("LoginPage", () => {
     });
   });
 
-  it("shows demo credentials", () => {
+  it("shows demo credentials when VITE_SHOW_DEMO_CREDENTIALS is true", () => {
+    vi.stubEnv("VITE_SHOW_DEMO_CREDENTIALS", "true");
     renderLoginPage();
     expect(screen.getByText("Demo credentials")).toBeInTheDocument();
     expect(screen.getByText(/marcus@quoteiq.com/)).toBeInTheDocument();
     expect(screen.getByText(/password123/)).toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it("hides demo credentials when VITE_SHOW_DEMO_CREDENTIALS is not set", () => {
+    vi.stubEnv("VITE_SHOW_DEMO_CREDENTIALS", "");
+    renderLoginPage();
+    expect(screen.queryByText("Demo credentials")).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
   });
 });

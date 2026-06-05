@@ -94,7 +94,7 @@ describe('DashboardService', () => {
     });
 
     it('calculates conversion rate correctly', async () => {
-      // 3 approved out of 10 total = 30%
+      // 3 approved out of (3+4)=7 decided = 42.9%
       mockPrismaService.quotation.count
         .mockResolvedValueOnce(10) // totalQuotations
         .mockResolvedValueOnce(2) // totalSent
@@ -103,7 +103,7 @@ describe('DashboardService', () => {
 
       const result = await service.getStats(mockUser(Role.SALES_MANAGER));
 
-      expect(result.conversionRate).toBe(30);
+      expect(result.conversionRate).toBe(42.9);
     });
 
     it('returns zero conversion rate when no quotations', async () => {

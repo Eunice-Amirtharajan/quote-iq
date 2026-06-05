@@ -16,3 +16,14 @@ export const LOGOUT_MUTATION = gql`
     logout
   }
 `;
+
+export const QUOTATION_SUMMARY_MUTATION = gql`
+  mutation QuotationSummary($quotationId: ID!) {
+    quotationSummary(quotationId: $quotationId) {
+      summary
+      recommendation
+      keyPoints
+      riskFactors
+    }
+  }
+`;

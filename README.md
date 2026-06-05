@@ -2,27 +2,65 @@
 
 A B2B quotation management platform with AI-powered insights for sales teams.
 
-Built in my free time to explore NestJS, GraphQL, and Gemini AI integration.
+**Live demo:** https://quoteiq.cc  
+Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` — password `password123`
 
 ---
 
 ## Stack
 
-**Backend:** NestJS · GraphQL (Apollo) · Prisma · PostgreSQL · Gemini AI  
-**Frontend:** React · TypeScript · Tailwind CSS · Apollo Client  
-**Auth:** JWT in HttpOnly cookies · Role-based access control  
-**Infra:** Railway (backend) · Vercel (frontend) · Neon DB  
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 · TypeScript · Tailwind CSS · Apollo Client |
+| Backend | NestJS · GraphQL (Apollo Server, code-first) · Prisma ORM |
+| Database | PostgreSQL (Neon DB) |
+| Auth | JWT in HttpOnly cookies · Role-based access control |
+| AI | Google Gemini API · Zod response validation |
+| Infra | Railway (backend, EU region) · Vercel (frontend) · Neon DB |
+
+---
+
+## Architecture Decisions
+
+**NestJS over Express** — NestJS enforces a module/resolver/service structure with decorator-based dependency injection. Express is unopinionated and doesn't scale well across large teams. NestJS mirrors enterprise team organisation patterns and is TypeScript-first throughout.
+
+**Separated React + NestJS over Next.js** — Separated frontend/backend architecture aligns with EU data residency compliance requirements, microservice patterns, and team organisation. The GraphQL API layer makes the separation clean and allows each layer to be deployed, scaled, and maintained independently.
+
+**GraphQL over REST** — single endpoint, client specifies exact data needed, strongly typed schema shared between frontend and backend. Reduces overfetching on quotation list views where only summary fields are needed.
+
+**JWT in HttpOnly cookies over localStorage** — prevents XSS token theft. Apollo Client sends the cookie automatically via `credentials: 'include'` — no manual header management needed.
+
+**Railway EU over Render** — EU region deployment supports data residency requirements. Railway also supports Docker-based deploys which gives full control over the runtime environment.
 
 ---
 
 ## Features
 
+### Implemented
 - Sales reps create and manage clients and quotations with line items and tax calculation
-- Managers view team-wide pipeline with stats and filters
-- AI-generated quotation summaries and recommendations per deal
-- Conversion likelihood scoring on open quotations
-- Win/loss pattern analysis across the team
-- Natural language querying of the pipeline
+- Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
+- Status workflow: DRAFT → SENT (rep) → APPROVED / REJECTED (manager)
+- Full status history tracked on every transition
+- Manager dashboard with pipeline stats, conversion rate, and approved value
+- AI-generated quotation summary with PROCEED / FOLLOW_UP / RECONSIDER recommendation
+- Hybrid recommendation model — rules-based scoring anchors the Gemini prompt, hard override prevents AI from reversing a RECONSIDER verdict
+
+### In Progress
+- Conversion likelihood score badge on SENT quotations (0–100, green/amber/red)
+- Win/loss pattern analysis page — approval rate by deal size, by rep, clients at risk
+- Natural language pipeline querying
+
+---
+
+## AI Architecture
+
+The quotation summary uses a **hybrid model**:
+
+1. **Rules engine** (`computeRecommendation`) scores the deal using client history — rejection rate > 60% → RECONSIDER, approval rate > 60% and deal within ±20% of average → PROCEED, else FOLLOW_UP
+2. **Gemini** receives the structured data plus the computed recommendation as an anchor — it can read unstructured signals (notes, line item descriptions) and override the rules, but only to upgrade or provide nuance
+3. **Hard override** — if rules say RECONSIDER, that verdict is locked regardless of Gemini output. Structured data cannot be overridden by qualitative reads
+4. **Zod validates** every Gemini response before it's used — TypeScript types don't protect at runtime
+5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
 
 ---
 
@@ -31,14 +69,15 @@ Built in my free time to explore NestJS, GraphQL, and Gemini AI integration.
 ```bash
 # Backend
 cd backend
+cp .env.example .env        # fill in your values
 npm install
-cp .env.example .env
 npx prisma migrate dev
 npx prisma db seed
 npm run start:dev
 
 # Frontend
 cd frontend
+cp .env.example .env.local  # fill in your values
 npm install
 npm run dev
 ```
@@ -47,54 +86,23 @@ npm run dev
 
 ## Environment Variables
 
+**Backend** (`backend/.env`):
+
 ```bash
-# backend/.env
-DATABASE_URL=""
-JWT_SECRET=""
-JWT_EXPIRES_IN="7d"
-GEMINI_API_KEY=""
+DATABASE_URL=""           # PostgreSQL connection string (e.g. from Neon DB)
+JWT_SECRET=""             # Any long random string
+JWT_EXPIRES_IN="7d"       # Token expiry — supports 7d, 24h, 30m etc.
+GEMINI_API_KEY=""         # Google AI Studio API key
+SEED_PASSWORD=""          # Password set for all seeded demo users (default: password123)
 PORT=4000
 NODE_ENV="development"
 ```
 
----
+**Frontend** (`frontend/.env.local`):
 
-## Project Structure
-
-```
-quote-iq/
-├── .github/
-│   └── workflows/
-├── backend/
-│   ├── prisma/
-│   │   └── migrations/
-│   ├── src/
-│   │   ├── common/
-│   │   │   ├── decorators/
-│   │   │   ├── guards/
-│   │   │   ├── logger/
-│   │   │   └── middleware/
-│   │   ├── modules/
-│   │   │   ├── ai/
-│   │   │   ├── auth/
-│   │   │   ├── clients/
-│   │   │   ├── dashboard/
-│   │   │   ├── quotations/
-│   │   │   └── users/
-│   │   └── prisma/
-│   └── test/
-├── frontend/
-│   └── src/
-│       ├── components/
-│       ├── context/
-│       ├── graphql/
-│       ├── hooks/
-│       ├── lib/
-│       ├── pages/
-│       └── test/
-├── docs/
-├── .gitignore
-└── README.md
+```bash
+VITE_API_URL="http://localhost:4000/graphql"   # Backend GraphQL endpoint
+VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on the login page
 ```
 
 ---
@@ -103,9 +111,9 @@ quote-iq/
 
 | Role | Access |
 |---|---|
-| SALES_REP | Own clients and quotations |
-| SALES_MANAGER | Full team visibility + AI features |
-| ADMIN | Full access + user management |
+| SALES_REP | Own clients and quotations only. Can create and move DRAFT → SENT |
+| SALES_MANAGER | Full team visibility. Can approve/reject quotations. Access to AI features and dashboard |
+| ADMIN | Everything SALES_MANAGER can do plus user management and delete access |
 
 ---
 
@@ -115,24 +123,64 @@ quote-iq/
 npx prisma db seed
 ```
 
-Creates three users with sample quotations across multiple clients and statuses.
+Creates three users (one manager, two sales reps) and sample quotations across multiple clients with varied statuses and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
 
-# Better — honest but not a security concern
-Demo credentials are configured via SEED_PASSWORD in .env.
-Default seed creates three users — manager, and two sales reps.
-Run `npx prisma db seed` after setting up your environment.
+---
+
+## Project Structure
+
+```
+quote-iq/
+├── .github/workflows/      # CI/CD — test, build, deploy
+├── backend/
+│   ├── prisma/
+│   │   ├── migrations/
+│   │   ├── schema.prisma
+│   │   └── seed.ts
+│   └── src/
+│       ├── common/
+│       │   ├── decorators/  # @CurrentUser, @Roles
+│       │   ├── guards/      # JwtAuthGuard, RolesGuard
+│       │   └── logger/      # Winston logger
+│       ├── modules/
+│       │   ├── ai/          # Gemini integration, hybrid recommendation model
+│       │   ├── auth/        # JWT, HttpOnly cookie, passport-jwt
+│       │   ├── clients/
+│       │   ├── dashboard/
+│       │   ├── quotations/
+│       │   └── users/
+│       └── prisma/          # PrismaService
+├── frontend/
+│   └── src/
+│       ├── components/      # AIInsightCard, Layout
+│       ├── context/         # AuthProvider, auth-context
+│       ├── graphql/         # queries.ts, mutations.ts
+│       ├── hooks/           # useAuth
+│       ├── lib/             # Apollo client
+│       └── pages/           # Dashboard, Quotations, Clients, QuotationDetail
+├── docs/
+│   ├── architecture-diagram.md
+│   ├── data-model.md
+│   ├── flow-login.md
+│   ├── flow-protected-query.md
+│   └── cicd-flow.md
+└── README.md
+```
+
+---
 
 ## Diagrams
 
-- [Architecture](docs/architecture.md)
-- [Login Flow](docs/flow-login.md)
-- [Protected Query Flow](docs/flow-protected-query.md)
-- [Data Model](docs/data-model.md)
+Draw.io source files are in [`docs/drawio/`](docs/drawio/). Open with [Draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases) or the [VS Code Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio) extension.
 
-## Demo
+| Diagram | File | Description |
+|---|---|---|
+| HLD — System Architecture | [hld-system-architecture.drawio](docs/drawio/hld-system-architecture.drawio) | Full deployment topology — browser, Vercel, Railway, Neon DB, Gemini |
+| LLD — NestJS Module Architecture | [lld-nestjs-module-architecture.drawio](docs/drawio/lld-nestjs-module-architecture.drawio) | Internal module structure — resolver → service → Prisma, guard chain |
+| ERD — Data Model | [erd-data-model.drawio](docs/drawio/erd-data-model.drawio) | All 6 tables with fields, types, indexes, and FK relationships |
+| Auth Flow | [sequence-auth-flow.drawio](docs/drawio/sequence-auth-flow.drawio) | Login, authenticated request, page refresh session restore, logout |
+| Request Lifecycle | [sequence-request-lifecycle.drawio](docs/drawio/sequence-request-lifecycle.drawio) | GraphQL request from browser through guards, resolver, service to DB and back |
+| AI Pipeline | [ai-pipeline.drawio](docs/drawio/ai-pipeline.drawio) | Hybrid recommendation model — cache check, rules engine, Gemini, Zod, hard override |
+| CI/CD Pipeline | [cicd-pipeline.drawio](docs/drawio/cicd-pipeline.drawio) | GitHub Actions → test gate → Railway Docker deploy + Vercel CDN deploy |
 
-https://quoteiq.cc
-
-Demo credentials:
-- Manager: `marcus@quoteiq.com` / `password123`
-- Sales Rep: `anna@quoteiq.com` / `password123`
+CI/CD flow also available as a [Mermaid diagram](docs/cicd-flow.md) (renders directly on GitHub).

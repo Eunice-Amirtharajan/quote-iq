@@ -1,5 +1,5 @@
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
-import { Role } from '@prisma/client';
+import { Role, type User } from '@prisma/client';
 
 registerEnumType(Role, { name: 'Role' });
 
@@ -23,3 +23,13 @@ export class UserType {
   @Field(() => Date, { description: 'Last update timestamp' })
   updatedAt!: Date;
 }
+
+// password is intentionally excluded from the GraphQL type
+type _ScalarFieldsMatch =
+  UserType extends Pick<
+    User,
+    'id' | 'name' | 'email' | 'role' | 'createdAt' | 'updatedAt'
+  >
+    ? true
+    : never;
+void (true as _ScalarFieldsMatch);

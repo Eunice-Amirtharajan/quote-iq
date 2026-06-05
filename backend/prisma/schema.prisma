@@ -44,7 +44,7 @@ model Client {
   id          String      @id @default(uuid())
   name        String
   company     String
-  email       String
+  email       String      @unique
   phone       String?
   city        String?
   country     String?
@@ -75,6 +75,10 @@ model Quotation {
   items           QuotationItem[]
   statusHistory   StatusHistory[]
   aiInsights      AIInsight[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([createdById, status])
 }
 
 model QuotationItem {
@@ -86,6 +90,7 @@ model QuotationItem {
   sortOrder   Int       @default(0)
   quotationId String
   quotation   Quotation @relation(fields:[quotationId], references:[id], onDelete: Cascade)
+  @@index([quotationId])
 }
 
 model StatusHistory {
@@ -95,17 +100,20 @@ model StatusHistory {
   note        String?
   changedAt   DateTime        @default(now())
   quotationId String
-  quotation   Quotation       @relation(fields:[quotationId], references:[id])
+  quotation   Quotation       @relation(fields:[quotationId], references:[id], onDelete: Cascade)
   changedById String
-  changedBy   User            @relation(fields:[changedById], references:[id])
+  changedBy   User            @relation(fields:[changedById], references:[id], onDelete: Cascade)
+  @@index([quotationId])
 }
 
 model AIInsight {
   id          String      @id @default(uuid())
   insightType InsightType
-  content     Json
+  content     String
   generatedAt DateTime    @default(now())
   expiresAt   DateTime
   quotationId String?
-  quotation   Quotation?  @relation(fields:[quotationId], references:[id])
+  quotation   Quotation?  @relation(fields:[quotationId], references:[id], onDelete: Cascade)
+  @@unique([quotationId, insightType])
+  @@index([quotationId])
 }

@@ -1,5 +1,9 @@
-import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { Resolver, Query, Mutation, Args, ID, Int } from '@nestjs/graphql';
+import {
+  ForbiddenException,
+  NotFoundException,
+  UseGuards,
+} from '@nestjs/common';
 import { ClientsService } from './clients.service';
 import { ClientType } from './client.entity';
 import { ClientInput } from './dto/client.input';
@@ -16,15 +20,32 @@ export class ClientsResolver {
   constructor(private readonly clientsService: ClientsService) {}
 
   @Query(() => [ClientType])
-  async clients(@CurrentUser() user: UserType): Promise<ClientType[]> {
-    return this.clientsService.findAll(user);
+  async clients(
+    @CurrentUser() user: UserType,
+    @Args('take', { nullable: true, type: () => Int }) take?: number,
+    @Args('skip', { nullable: true, type: () => Int }) skip?: number,
+  ): Promise<ClientType[]> {
+    return this.clientsService.findAll(user, take, skip);
   }
 
   @Query(() => ClientType, { nullable: true })
   async client(
     @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() user: UserType,
   ): Promise<ClientType | null> {
-    return this.clientsService.findOne(id);
+    if (user.role === Role.SALES_REP) {
+      const owner = await this.clientsService.findOwner(id);
+      if (!owner) return null;
+      if (owner.createdById !== user.id) {
+        throw new ForbiddenException();
+      }
+    }
+
+    const client = await this.clientsService.findOne(id);
+    if (!client) {
+      return null;
+    }
+    return client;
   }
 
   @Mutation(() => ClientType)
@@ -39,7 +60,13 @@ export class ClientsResolver {
   async updateClient(
     @Args('id', { type: () => ID }) id: string,
     @Args('input') input: ClientInput,
+    @CurrentUser() user: UserType,
   ): Promise<ClientType> {
+    const owner = await this.clientsService.findOwner(id);
+    if (!owner) throw new NotFoundException(`Client ${id} not found`);
+    if (user.role === Role.SALES_REP && owner.createdById !== user.id) {
+      throw new ForbiddenException();
+    }
     return this.clientsService.update(id, input);
   }
 
