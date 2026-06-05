@@ -74,7 +74,7 @@
         <mxCell id="dashboard-module" value="Dashboard Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="710" y="290" width="140" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="ai-module" value="AI Module&#xa;Gemini · Zod · Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="ai-module" value="AI Module&#xa;Groq · Zod · Cache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="550" y="370" width="140" height="50" as="geometry" />
         </mxCell>
 
@@ -100,7 +100,7 @@
         <mxCell id="ai-zone-label" value="External AI — Google Cloud" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="700" y="585" width="240" height="25" as="geometry" />
         </mxCell>
-        <mxCell id="gemini" value="Google Gemini API&#xa;gemini-1.5-flash" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="Groq" value="Google Groq API&#xa;Groq-1.5-flash" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="760" y="615" width="120" height="50" as="geometry" />
         </mxCell>
 
@@ -152,10 +152,10 @@
         <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="prisma" target="postgres" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" edge="1" source="ai-module" target="gemini" parent="1">
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" edge="1" source="ai-module" target="Groq" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e14-label" value="HTTPS (Gemini API)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="e14">
+        <mxCell id="e14-label" value="HTTPS (Groq API)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" vertex="1" connectable="0" parent="e14">
           <mxGeometry x="-0.1" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
         </mxCell>
 

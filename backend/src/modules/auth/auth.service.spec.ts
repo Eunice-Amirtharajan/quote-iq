@@ -12,7 +12,7 @@ import { Response } from 'express';
 
 const mockPrismaService = {
   user: {
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
   },
 };
 
@@ -62,7 +62,7 @@ describe('AuthService', () => {
     };
 
     it('returns user and sets cookie on valid credentials', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.login(
@@ -79,7 +79,7 @@ describe('AuthService', () => {
       );
     });
     it('throws UnauthorizedException when password is wrong', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
       await expect(
@@ -88,7 +88,7 @@ describe('AuthService', () => {
     });
 
     it('signs JWT with correct payload', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       await service.login('marcus@quoteiq.com', 'password123', mockResponse);
@@ -101,7 +101,7 @@ describe('AuthService', () => {
     });
 
     it('does not set cookie when login fails', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(
         service.login('wrong@email.com', 'password123', mockResponse),
@@ -110,7 +110,7 @@ describe('AuthService', () => {
       expect(mockResponse.cookie).not.toHaveBeenCalled();
     });
     it('throws when JWT signing fails', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockJwtService.sign.mockImplementation(() => {
         throw new Error('JWT error');
@@ -120,6 +120,41 @@ describe('AuthService', () => {
         service.login('marcus@quoteiq.com', 'password123', mockResponse),
       ).rejects.toThrow('JWT error');
     });
+
+    it('logs String(error) when a non-Error is thrown during token setup', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockJwtService.sign.mockImplementation(() => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw 'plain string error';
+      });
+
+      await expect(
+        service.login('marcus@quoteiq.com', 'password123', mockResponse),
+      ).rejects.toBe('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        AuthService.name,
+      );
+    });
+
+    it('uses default JWT_EXPIRES_IN of 7d when env var is not set', async () => {
+      const saved = process.env.JWT_EXPIRES_IN;
+      delete process.env.JWT_EXPIRES_IN;
+      mockJwtService.sign.mockReturnValue('mock-jwt-token');
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await service.login('marcus@quoteiq.com', 'password123', mockResponse);
+
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ maxAge: 7 * 24 * 60 * 60 * 1000 }),
+      );
+      process.env.JWT_EXPIRES_IN = saved;
+    });
   });
 
   describe('logout', () => {
@@ -127,12 +162,29 @@ describe('AuthService', () => {
       const result = service.logout(mockResponse);
       expect(mockResponse.clearCookie).toHaveBeenCalledWith('access_token', {
         httpOnly: true,
-        sameSite: 'none',
-        secure: true,
+        sameSite: 'lax',
+        secure: false,
       });
       expect(result).toBe(true);
     });
+
+    it('logs String(error) when a non-Error is thrown during clearCookie', () => {
+      const errorResponse = {
+        clearCookie: jest.fn().mockImplementation(() => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw 'plain string error';
+        }),
+      } as unknown as Response;
+
+      expect(() => service.logout(errorResponse)).toThrow('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        AuthService.name,
+      );
+    });
   });
+
   it('throws and logs error when clearCookie fails', () => {
     const errorResponse = {
       clearCookie: jest.fn().mockImplementation(() => {

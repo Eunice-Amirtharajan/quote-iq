@@ -1,7 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+
+const KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes — Neon pauses at 5 min idle
+
+function startDbKeepalive(prisma: PrismaService) {
+  setInterval(() => {
+    void prisma.$queryRaw`SELECT 1`.catch((err: unknown) => {
+      console.warn(
+        `[PrismaService] Keepalive ping failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+  }, KEEPALIVE_INTERVAL_MS);
+}
 
 function assertEnvVariables(key: string) {
   const value = process.env[key];
@@ -12,7 +25,7 @@ function assertEnvVariables(key: string) {
 }
 async function bootstrap() {
   assertEnvVariables('JWT_SECRET');
-  assertEnvVariables('GEMINI_API_KEY');
+  assertEnvVariables('GROQ_API_KEY');
   assertEnvVariables('DATABASE_URL');
   assertEnvVariables('PORT');
   assertEnvVariables('NODE_ENV');
@@ -44,5 +57,7 @@ async function bootstrap() {
     ],
   });
   await app.listen(process.env.PORT ?? 4000);
+  const prisma = app.get(PrismaService);
+  startDbKeepalive(prisma);
 }
 void bootstrap();

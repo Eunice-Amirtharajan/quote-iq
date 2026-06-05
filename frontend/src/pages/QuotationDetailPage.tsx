@@ -1,5 +1,8 @@
-import { useQuery } from "@apollo/client/react";
+import { useState } from "react";
+import { useQuery, useMutation } from "@apollo/client/react";
 import { QUOTATION_QUERY } from "../graphql/queries";
+import { UPDATE_QUOTATION_STATUS_MUTATION } from "../graphql/mutations";
+import { useAuth } from "../hooks/useAuth";
 import AIInsightCard from "../components/AIInsightCard";
 
 interface QuotationItem {
@@ -31,8 +34,8 @@ interface QuotationDetail {
     country: string | null;
   };
   createdBy: {
+    id: string;
     name: string;
-    email: string;
   };
   items: QuotationItem[];
 }
@@ -50,8 +53,90 @@ interface Props {
   onBack: () => void;
 }
 
+interface StatusActionsProps {
+  quotationId: string;
+  status: string;
+  createdById: string;
+  refetch: () => void;
+}
+
+function StatusActions({ quotationId, status, createdById, refetch }: Readonly<StatusActionsProps>) {
+  const { user } = useAuth();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  const [updateStatus] = useMutation(
+    UPDATE_QUOTATION_STATUS_MUTATION,
+    {
+      onCompleted: () => {
+        setActionError(null);
+        setPendingAction(null);
+        refetch();
+      },
+      onError: (err) => {
+        setActionError(err.message);
+        setPendingAction(null);
+      },
+    },
+  );
+
+  const act = (newStatus: string) => {
+    setActionError(null);
+    setPendingAction(newStatus);
+    void updateStatus({ variables: { id: quotationId, input: { status: newStatus } } });
+  };
+
+  const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
+  const isOwner = user?.id === createdById;
+
+  const showSend = status === "DRAFT" && isOwner;
+  const showApproveReject = status === "SENT" && isManager;
+
+  if (!showSend && !showApproveReject) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
+      <h3 className="text-sm font-medium text-gray-900">Actions</h3>
+      {actionError && (
+        <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+          {actionError}
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
+        {showSend && (
+          <button
+            onClick={() => act("SENT")}
+            disabled={pendingAction !== null}
+            className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pendingAction === "SENT" ? "Submitting…" : "Submit for Approval"}
+          </button>
+        )}
+        {showApproveReject && (
+          <>
+            <button
+              onClick={() => act("APPROVED")}
+              disabled={pendingAction !== null}
+              className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pendingAction === "APPROVED" ? "Approving…" : "Approve"}
+            </button>
+            <button
+              onClick={() => act("REJECTED")}
+              disabled={pendingAction !== null}
+              className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pendingAction === "REJECTED" ? "Rejecting…" : "Reject"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
-  const { data, loading, error } = useQuery<{ quotation: QuotationDetail }>(
+  const { data, loading, error, refetch } = useQuery<{ quotation: QuotationDetail }>(
     QUOTATION_QUERY,
     { variables: { id } },
   );
@@ -71,7 +156,18 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
     );
 
   const q = data?.quotation;
-  if (!q) return null;
+  if (!q)
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <p className="text-gray-500 text-sm">Quotation not found or access denied.</p>
+        <button
+          onClick={onBack}
+          className="text-sm text-gray-400 hover:text-gray-900 transition-colors"
+        >
+          ← Back to Quotations
+        </button>
+      </div>
+    );
 
   return (
     <div>
@@ -166,8 +262,15 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
           )}
         </div>
 
-        {/* Right — metadata */}
+        {/* Right — metadata + actions */}
         <div className="space-y-4">
+          <StatusActions
+            quotationId={q.id}
+            status={q.status}
+            createdById={q.createdBy.id}
+            refetch={refetch}
+          />
+
           {/* Quotation info */}
           <div className="bg-white rounded-xl border border-gray-100 p-5">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Details</h3>
@@ -227,6 +330,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
               )}
             </div>
           </div>
+
           <AIInsightCard quotationId={id} />
         </div>
       </div>

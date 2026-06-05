@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService, withDbRetry } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import * as bcrypt from 'bcrypt';
 import { AppLogger } from '../../common/logger/logger.service';
@@ -17,9 +17,10 @@ export class AuthService {
 
   async login(email: string, password: string, res: Response): Promise<User> {
     this.logger.info(`Login attempt`, AuthService.name);
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await withDbRetry(
+      () => this.prisma.user.findFirst({ where: { email } }),
+      this.logger,
+    );
     if (!user) {
       this.logger.warn(`Login failed — user not found`, AuthService.name);
       throw new UnauthorizedException('Invalid credentials');
@@ -42,10 +43,11 @@ export class AuthService {
         role: user.role,
       });
 
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('access_token', token, {
         httpOnly: true,
-        secure: true,
-        sameSite: 'none',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: maxAge,
       });
       this.logger.info(
@@ -65,10 +67,11 @@ export class AuthService {
 
   logout(res: Response): boolean {
     try {
+      const isProd = process.env.NODE_ENV === 'production';
       res.clearCookie('access_token', {
         httpOnly: true,
-        secure: true,
-        sameSite: 'none',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
       });
       return true;
     } catch (error) {

@@ -46,7 +46,7 @@ export class ClientsService {
   async findOne(id: string): Promise<ClientType | null> {
     this.logger.info(`Fetching client: ${id}`, ClientsService.name);
     try {
-      const client = await this.prisma.client.findUnique({ where: { id } });
+      const client = await this.prisma.client.findFirst({ where: { id } });
       if (!client) {
         this.logger.warn(`Client not found: ${id}`, ClientsService.name);
       }
@@ -64,7 +64,7 @@ export class ClientsService {
   async findOwner(id: string): Promise<{ createdById: string } | null> {
     this.logger.info(`Fetching owner for client id:${id}`, ClientsService.name);
     try {
-      return await this.prisma.client.findUnique({
+      return await this.prisma.client.findFirst({
         where: { id },
         select: { createdById: true },
       });

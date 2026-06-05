@@ -21,6 +21,18 @@ import { AIModule } from './modules/ai/ai.module';
       introspection: process.env.NODE_ENV !== 'production',
       playground: process.env.NODE_ENV !== 'production',
       csrfPrevention: true,
+      formatError: (err) => {
+        const msg = err.message ?? '';
+        const isDbDown =
+          msg.includes("Can't reach database") ||
+          msg.includes('connect ECONNREFUSED') ||
+          msg.includes('Connection refused') ||
+          msg.includes('prisma');
+        if (isDbDown) {
+          return { ...err, message: 'Service temporarily unavailable. Please try again in a moment.' };
+        }
+        return err;
+      },
       context: ({ req, res }: { req: Request; res: Response }) => ({
         req,
         res,

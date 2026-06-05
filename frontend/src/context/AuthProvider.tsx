@@ -5,15 +5,18 @@ import { ME_QUERY } from "../graphql/queries";
 export type { User } from "./auth-context";
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [localUser, setLocalUser] = useState<User | null>(null);
   const [loggedOut, setLoggedOut] = useState(false);
 
   const { loading, data, error } = useQuery<{ me: User }>(ME_QUERY, {
     fetchPolicy: 'cache-and-network',
+    errorPolicy: 'ignore',
   });
 
-  const user = loggedOut ? null : (data?.me ?? null);
+  const user = loggedOut ? null : (localUser ?? data?.me ?? null);
 
   const setUser = useCallback((u: User | null) => {
+    setLocalUser(u);
     setLoggedOut(u === null);
   }, []);
 
@@ -28,6 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   if (error && !data) {
+    // errorPolicy:'ignore' suppresses GraphQL errors, so error here means true network failure
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-sm text-gray-500">Could not connect. Please refresh.</p>

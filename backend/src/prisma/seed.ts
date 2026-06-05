@@ -56,55 +56,54 @@ async function main() {
     }),
   ]);
 
-  // 4 clients — 2 per rep; upsert on email (@@unique) for idempotency
+  async function upsertClient(data: {
+    name: string;
+    company: string;
+    email: string;
+    city?: string;
+    country?: string;
+    createdById: string;
+  }) {
+    const existing = await prisma.client.findFirst({
+      where: { email: data.email },
+    });
+    if (existing) return existing;
+    return prisma.client.create({ data });
+  }
+
+  // 4 clients — 2 per rep; idempotent via findUnique on email
   const [bauer, vogel, fischer, richter] = await Promise.all([
-    prisma.client.upsert({
-      where: { email: 'hans@bauer-logistics.de' },
-      update: {},
-      create: {
-        name: 'Hans Bauer',
-        company: 'Bauer Logistics GmbH',
-        email: 'hans@bauer-logistics.de',
-        city: 'Berlin',
-        country: 'Germany',
-        createdById: anna.id,
-      },
+    upsertClient({
+      name: 'Hans Bauer',
+      company: 'Bauer Logistics GmbH',
+      email: 'hans@bauer-logistics.de',
+      city: 'Berlin',
+      country: 'Germany',
+      createdById: anna.id,
     }),
-    prisma.client.upsert({
-      where: { email: 'lena@vogeldigital.de' },
-      update: {},
-      create: {
-        name: 'Lena Vogel',
-        company: 'Vogel Digital AG',
-        email: 'lena@vogeldigital.de',
-        city: 'Hamburg',
-        country: 'Germany',
-        createdById: anna.id,
-      },
+    upsertClient({
+      name: 'Lena Vogel',
+      company: 'Vogel Digital AG',
+      email: 'lena@vogeldigital.de',
+      city: 'Hamburg',
+      country: 'Germany',
+      createdById: anna.id,
     }),
-    prisma.client.upsert({
-      where: { email: 'emma@fischertech.de' },
-      update: {},
-      create: {
-        name: 'Emma Fischer',
-        company: 'Fischer Tech Solutions',
-        email: 'emma@fischertech.de',
-        city: 'Munich',
-        country: 'Germany',
-        createdById: tom.id,
-      },
+    upsertClient({
+      name: 'Emma Fischer',
+      company: 'Fischer Tech Solutions',
+      email: 'emma@fischertech.de',
+      city: 'Munich',
+      country: 'Germany',
+      createdById: tom.id,
     }),
-    prisma.client.upsert({
-      where: { email: 'k.richter@richter-mfg.de' },
-      update: {},
-      create: {
-        name: 'Klaus Richter',
-        company: 'Richter Manufacturing',
-        email: 'k.richter@richter-mfg.de',
-        city: 'Stuttgart',
-        country: 'Germany',
-        createdById: tom.id,
-      },
+    upsertClient({
+      name: 'Klaus Richter',
+      company: 'Richter Manufacturing',
+      email: 'k.richter@richter-mfg.de',
+      city: 'Stuttgart',
+      country: 'Germany',
+      createdById: tom.id,
     }),
   ]);
 
@@ -653,7 +652,7 @@ async function main() {
 
     // Status history for non-DRAFT quotes
     if (q.status !== QuotationStatus.DRAFT) {
-      const quotation = await prisma.quotation.findUnique({
+      const quotation = await prisma.quotation.findFirst({
         where: { quotationNumber: q.num },
         select: { id: true },
       });
@@ -702,6 +701,9 @@ async function main() {
       }
     }
   }
+
+  // Advance the sequence past all seeded quotation numbers to prevent collisions
+  await prisma.$executeRaw`SELECT setval('quote_number_seq', 100)`;
 
   console.log('Seed complete — 4 clients, 20 quotations with realistic data');
 }

@@ -56,6 +56,14 @@ describe('AuthResolver', () => {
       );
       expect(result).toEqual(mockUser);
     });
+
+    it('propagates error when authService.login throws', async () => {
+      mockAuthService.login.mockRejectedValue(new Error('Invalid credentials'));
+
+      await expect(
+        resolver.login('bad@test.com', 'wrong', { res: mockResponse }),
+      ).rejects.toThrow('Invalid credentials');
+    });
   });
 
   describe('logout', () => {

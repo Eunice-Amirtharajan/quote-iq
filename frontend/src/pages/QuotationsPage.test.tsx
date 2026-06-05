@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react';
-import { MockedProvider,  } from '@apollo/client/testing/react';
+import userEvent from '@testing-library/user-event';
+import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import QuotationsPage from './QuotationsPage';
 import { QUOTATIONS_QUERY } from '../graphql/queries';
+import { AuthContext } from '../context/auth-context';
 import type { MockLink } from '@apollo/client/testing';
 
 const mockQuotations = [
@@ -13,10 +15,7 @@ const mockQuotations = [
     status:          'APPROVED',
     total:           7140,
     createdAt:       '2026-04-10T00:00:00.000Z',
-    client: {
-      name:    'Hans Bauer',
-      company: 'Bauer GmbH',
-    },
+    client: { name: 'Hans Bauer', company: 'Bauer GmbH' },
   },
   {
     id:              'q-2',
@@ -25,13 +24,25 @@ const mockQuotations = [
     status:          'SENT',
     total:           10000,
     createdAt:       '2026-04-10T00:00:00.000Z',
-    client: {
-      name:    'Emma Fischer',
-      company: 'Fischer Tech',
-    },
+    client: { name: 'Emma Fischer', company: 'Fischer Tech' },
   },
 ];
 
+const mockRep = {
+  id: 'u-rep',
+  name: 'Anna Schmidt',
+  email: 'anna@quoteiq.com',
+  role: 'SALES_REP' as const,
+};
+
+const mockManager = {
+  id: 'u-manager',
+  name: 'Marcus Klein',
+  email: 'marcus@quoteiq.com',
+  role: 'SALES_MANAGER' as const,
+};
+
+const mockSetUser = vi.fn();
 const mockOnSelect = vi.fn();
 
 const successMock: MockLink.MockedResponse[] = [
@@ -55,25 +66,29 @@ const errorMock: MockLink.MockedResponse[] = [
   },
 ];
 
+function renderAs(
+  user: typeof mockRep | typeof mockManager,
+  mocks: MockLink.MockedResponse[],
+) {
+  return render(
+    <AuthContext.Provider value={{ user, setUser: mockSetUser }}>
+      <MockedProvider mocks={mocks} addTypename={false}>
+        <QuotationsPage onSelect={mockOnSelect} />
+      </MockedProvider>
+    </AuthContext.Provider>,
+  );
+}
+
 describe('QuotationsPage', () => {
   afterEach(() => vi.clearAllMocks());
 
   it('shows loading state initially', () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
+    renderAs(mockRep, successMock);
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
   it('renders quotation list after loading', async () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, successMock);
     expect(await screen.findByText('Enterprise License')).toBeInTheDocument();
     expect(screen.getByText('Cloud Setup')).toBeInTheDocument();
     expect(screen.getByText('QT-2026-0001')).toBeInTheDocument();
@@ -81,12 +96,7 @@ describe('QuotationsPage', () => {
   });
 
   it('renders client names and companies', async () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, successMock);
     await screen.findByText('Enterprise License');
     expect(screen.getByText('Hans Bauer')).toBeInTheDocument();
     expect(screen.getByText('Bauer GmbH')).toBeInTheDocument();
@@ -94,71 +104,74 @@ describe('QuotationsPage', () => {
   });
 
   it('renders status badges', async () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, successMock);
     await screen.findByText('Enterprise License');
     expect(screen.getByText('APPROVED')).toBeInTheDocument();
     expect(screen.getByText('SENT')).toBeInTheDocument();
   });
 
   it('renders totals correctly', async () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, successMock);
     await screen.findByText('Enterprise License');
     expect(screen.getByText('€7,140')).toBeInTheDocument();
     expect(screen.getByText('€10,000')).toBeInTheDocument();
   });
 
   it('shows total count', async () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, successMock);
     expect(await screen.findByText('2 total')).toBeInTheDocument();
   });
 
   it('shows empty state when no quotations', async () => {
-    render(
-      <MockedProvider mocks={emptyMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, emptyMock);
     expect(await screen.findByText('No quotations yet')).toBeInTheDocument();
   });
 
   it('shows error state when query fails', async () => {
-    render(
-      <MockedProvider mocks={errorMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, errorMock);
     expect(
       await screen.findByText('Failed to load quotations'),
     ).toBeInTheDocument();
   });
 
   it('calls onSelect when row is clicked', async () => {
-    render(
-      <MockedProvider mocks={successMock}>
-        <QuotationsPage onSelect={mockOnSelect} />
-      </MockedProvider>,
-    );
-
+    renderAs(mockRep, successMock);
     await screen.findByText('Enterprise License');
     screen.getByText('Enterprise License').closest('tr')?.click();
-
     expect(mockOnSelect).toHaveBeenCalledWith('q-1');
+  });
+
+  it('shows New Quotation button for SALES_REP', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+    expect(screen.getByText('New Quotation')).toBeInTheDocument();
+  });
+
+  it('shows New Quotation button for SALES_MANAGER', async () => {
+    renderAs(mockManager, successMock);
+    await screen.findByText('Enterprise License');
+    expect(screen.getByText('New Quotation')).toBeInTheDocument();
+  });
+
+  it('opens create modal when New Quotation button is clicked', async () => {
+    const user = userEvent.setup();
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+    await user.click(screen.getByText('New Quotation'));
+    expect(screen.getByRole('dialog', { name: 'Create quotation' })).toBeInTheDocument();
+  });
+
+  it('shows Create your first quotation button in empty state', async () => {
+    renderAs(mockRep, emptyMock);
+    await screen.findByText('No quotations yet');
+    expect(screen.getByText('Create your first quotation')).toBeInTheDocument();
+  });
+
+  it('opens modal from empty state button', async () => {
+    const user = userEvent.setup();
+    renderAs(mockRep, emptyMock);
+    await screen.findByText('Create your first quotation');
+    await user.click(screen.getByText('Create your first quotation'));
+    expect(screen.getByRole('dialog', { name: 'Create quotation' })).toBeInTheDocument();
   });
 });

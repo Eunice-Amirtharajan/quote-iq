@@ -156,6 +156,46 @@ describe('ClientsResolver', () => {
         ),
       ).rejects.toThrow('Client c-999 not found');
     });
+
+    it('throws ForbiddenException when SALES_REP updates another rep client', async () => {
+      mockClientsService.findOwner.mockResolvedValue({
+        createdById: 'user-999',
+      });
+
+      await expect(
+        resolver.updateClient(
+          'c-1',
+          {
+            name: 'Test',
+            company: 'Test',
+            email: 'test@test.de',
+          } as ClientInput,
+          mockUser as UserType,
+        ),
+      ).rejects.toThrow('Forbidden');
+      expect(mockClientsService.update).not.toHaveBeenCalled();
+    });
+
+    it('allows SALES_MANAGER to update any client', async () => {
+      const manager = { ...mockUser, role: Role.SALES_MANAGER };
+      const input = {
+        name: 'Updated',
+        company: 'Updated GmbH',
+        email: 'updated@test.de',
+      };
+      mockClientsService.findOwner.mockResolvedValue({
+        createdById: 'user-999',
+      });
+      mockClientsService.update.mockResolvedValue({ ...mockClient, ...input });
+
+      const result = await resolver.updateClient(
+        'c-1',
+        input as ClientInput,
+        manager as UserType,
+      );
+      expect(mockClientsService.update).toHaveBeenCalledWith('c-1', input);
+      expect(result).toMatchObject(input);
+    });
   });
 
   describe('deleteClient', () => {

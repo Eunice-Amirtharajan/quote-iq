@@ -3,15 +3,16 @@ import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { Role, User } from '@prisma/client';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { QuotationStatus } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const mockPrismaService = {
   quotation: {
     count: jest.fn(),
     create: jest.fn(),
     findMany: jest.fn(),
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
@@ -149,22 +150,50 @@ describe('QuotationsService', () => {
   describe('findOne', () => {
     it('returns quotation when found', async () => {
       const mockQuotation = { id: 'q-1', title: 'Test' };
-      mockPrismaService.quotation.findUnique.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       const result = await service.findOne('q-1');
       expect(result).toEqual(mockQuotation);
     });
 
     it('returns null when not found', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
       const result = await service.findOne('q-999');
       expect(result).toBeNull();
     });
     it('throws and logs error when prisma fails', async () => {
-      mockPrismaService.quotation.findUnique.mockRejectedValue(
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
         new Error('DB error'),
       );
 
       await expect(service.findOne('q-1')).rejects.toThrow('DB error');
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('findOwner', () => {
+    it('returns createdById when quotation exists', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        createdById: 'user-1',
+      });
+      const result = await service.findOwner('q-1');
+      expect(result).toEqual({ createdById: 'user-1' });
+      expect(mockPrismaService.quotation.findFirst).toHaveBeenCalledWith({
+        where: { id: 'q-1' },
+        select: { createdById: true },
+      });
+    });
+
+    it('returns null when quotation does not exist', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      const result = await service.findOwner('q-999');
+      expect(result).toBeNull();
+    });
+
+    it('throws and logs error when prisma fails', async () => {
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        new Error('DB error'),
+      );
+      await expect(service.findOwner('q-1')).rejects.toThrow('DB error');
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });
@@ -176,11 +205,22 @@ describe('QuotationsService', () => {
       expect(result).toBe(true);
     });
 
-    it('throws when prisma throws', async () => {
+    it('throws NotFoundException when quotation does not exist (P2025)', async () => {
+      const p2025 = new PrismaClientKnownRequestError('Not found', {
+        code: 'P2025',
+        clientVersion: '0',
+      });
+      mockPrismaService.quotation.delete.mockRejectedValue(p2025);
+      await expect(service.delete('q-999')).rejects.toThrow(NotFoundException);
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('throws and logs error for unexpected prisma failure', async () => {
       mockPrismaService.quotation.delete.mockRejectedValue(
         new Error('DB error'),
       );
       await expect(service.delete('q-1')).rejects.toThrow('DB error');
+      expect(mockLogger.error).toHaveBeenCalled();
     });
   });
 
@@ -287,7 +327,7 @@ describe('QuotationsService', () => {
 
     type MockTx = {
       quotation: {
-        findUnique: jest.Mock;
+        findFirst: jest.Mock;
         update: jest.Mock;
       };
       statusHistory: { create: jest.Mock };
@@ -295,7 +335,7 @@ describe('QuotationsService', () => {
 
     const makeTx = (findResult: unknown, updateResult: unknown): MockTx => ({
       quotation: {
-        findUnique: jest.fn().mockResolvedValue(findResult),
+        findFirst: jest.fn().mockResolvedValue(findResult),
         update: jest.fn().mockResolvedValue(updateResult),
       },
       statusHistory: { create: jest.fn().mockResolvedValue({}) },
@@ -352,6 +392,35 @@ describe('QuotationsService', () => {
       );
     });
 
+    it('throws BadRequestException on illegal status transition', async () => {
+      const approvedQuotation = {
+        ...existingQuotation,
+        status: QuotationStatus.APPROVED,
+      };
+      const tx = makeTx(approvedQuotation, null);
+      runWithTx(tx);
+
+      await expect(
+        service.updateStatus('q-1', QuotationStatus.SENT, undefined, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(tx.quotation.update).not.toHaveBeenCalled();
+    });
+
+    it('does not log error for domain exceptions (NotFoundException)', async () => {
+      const tx = makeTx(null, null);
+      runWithTx(tx);
+
+      await expect(
+        service.updateStatus(
+          'q-999',
+          QuotationStatus.SENT,
+          undefined,
+          'user-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockLogger.error).not.toHaveBeenCalled();
+    });
+
     it('throws when prisma transaction fails', async () => {
       mockPrismaService.$transaction.mockRejectedValue(new Error('DB error'));
 
@@ -360,6 +429,100 @@ describe('QuotationsService', () => {
       ).rejects.toThrow('DB error');
 
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    it('logs String(error) when a non-Error is thrown from transaction', async () => {
+      mockPrismaService.$transaction.mockRejectedValue('plain string error');
+      await expect(
+        service.updateStatus('q-1', 'SENT', undefined, 'user-1'),
+      ).rejects.toBe('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        QuotationsService.name,
+      );
+    });
+  });
+
+  describe('non-Error throws (branch coverage for String(error) path)', () => {
+    const mockUser: User = {
+      id: 'user-1',
+      email: 'anna@quoteiq.com',
+      name: 'Anna',
+      password: 'hash',
+      role: Role.SALES_REP,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('findAll logs String(error) when non-Error is thrown', async () => {
+      mockPrismaService.quotation.findMany.mockRejectedValue(
+        'plain string error',
+      );
+      await expect(service.findAll(mockUser)).rejects.toBe(
+        'plain string error',
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        QuotationsService.name,
+      );
+    });
+
+    it('findOwner logs String(error) when non-Error is thrown', async () => {
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        'plain string error',
+      );
+      await expect(service.findOwner('q-1')).rejects.toBe('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        QuotationsService.name,
+      );
+    });
+
+    it('findOne logs String(error) when non-Error is thrown', async () => {
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        'plain string error',
+      );
+      await expect(service.findOne('q-1')).rejects.toBe('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        QuotationsService.name,
+      );
+    });
+
+    it('create logs String(error) when non-Error is thrown', async () => {
+      mockPrismaService.$transaction.mockRejectedValue('plain string error');
+      await expect(
+        service.create(
+          {
+            title: 'T',
+            clientId: 'c-1',
+            taxRate: 0,
+            items: [{ description: 'X', quantity: 1, unitPrice: 10 }],
+          },
+          mockUser,
+        ),
+      ).rejects.toBe('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        QuotationsService.name,
+      );
+    });
+
+    it('delete logs String(error) when non-Error is thrown', async () => {
+      mockPrismaService.quotation.delete.mockRejectedValue(
+        'plain string error',
+      );
+      await expect(service.delete('q-1')).rejects.toBe('plain string error');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        QuotationsService.name,
+      );
     });
   });
 });

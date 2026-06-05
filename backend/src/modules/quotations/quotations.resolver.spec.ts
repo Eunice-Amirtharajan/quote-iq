@@ -148,6 +148,42 @@ describe('QuotationsResolver', () => {
       ).rejects.toThrow('Forbidden');
       expect(mockQuotationsService.create).not.toHaveBeenCalled();
     });
+
+    it('allows ADMIN to create quotation for any client', async () => {
+      const admin = { ...mockUser, role: Role.ADMIN };
+      const input = {
+        title: 'Admin Quote',
+        clientId: 'c-other',
+        taxRate: 0,
+        items: [],
+      };
+      mockClientsService.findOwner.mockResolvedValue({
+        createdById: 'user-999',
+      });
+      mockQuotationsService.create.mockResolvedValue(mockQuotation);
+
+      const result = await resolver.createQuotation(input, admin);
+      expect(mockQuotationsService.create).toHaveBeenCalledWith(input, admin);
+      expect(result).toEqual(mockQuotation);
+    });
+
+    it('allows SALES_MANAGER to create quotation for any client', async () => {
+      const manager = { ...mockUser, role: Role.SALES_MANAGER };
+      const input = {
+        title: 'Manager Quote',
+        clientId: 'c-other',
+        taxRate: 0,
+        items: [],
+      };
+      mockClientsService.findOwner.mockResolvedValue({
+        createdById: 'user-999',
+      });
+      mockQuotationsService.create.mockResolvedValue(mockQuotation);
+
+      const result = await resolver.createQuotation(input, manager);
+      expect(mockQuotationsService.create).toHaveBeenCalledWith(input, manager);
+      expect(result).toEqual(mockQuotation);
+    });
   });
 
   describe('updateQuotationStatus', () => {

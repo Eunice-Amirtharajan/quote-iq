@@ -1,13 +1,38 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppLogger } from '../../common/logger/logger.service';
 import { UnauthorizedException } from '@nestjs/common';
 
 const mockPrismaService = {
   user: {
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
   },
 };
+
+const mockLogger = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+};
+
+describe('JwtStrategy — missing JWT_SECRET', () => {
+  it('throws at construction when JWT_SECRET is not set', async () => {
+    const saved = process.env.JWT_SECRET;
+    delete process.env.JWT_SECRET;
+    await expect(
+      Test.createTestingModule({
+        providers: [
+          JwtStrategy,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: AppLogger, useValue: mockLogger },
+        ],
+      }).compile(),
+    ).rejects.toThrow('JWT_SECRET is not set');
+    process.env.JWT_SECRET = saved;
+  });
+});
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
@@ -19,6 +44,7 @@ describe('JwtStrategy', () => {
       providers: [
         JwtStrategy,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: AppLogger, useValue: mockLogger },
       ],
     }).compile();
 
@@ -36,18 +62,18 @@ describe('JwtStrategy', () => {
 
     it('returns user when valid payload', async () => {
       const mockUser = { id: 'user-1', email: 'marcus@quoteiq.com' };
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
       const result = await strategy.validate(payload);
 
       expect(result).toEqual(mockUser);
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
         where: { id: 'user-1' },
       });
     });
 
     it('throws UnauthorizedException when user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(strategy.validate(payload)).rejects.toThrow(
         UnauthorizedException,

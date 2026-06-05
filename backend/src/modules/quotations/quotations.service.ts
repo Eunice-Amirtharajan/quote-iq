@@ -86,7 +86,7 @@ export class QuotationsService {
       QuotationsService.name,
     );
     try {
-      return await this.prisma.quotation.findUnique({
+      return await this.prisma.quotation.findFirst({
         where: { id },
         select: { createdById: true },
       });
@@ -103,7 +103,7 @@ export class QuotationsService {
   async findOne(id: string): Promise<QuotationType | null> {
     this.logger.info(`Finding quotation with id:${id}`, QuotationsService.name);
     try {
-      return await this.prisma.quotation.findUnique({
+      return await this.prisma.quotation.findFirst({
         where: { id },
         include: { items: true, client: true, createdBy: true },
       });
@@ -185,7 +185,7 @@ export class QuotationsService {
 
     try {
       const quotation = await this.prisma.$transaction(async (tx) => {
-        const current = await tx.quotation.findUnique({
+        const current = await tx.quotation.findFirst({
           where: { id },
         });
         if (!current) {

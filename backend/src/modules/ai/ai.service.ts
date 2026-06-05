@@ -2,9 +2,8 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  OnModuleInit,
 } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { z, ZodError } from 'zod';
@@ -22,8 +21,17 @@ const QuotationSummarySchema = z.object({
     .array(z.string())
     .transform((arr) => arr.filter((s) => s.trim())),
 });
+
 const DEAL_SIZE_PROCEED_THRESHOLD = 20;
 const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Models tried in order — first one that succeeds wins
+const GROQ_MODELS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+  'mixtral-8x7b-32768',
+];
+
 export type QuotationSummary = z.infer<typeof QuotationSummarySchema>;
 type QuotationWithRelations = QuotationType & {
   client: NonNullable<QuotationType['client']>;
@@ -32,74 +40,16 @@ type QuotationWithRelations = QuotationType & {
 };
 
 @Injectable()
-export class AIService implements OnModuleInit {
-  private readonly genAI: GoogleGenerativeAI;
-  private readonly apiKey: string;
-  private modelName: string = 'gemini-1.5-flash';
+export class AIService {
+  private readonly groq: Groq;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
   ) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-    this.apiKey = apiKey;
-    this.genAI = new GoogleGenerativeAI(apiKey);
-  }
-  async onModuleInit() {
-    await this.resolveModel();
-  }
-
-  private async resolveModel(): Promise<void> {
-    const preferredModels = [
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-pro',
-      'gemini-1.5-pro-latest',
-      'gemini-pro',
-    ];
-
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models`,
-        {
-          headers: {
-            'x-goog-api-key': this.apiKey,
-          },
-        },
-      );
-      const data = (await response.json()) as {
-        models: { name: string; supportedGenerationMethods: string[] }[];
-      };
-
-      const availableNames = data.models
-        .filter((m) => m.supportedGenerationMethods.includes('generateContent'))
-        .map((m) => m.name.replace('models/', ''));
-
-      this.logger.info(
-        `Available Gemini models: ${availableNames.join(', ')}`,
-        AIService.name,
-      );
-
-      const resolved = preferredModels.find((m) => availableNames.includes(m));
-
-      if (resolved) {
-        this.modelName = resolved;
-        this.logger.info(
-          `Using Gemini model: ${this.modelName}`,
-          AIService.name,
-        );
-      } else if (availableNames.length > 0) {
-        this.modelName = availableNames[0];
-        this.logger.info(`Falling back to: ${this.modelName}`, AIService.name);
-      } else {
-        this.logger.warn('No available Gemini models found', AIService.name);
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Could not resolve Gemini model — using default: ${this.modelName}. Error: ${error instanceof Error ? error.message : String(error)}`,
-        AIService.name,
-      );
-    }
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error('GROQ_API_KEY is not set');
+    this.groq = new Groq({ apiKey });
   }
 
   private computeRecommendation(
@@ -127,7 +77,6 @@ export class AIService implements OnModuleInit {
   }
 
   private buildPrompt(
-    // Prisma result is structurally compatible with QuotationType here
     quotation: QuotationWithRelations,
     clientHistory: number,
     approvedCount: number,
@@ -181,9 +130,43 @@ recommendation guide:
 - RECONSIDER: high risk, poor history, overpriced
 
 Based on client history analysis, the computed risk level is: ${computed}.
-Your recommendation MUST match this unless the line items or notes contain 
+Your recommendation MUST match this unless the line items or notes contain
 strong contradicting signals. Justify your reasoning.
-`;
+`.trim();
+  }
+
+  private async callGroq(prompt: string): Promise<string> {
+    let lastError: unknown;
+    for (const model of GROQ_MODELS) {
+      try {
+        this.logger.info(`Trying Groq model: ${model}`, AIService.name);
+        const response = await this.groq.chat.completions.create({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+        });
+        const text = response.choices[0]?.message?.content?.trim() ?? '';
+        this.logger.info(
+          `Groq response received from model: ${model}`,
+          AIService.name,
+        );
+        return text;
+      } catch (err) {
+        const isTransient =
+          err instanceof Error &&
+          (err.message.includes('503') ||
+            err.message.includes('overloaded') ||
+            err.message.includes('rate_limit') ||
+            err.message.includes('429'));
+        this.logger.warn(
+          `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
+          AIService.name,
+        );
+        lastError = err;
+        if (!isTransient) throw err;
+      }
+    }
+    throw lastError;
   }
 
   async generateQuotationSummary(
@@ -208,7 +191,8 @@ strong contradicting signals. Justify your reasoning.
         await this.prisma.aIInsight.delete({ where: { id: cached.id } });
       }
     }
-    const quotation = await this.prisma.quotation.findUnique({
+
+    const quotation = await this.prisma.quotation.findFirst({
       where: { id: quotationId },
       include: { items: true, client: true, createdBy: true },
     });
@@ -220,7 +204,7 @@ strong contradicting signals. Justify your reasoning.
     if (!quotation.client || !quotation.createdBy) {
       throw new InternalServerErrorException(`Quotation has missing relations`);
     }
-    // Get client history
+
     const clientHistory = await this.prisma.quotation.findMany({
       where: {
         clientId: quotation.clientId,
@@ -233,18 +217,11 @@ strong contradicting signals. Justify your reasoning.
 
     const quoteStatus = clientHistory.reduce(
       (acc, q) => {
-        if (q.status === QuotationStatus.APPROVED) {
-          acc.approved++;
-        }
-        if (q.status === QuotationStatus.REJECTED) {
-          acc.rejected++;
-        }
+        if (q.status === QuotationStatus.APPROVED) acc.approved++;
+        if (q.status === QuotationStatus.REJECTED) acc.rejected++;
         return acc;
       },
-      {
-        approved: 0,
-        rejected: 0,
-      },
+      { approved: 0, rejected: 0 },
     );
 
     const avgDealSize =
@@ -270,22 +247,15 @@ strong contradicting signals. Justify your reasoning.
       quoteStatus.rejected,
       avgDealSize,
       computed,
-    ).trim();
+    );
+
     try {
-      const model = this.genAI.getGenerativeModel({
-        model: this.modelName,
-      });
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
-
-      this.logger.info(
-        `Gemini response received for quotation: ${quotationId}`,
-        AIService.name,
-      );
-
-      const parsed = JSON.parse(text) as unknown;
+      const text = await this.callGroq(prompt);
+      // Strip markdown code fences if the model wraps JSON in ```json ... ```
+      const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleaned) as unknown;
       const rawValidated = QuotationSummarySchema.parse(parsed);
-      // Rules can only tighten — RECONSIDER from structured data is never overridden by Gemini's qualitative read
+      // Rules can only tighten — RECONSIDER from structured data is never overridden by AI's qualitative read
       const validated: QuotationSummary =
         computed === 'RECONSIDER'
           ? { ...rawValidated, recommendation: Recommendation.RECONSIDER }

@@ -13,9 +13,9 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 |---|---|
 | Frontend | React 18 · TypeScript · Tailwind CSS · Apollo Client |
 | Backend | NestJS · GraphQL (Apollo Server, code-first) · Prisma ORM |
-| Database | PostgreSQL (Neon DB) |
+| Database | PostgreSQL (Neon DB — serverless, HTTP driver) |
 | Auth | JWT in HttpOnly cookies · Role-based access control |
-| AI | Google Gemini API · Zod response validation |
+| AI | Groq API (Llama 3.3 70B) · Zod response validation |
 | Infra | Railway (backend, EU region) · Vercel (frontend) · Neon DB |
 
 ---
@@ -30,6 +30,10 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 **JWT in HttpOnly cookies over localStorage** — prevents XSS token theft. Apollo Client sends the cookie automatically via `credentials: 'include'` — no manual header management needed.
 
+**Neon HTTP driver over pg pool** — Neon free tier pauses compute after 5 minutes of inactivity. The `PrismaNeonHttp` adapter sends every query as a stateless HTTP request — no persistent TCP connection to time out. Cold starts are absorbed transparently by the retry helper and the 4-minute keepalive ping.
+
+**Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on 503/429 errors — self-healing without manual intervention.
+
 **Railway EU over Render** — EU region deployment supports data residency requirements. Railway also supports Docker-based deploys which gives full control over the runtime environment.
 
 ---
@@ -39,11 +43,12 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 ### Implemented
 - Sales reps create and manage clients and quotations with line items and tax calculation
 - Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
-- Status workflow: DRAFT → SENT (rep) → APPROVED / REJECTED (manager)
+- Status workflow: DRAFT → SENT (rep submits for approval) → APPROVED / REJECTED (manager)
 - Full status history tracked on every transition
 - Manager dashboard with pipeline stats, conversion rate, and approved value
 - AI-generated quotation summary with PROCEED / FOLLOW_UP / RECONSIDER recommendation
-- Hybrid recommendation model — rules-based scoring anchors the Gemini prompt, hard override prevents AI from reversing a RECONSIDER verdict
+- Hybrid recommendation model — rules-based scoring anchors the Groq prompt, hard override prevents AI from reversing a RECONSIDER verdict
+- 24-hour insight cache — avoids redundant API calls on repeated views
 
 ### In Progress
 - Conversion likelihood score badge on SENT quotations (0–100, green/amber/red)
@@ -57,10 +62,11 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 The quotation summary uses a **hybrid model**:
 
 1. **Rules engine** (`computeRecommendation`) scores the deal using client history — rejection rate > 60% → RECONSIDER, approval rate > 60% and deal within ±20% of average → PROCEED, else FOLLOW_UP
-2. **Gemini** receives the structured data plus the computed recommendation as an anchor — it can read unstructured signals (notes, line item descriptions) and override the rules, but only to upgrade or provide nuance
-3. **Hard override** — if rules say RECONSIDER, that verdict is locked regardless of Gemini output. Structured data cannot be overridden by qualitative reads
-4. **Zod validates** every Gemini response before it's used — TypeScript types don't protect at runtime
+2. **Groq** receives the structured data plus the computed recommendation as an anchor — it can read unstructured signals (notes, line item descriptions) and override the rules, but only to upgrade or provide nuance
+3. **Hard override** — if rules say RECONSIDER, that verdict is locked regardless of Groq output. Structured data cannot be overridden by qualitative reads
+4. **Zod validates** every AI response before it's used — TypeScript types don't protect at runtime
 5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
+6. **Self-healing fallback** — if the primary model (Llama 3.3 70B) is overloaded, the service automatically retries with Llama 3.1 8B then Mixtral 8x7B
 
 ---
 
@@ -92,16 +98,18 @@ npm run dev
 DATABASE_URL=""           # PostgreSQL connection string (e.g. from Neon DB)
 JWT_SECRET=""             # Any long random string
 JWT_EXPIRES_IN="7d"       # Token expiry — supports 7d, 24h, 30m etc.
-GEMINI_API_KEY=""         # Google AI Studio API key
+GROQ_API_KEY=""           # Groq API key — free at console.groq.com
 SEED_PASSWORD=""          # Password set for all seeded demo users (default: password123)
-PORT=4000
+PORT=5000
 NODE_ENV="development"
+CORS_ORIGIN="http://localhost:5173"
+LOG_LEVEL="info"
 ```
 
 **Frontend** (`frontend/.env.local`):
 
 ```bash
-VITE_API_URL="http://localhost:4000/graphql"   # Backend GraphQL endpoint
+VITE_API_URL="http://localhost:5000/graphql"   # Backend GraphQL endpoint
 VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on the login page
 ```
 
@@ -111,8 +119,8 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 
 | Role | Access |
 |---|---|
-| SALES_REP | Own clients and quotations only. Can create and move DRAFT → SENT |
-| SALES_MANAGER | Full team visibility. Can approve/reject quotations. Access to AI features and dashboard |
+| SALES_REP | Own clients and quotations only. Can create and submit DRAFT → SENT for manager approval |
+| SALES_MANAGER | Full team visibility. Can approve/reject SENT quotations. Access to AI features and dashboard |
 | ADMIN | Everything SALES_MANAGER can do plus user management and delete access |
 
 ---
@@ -143,27 +151,24 @@ quote-iq/
 │       │   ├── guards/      # JwtAuthGuard, RolesGuard
 │       │   └── logger/      # Winston logger
 │       ├── modules/
-│       │   ├── ai/          # Gemini integration, hybrid recommendation model
+│       │   ├── ai/          # Groq integration, hybrid recommendation model
 │       │   ├── auth/        # JWT, HttpOnly cookie, passport-jwt
 │       │   ├── clients/
 │       │   ├── dashboard/
 │       │   ├── quotations/
 │       │   └── users/
-│       └── prisma/          # PrismaService
+│       └── prisma/          # PrismaService with Neon HTTP adapter + retry helper
 ├── frontend/
 │   └── src/
-│       ├── components/      # AIInsightCard, Layout
+│       ├── components/      # AIInsightCard, CreateQuotationModal, Layout
 │       ├── context/         # AuthProvider, auth-context
 │       ├── graphql/         # queries.ts, mutations.ts
 │       ├── hooks/           # useAuth
 │       ├── lib/             # Apollo client
-│       └── pages/           # Dashboard, Quotations, Clients, QuotationDetail
+│       └── pages/           # Dashboard, Quotations, Clients, QuotationDetail, Login
 ├── docs/
-│   ├── architecture-diagram.md
-│   ├── data-model.md
-│   ├── flow-login.md
-│   ├── flow-protected-query.md
-│   └── cicd-flow.md
+│   ├── cicd-flow.md         # Mermaid CI/CD diagram (renders on GitHub)
+│   └── drawio/              # Architecture, ERD, sequence, AI pipeline diagrams
 └── README.md
 ```
 
@@ -175,12 +180,12 @@ Draw.io source files are in [`docs/drawio/`](docs/drawio/). Open with [Draw.io D
 
 | Diagram | File | Description |
 |---|---|---|
-| HLD — System Architecture | [hld-system-architecture.drawio](docs/drawio/hld-system-architecture.drawio) | Full deployment topology — browser, Vercel, Railway, Neon DB, Gemini |
+| HLD — System Architecture | [hld-system-architecture.drawio](docs/drawio/hld-system-architecture.drawio) | Full deployment topology — browser, Vercel, Railway, Neon DB, Groq |
 | LLD — NestJS Module Architecture | [lld-nestjs-module-architecture.drawio](docs/drawio/lld-nestjs-module-architecture.drawio) | Internal module structure — resolver → service → Prisma, guard chain |
 | ERD — Data Model | [erd-data-model.drawio](docs/drawio/erd-data-model.drawio) | All 6 tables with fields, types, indexes, and FK relationships |
 | Auth Flow | [sequence-auth-flow.drawio](docs/drawio/sequence-auth-flow.drawio) | Login, authenticated request, page refresh session restore, logout |
 | Request Lifecycle | [sequence-request-lifecycle.drawio](docs/drawio/sequence-request-lifecycle.drawio) | GraphQL request from browser through guards, resolver, service to DB and back |
-| AI Pipeline | [ai-pipeline.drawio](docs/drawio/ai-pipeline.drawio) | Hybrid recommendation model — cache check, rules engine, Gemini, Zod, hard override |
+| AI Pipeline | [ai-pipeline.drawio](docs/drawio/ai-pipeline.drawio) | Hybrid recommendation model — cache check, rules engine, Groq, Zod, hard override |
 | CI/CD Pipeline | [cicd-pipeline.drawio](docs/drawio/cicd-pipeline.drawio) | GitHub Actions → test gate → Railway Docker deploy + Vercel CDN deploy |
 
 CI/CD flow also available as a [Mermaid diagram](docs/cicd-flow.md) (renders directly on GitHub).

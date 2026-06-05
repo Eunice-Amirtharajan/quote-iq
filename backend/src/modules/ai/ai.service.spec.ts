@@ -4,46 +4,43 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { Recommendation } from './ai-insight.entity';
 
-// Mock the Google Generative AI module
-jest.mock('@google/generative-ai', () => ({
-  GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn().mockReturnValue({
-      generateContent: jest.fn().mockResolvedValue({
-        response: {
-          text: jest.fn().mockReturnValue(
-            JSON.stringify({
-              summary: 'Test summary',
-              recommendation: 'PROCEED',
-              keyPoints: ['Point 1', 'Point 2'],
-              riskFactors: ['Risk 1'],
-            }),
-          ),
-        },
-      }),
-    }),
+const mockGroqResponse = {
+  choices: [
+    {
+      message: {
+        content: JSON.stringify({
+          summary: 'Test summary',
+          recommendation: 'PROCEED',
+          keyPoints: ['Point 1', 'Point 2'],
+          riskFactors: ['Risk 1'],
+        }),
+      },
+    },
+  ],
+};
+
+const mockCreate = jest.fn().mockResolvedValue(mockGroqResponse);
+
+jest.mock('groq-sdk', () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: mockCreate,
+      },
+    },
   })),
 }));
 
-// Mock fetch for model resolution
-globalThis.fetch = jest.fn().mockResolvedValue({
-  json: jest.fn().mockResolvedValue({
-    models: [
-      {
-        name: 'models/gemini-2.5-flash',
-        supportedGenerationMethods: ['generateContent'],
-      },
-    ],
-  }),
-}) as unknown as typeof fetch;
-
 const mockPrismaService = {
   quotation: {
-    findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
   },
   aIInsight: {
     findFirst: jest.fn().mockResolvedValue(null),
     upsert: jest.fn().mockResolvedValue({}),
+    delete: jest.fn().mockResolvedValue({}),
   },
 };
 
@@ -83,6 +80,9 @@ describe('AIService', () => {
   let service: AIService;
 
   beforeEach(async () => {
+    process.env.GROQ_API_KEY = 'test-key';
+    mockCreate.mockResolvedValue(mockGroqResponse);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AIService,
@@ -94,11 +94,15 @@ describe('AIService', () => {
     service = module.get<AIService>(AIService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+    // Reset cache mock to null after each test so cache doesn't bleed between tests
+    mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+  });
 
   describe('generateQuotationSummary', () => {
     it('returns structured summary for valid quotation', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
 
       const result = await service.generateQuotationSummary('q-1');
@@ -111,7 +115,7 @@ describe('AIService', () => {
     });
 
     it('throws when quotation not found', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
 
       await expect(service.generateQuotationSummary('q-999')).rejects.toThrow(
         'Quotation q-999 not found',
@@ -119,7 +123,7 @@ describe('AIService', () => {
     });
 
     it('logs warning when quotation not found', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
 
       await expect(service.generateQuotationSummary('q-999')).rejects.toThrow();
 
@@ -135,7 +139,7 @@ describe('AIService', () => {
         { ...mockQuotation, id: 'q-old-2', status: 'REJECTED', total: 8000 },
       ];
 
-      mockPrismaService.quotation.findUnique.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue(clientHistory);
 
       const result = await service.generateQuotationSummary('q-1');
@@ -148,146 +152,102 @@ describe('AIService', () => {
       );
     });
 
-    it('throws and logs error when Gemini fails', async () => {
-      mockPrismaService.quotation.findUnique.mockResolvedValue(mockQuotation);
+    it('returns cached insight when valid cache exists', async () => {
+      const cachedContent = JSON.stringify({
+        summary: 'Cached summary',
+        recommendation: 'FOLLOW_UP',
+        keyPoints: ['Cached point'],
+        riskFactors: [],
+      });
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue({
+        id: 'insight-1',
+        content: cachedContent,
+      });
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result.summary).toBe('Cached summary');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('throws and logs error when Groq fails on all models', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
-
-      // Override the generateContent mock to throw
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      (GoogleGenerativeAI as jest.Mock).mockImplementationOnce(() => ({
-        getGenerativeModel: jest.fn().mockReturnValue({
-          generateContent: jest
-            .fn()
-            .mockRejectedValue(new Error('Gemini error')),
-        }),
-      }));
-
-      // Recreate service with failing mock
-      const module = await Test.createTestingModule({
-        providers: [
-          AIService,
-          { provide: PrismaService, useValue: mockPrismaService },
-          { provide: AppLogger, useValue: mockLogger },
-        ],
-      }).compile();
-
-      const failingService = module.get<AIService>(AIService);
+      mockCreate.mockRejectedValue(new Error('Groq API error'));
 
       await expect(
-        failingService.generateQuotationSummary('q-1'),
-      ).rejects.toThrow('Gemini error');
+        service.generateQuotationSummary('q-1'),
+      ).rejects.toThrow('Groq API error');
 
       expect(mockLogger.error).toHaveBeenCalled();
     });
-  });
 
-  describe('resolveModel (via onModuleInit)', () => {
-    beforeEach(() => {
-      // Reset modelName to default before each test
-      service['modelName'] = 'gemini-1.5-flash';
-    });
-
-    it('uses preferred model when available', async () => {
-      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
-        json: jest.fn().mockResolvedValue({
-          models: [
-            {
-              name: 'models/gemini-1.5-flash',
-              supportedGenerationMethods: ['generateContent'],
-            },
-          ],
-        }),
+    it('throws InternalServerErrorException when AI response is unparseable', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'not valid json {{{' } }],
       });
 
-      await service.onModuleInit();
-
-      expect(service['modelName']).toBe('gemini-1.5-flash');
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Using Gemini model'),
-        AIService.name,
-      );
+      await expect(
+        service.generateQuotationSummary('q-1'),
+      ).rejects.toThrow('AI response could not be parsed');
     });
 
-    it('falls back to first available when no preferred model found', async () => {
-      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
-        json: jest.fn().mockResolvedValue({
-          models: [
-            {
-              name: 'models/gemini-2.5-flash',
-              supportedGenerationMethods: ['generateContent'],
+    it('forces RECONSIDER when computed recommendation is RECONSIDER', async () => {
+      const clientHistory = Array.from({ length: 5 }, (_, i) => ({
+        ...mockQuotation,
+        id: `q-old-${i}`,
+        status: 'REJECTED',
+        total: 5000,
+      }));
+
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue(clientHistory);
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                summary: 'Risky deal',
+                recommendation: 'PROCEED',
+                keyPoints: [],
+                riskFactors: ['High rejection rate'],
+              }),
             },
-          ],
-        }),
+          },
+        ],
       });
 
-      await service.onModuleInit();
+      const result = await service.generateQuotationSummary('q-1');
 
-      expect(service['modelName']).toBe('gemini-2.5-flash');
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Falling back to'),
-        AIService.name,
-      );
+      expect(result.recommendation).toBe(Recommendation.RECONSIDER);
     });
 
-    it('logs warning when no models available', async () => {
-      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
-        json: jest.fn().mockResolvedValue({
-          models: [],
-        }),
+    it('strips markdown code fences from AI response', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n' +
+                JSON.stringify({
+                  summary: 'Fenced summary',
+                  recommendation: 'FOLLOW_UP',
+                  keyPoints: [],
+                  riskFactors: [],
+                }) +
+                '\n```',
+            },
+          },
+        ],
       });
 
-      await service.onModuleInit();
+      const result = await service.generateQuotationSummary('q-1');
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'No available Gemini models found',
-        AIService.name,
-      );
-    });
-
-    it('filters out models that do not support generateContent', async () => {
-      (globalThis.fetch as jest.Mock).mockResolvedValueOnce({
-        json: jest.fn().mockResolvedValue({
-          models: [
-            {
-              name: 'models/gemini-embed',
-              supportedGenerationMethods: ['embedContent'],
-            },
-            {
-              name: 'models/gemini-2.5-flash',
-              supportedGenerationMethods: ['generateContent'],
-            },
-          ],
-        }),
-      });
-
-      await service.onModuleInit();
-
-      expect(service['modelName']).toBe('gemini-2.5-flash');
-    });
-
-    it('logs warning and uses default when fetch fails', async () => {
-      (globalThis.fetch as jest.Mock).mockRejectedValueOnce(
-        new Error('Network error'),
-      );
-
-      await service.onModuleInit();
-
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Could not resolve Gemini model'),
-        AIService.name,
-      );
-    });
-
-    it('handles non-Error exceptions in catch block', async () => {
-      (globalThis.fetch as jest.Mock).mockRejectedValueOnce('string error');
-
-      await service.onModuleInit();
-
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('string error'),
-        AIService.name,
-      );
+      expect(result.summary).toBe('Fenced summary');
     });
   });
 });

@@ -376,6 +376,129 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
+  describe('Quotations — role enforcement', () => {
+    it('manager can approve a SENT quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            mutation {
+              updateQuotationStatus(
+                id: "${quotationId}"
+                input: { status: "APPROVED" note: "Looks good" }
+              ) {
+                id status
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.data.updateQuotationStatus.status).toBe('APPROVED');
+    });
+
+    it('rejects illegal status transition', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            mutation {
+              updateQuotationStatus(
+                id: "${quotationId}"
+                input: { status: "SENT" }
+              ) {
+                id status
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+      expect(response.body.errors[0].message).toMatch(/cannot transition/i);
+    });
+
+    it('SALES_REP cannot access a quotation created by another rep', async () => {
+      const seedQuotationRes = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `query { quotations { id createdBy { id } } }`,
+        })
+        .expect(200);
+
+      const otherQuotation = seedQuotationRes.body.data.quotations.find(
+        (q: { id: string; createdBy: { id: string } }) =>
+          q.id !== quotationId,
+      );
+
+      if (!otherQuotation) return;
+
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              quotation(id: "${otherQuotation.id}") {
+                id
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      const result = response.body.data?.quotation;
+      const hasError = response.body.errors?.length > 0;
+      expect(result === null || hasError).toBe(true);
+    });
+
+    it('SALES_MANAGER can delete a quotation', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            mutation {
+              createQuotation(input: {
+                title: "To Delete"
+                clientId: "${clientId}"
+                taxRate: 0
+                items: [{ description: "X" quantity: 1 unitPrice: 100 }]
+              }) { id }
+            }
+          `,
+        })
+        .expect(200);
+
+      const toDeleteId = createRes.body.data.createQuotation.id as string;
+
+      const deleteRes = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `mutation { deleteQuotation(id: "${toDeleteId}") }`,
+        })
+        .expect(200);
+
+      expect(deleteRes.body.data.deleteQuotation).toBe(true);
+    });
+
+    it('SALES_REP cannot delete a quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `mutation { deleteQuotation(id: "${quotationId}") }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
   describe('Dashboard', () => {
     it('returns stats for manager', async () => {
       const response = await request(app.getHttpServer())
@@ -406,6 +529,18 @@ describe('QuoteIQ E2E', () => {
     it('rejects dashboard access for unauthenticated user', async () => {
       const response = await request(app.getHttpServer())
         .post('/graphql')
+        .send({
+          query: `query { dashboardStats { totalQuotations } }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+
+    it('rejects dashboard access for SALES_REP', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
         .send({
           query: `query { dashboardStats { totalQuotations } }`,
         })

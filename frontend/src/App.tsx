@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AuthProvider } from "./context/AuthProvider";
 import { useAuth } from "./hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
@@ -10,10 +10,18 @@ import QuotationDetailPage from "./pages/QuotationDetailPage";
 
 function AppContent() {
   const { user } = useAuth();
-  const [currentPage, setCurrentPage] = useState(
-    user?.role === "SALES_REP" ? "quotations" : "dashboard",
-  );
+  const [currentPage, setCurrentPage] = useState("dashboard");
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const lastUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (user && user.id !== lastUserIdRef.current) {
+      lastUserIdRef.current = user.id;
+      setCurrentPage(user.role === "SALES_REP" ? "quotations" : "dashboard");
+    }
+    if (!user) lastUserIdRef.current = null;
+  }, [user]);
+
   if (!user) return <LoginPage />;
 
   const renderPage = () => {
@@ -28,6 +36,7 @@ function AppContent() {
 
     switch (currentPage) {
       case "dashboard":
+        if (user.role === "SALES_REP") return <QuotationsPage onSelect={setSelectedQuoteId} />;
         return <DashboardPage />;
       case "quotations":
         return <QuotationsPage onSelect={setSelectedQuoteId} />;

@@ -129,7 +129,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
         </div>
       )}
 
-      <p className="text-xs text-gray-300 mt-4">Powered by Gemini AI</p>
+      <p className="text-xs text-gray-300 mt-4">Powered by Groq AI</p>
     </div>
   );
 }

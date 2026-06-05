@@ -24,7 +24,8 @@ export default function LoginPage() {
       setUser(data.login);
     },
     onError: (err) => {
-      setError(err.message);
+      const isCredentials = err.message.toLowerCase().includes('invalid credentials');
+      setError(isCredentials ? 'Invalid email or password.' : 'Unable to sign in. Please try again later.');
     },
   });
 
