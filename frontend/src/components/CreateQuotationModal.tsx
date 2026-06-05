@@ -34,10 +34,10 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
   const { data: clientsData } = useQuery<{ clients: Client[] }>(CLIENTS_QUERY);
   const clients = clientsData?.clients ?? [];
 
-  const [createQuotation, { loading }] = useMutation(CREATE_QUOTATION_MUTATION, {
+  const [createQuotation, { loading }] = useMutation<{ createQuotation: { id: string } }>(CREATE_QUOTATION_MUTATION, {
     refetchQueries: [{ query: QUOTATIONS_QUERY }],
     onCompleted: (data) => {
-      onCreated(data.createQuotation.id as string);
+      onCreated(data.createQuotation.id);
     },
     onError: (err) => setFormError(err.message),
   });

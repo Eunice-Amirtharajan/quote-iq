@@ -2,13 +2,14 @@ import { useState } from "react";
 import { LOGIN_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import { useMutation } from "@apollo/client/react";
+import type { Role } from "../context/auth-context";
 
 interface LoginData {
   login: {
     id: string;
     name: string;
     email: string;
-    role: string;
+    role: Role;
   };
 }
 

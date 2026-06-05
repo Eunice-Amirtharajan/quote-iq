@@ -34,14 +34,14 @@ const baseQuotation = {
   subtotal: 6000,
   taxAmount: 1140,
   total: 7140,
-  validUntil: null,
+  validUntil: null as string | null,
   createdAt: "2026-04-10T00:00:00.000Z",
   client: {
     name: "Hans Bauer",
     company: "Bauer GmbH",
     email: "hans@bauer.de",
-    city: "Berlin",
-    country: "Germany",
+    city: "Berlin" as string | null,
+    country: "Germany" as string | null,
   },
   createdBy: {
     id: "u-rep",
@@ -91,7 +91,7 @@ function renderAs(
 ) {
   return render(
     <AuthContext.Provider value={{ user, setUser: mockSetUser }}>
-      <MockedProvider mocks={mocks} addTypename={false}>
+      <MockedProvider mocks={mocks}>
         <QuotationDetailPage id="q-1" onBack={mockOnBack} />
       </MockedProvider>
     </AuthContext.Provider>,

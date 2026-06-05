@@ -72,7 +72,7 @@ function renderAs(
 ) {
   return render(
     <AuthContext.Provider value={{ user, setUser: mockSetUser }}>
-      <MockedProvider mocks={mocks} addTypename={false}>
+      <MockedProvider mocks={mocks}>
         <QuotationsPage onSelect={mockOnSelect} />
       </MockedProvider>
     </AuthContext.Provider>,

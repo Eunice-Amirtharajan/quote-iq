@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+echo "--- pre-push: backend coverage gate (>90% statements) ---"
+npm --prefix backend run test:cov -- --coverageThreshold='{"global":{"statements":90,"branches":75,"functions":70,"lines":90}}'
+
+echo "--- pre-push: frontend coverage gate (>95% statements) ---"
+npm --prefix frontend run test -- --run --coverage --coverage.thresholds.statements=95 --coverage.thresholds.branches=90 --coverage.thresholds.functions=85 --coverage.thresholds.lines=95
+
+echo "✓ pre-push checks passed"

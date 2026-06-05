@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+echo "--- pre-commit: TypeScript build (frontend) ---"
+npm --prefix frontend run build -- --mode development
+
+echo "--- pre-commit: frontend unit tests ---"
+npm --prefix frontend run test -- --run
+
+echo "--- pre-commit: backend unit tests ---"
+npm --prefix backend test
+
+echo "✓ pre-commit checks passed"

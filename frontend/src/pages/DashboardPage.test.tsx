@@ -103,7 +103,7 @@ describe("DashboardPage", () => {
   it("skips query and shows zeros for SALES_REP", async () => {
     render(
       <AuthContext.Provider value={{ user: mockRep, setUser: mockSetUser }}>
-        <MockedProvider mocks={[]} addTypename={false}>
+        <MockedProvider mocks={[]}>
           <DashboardPage />
         </MockedProvider>
       </AuthContext.Provider>,

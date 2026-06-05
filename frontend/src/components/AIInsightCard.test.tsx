@@ -4,21 +4,21 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import AIInsightCard from "./AIInsightCard";
 import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
-import { AuthContext } from "../context/auth-context";
+import { AuthContext, type User } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
 const mockManager = {
   id: "u-1",
   name: "Marcus Klein",
   email: "marcus@quoteiq.com",
-  role: "SALES_MANAGER",
+  role: "SALES_MANAGER" as const,
 };
 
 const mockRep = {
   id: "u-2",
   name: "Anna Schmidt",
   email: "anna@quoteiq.com",
-  role: "SALES_REP",
+  role: "SALES_REP" as const,
 };
 
 const mockSummary = {
@@ -42,7 +42,7 @@ const successMock: MockLink.MockedResponse[] = [
 ];
 
 const renderCard = (
-  user = mockManager,
+  user: User = mockManager,
   mocks: MockLink.MockedResponse[] = successMock,
 ) => {
   return render(

@@ -71,7 +71,7 @@ const mockOnCreated = vi.fn();
 
 function renderModal(mocks: MockLink.MockedResponse[]) {
   return render(
-    <MockedProvider mocks={mocks} addTypename={false}>
+    <MockedProvider mocks={mocks}>
       <CreateQuotationModal onClose={mockOnClose} onCreated={mockOnCreated} />
     </MockedProvider>,
   );

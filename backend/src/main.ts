@@ -56,6 +56,12 @@ async function bootstrap() {
       'Apollo-Require-Preflight',
     ],
   });
+  // Lightweight health check for Railway and UptimeRobot
+  // GET /health → 200 { status: "ok" }
+  app.getHttpAdapter().get('/health', (_req, res: { json: (b: unknown) => void }) => {
+    res.json({ status: 'ok' });
+  });
+
   await app.listen(process.env.PORT ?? 4000);
   const prisma = app.get(PrismaService);
   startDbKeepalive(prisma);
