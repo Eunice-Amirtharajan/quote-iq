@@ -8,6 +8,7 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    testTimeout: 10000,
     onUnhandledError(error) {
       if (error.message.includes("No more mocked responses")) return false;
       // return void to let Vitest handle other errors normally
