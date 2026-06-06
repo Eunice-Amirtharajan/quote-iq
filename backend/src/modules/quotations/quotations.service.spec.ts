@@ -27,6 +27,9 @@ const mockPrismaService = {
     create: jest.fn(),
     findMany: jest.fn(),
   },
+  aIInsight: {
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+  },
   $queryRaw: jest.fn(),
 };
 
@@ -888,6 +891,17 @@ describe('QuotationsService', () => {
       await expect(
         service.update('q-1', { taxRate: 101 }, 'user-1'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('deletes stale AIInsight cache entries after successful update', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+
+      await service.update('q-1', { title: 'Updated Title' }, 'user-1');
+
+      expect(mockPrismaService.aIInsight.deleteMany).toHaveBeenCalledWith({
+        where: { quotationId: 'q-1' },
+      });
     });
   });
 });

@@ -82,6 +82,12 @@ export class BucketStatType {
   approvalRate!: number;
 }
 
+@ObjectType({ description: 'Answer to a free-text question about a quotation' })
+export class QuotationAnswerType {
+  @Field(() => String)
+  answer!: string;
+}
+
 @ObjectType({
   description: 'Aggregated win/loss analysis across all quotations',
 })

@@ -650,4 +650,101 @@ describe('AIService', () => {
       );
     });
   });
+
+  describe('askAboutQuotation', () => {
+    const mockAnswer = {
+      choices: [{ message: { content: 'The margin looks reasonable.' } }],
+    };
+
+    it('returns answer from Groq for a valid question', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue(mockAnswer);
+
+      const result = await service.askAboutQuotation(
+        'q-1',
+        'Is the margin reasonable?',
+      );
+
+      expect(result.answer).toBe('The margin looks reasonable.');
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls Groq with system/user message split', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue(mockAnswer);
+
+      await service.askAboutQuotation('q-1', 'What is the total?');
+
+      const callArgs = mockCreate.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      expect(callArgs.messages[0].role).toBe('system');
+      expect(callArgs.messages[1].role).toBe('user');
+      expect(callArgs.messages[1].content).toBe('What is the total?');
+    });
+
+    it('includes client history in system prompt when previous deals exist', async () => {
+      const prevDeal = {
+        ...mockQuotation,
+        id: 'q-old',
+        status: 'APPROVED',
+        total: 5000,
+        quotationNumber: 'QT-2026-0001',
+      };
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([prevDeal]);
+      mockCreate.mockResolvedValue(mockAnswer);
+
+      await service.askAboutQuotation('q-1', 'Is this deal typical?');
+
+      const callArgs = mockCreate.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const systemPrompt = callArgs.messages[0].content;
+      expect(systemPrompt).toContain('Client history');
+      expect(systemPrompt).toContain('QT-2026-0001');
+      expect(systemPrompt).toContain('Average deal size');
+    });
+
+    it('throws NotFoundException when quotation not found', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.askAboutQuotation('q-999', 'Any question?'),
+      ).rejects.toThrow('Quotation q-999 not found');
+    });
+
+    it('returns early message for blank question', async () => {
+      const result = await service.askAboutQuotation('q-1', '   ');
+
+      expect(result.answer).toBe('Please enter a question.');
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('truncates question to 500 characters before sending to Groq', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue(mockAnswer);
+      const longQuestion = 'a'.repeat(600);
+
+      await service.askAboutQuotation('q-1', longQuestion);
+
+      const callArgs = mockCreate.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      expect(callArgs.messages[1].content).toHaveLength(500);
+    });
+
+    it('propagates Groq error when all models fail', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockRejectedValue(new Error('Groq unavailable'));
+
+      await expect(
+        service.askAboutQuotation('q-1', 'Is it risky?'),
+      ).rejects.toThrow('Groq unavailable');
+    });
+  });
 });

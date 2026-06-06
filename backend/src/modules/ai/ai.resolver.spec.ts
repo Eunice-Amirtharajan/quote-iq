@@ -7,6 +7,7 @@ const mockAIService = {
   generateQuotationSummary: jest.fn(),
   getConversionScore: jest.fn(),
   getWinLossAnalysis: jest.fn(),
+  askAboutQuotation: jest.fn(),
 };
 
 const mockSummary = {
@@ -61,6 +62,35 @@ describe('AIResolver', () => {
       mockAIService.getWinLossAnalysis.mockRejectedValue(new Error('DB error'));
 
       await expect(resolver.winLossAnalysis()).rejects.toThrow('DB error');
+    });
+  });
+
+  describe('askAboutQuotation', () => {
+    it('delegates to AIService with quotationId and question', async () => {
+      mockAIService.askAboutQuotation.mockResolvedValue({
+        answer: 'The margin is reasonable.',
+      });
+
+      const result = await resolver.askAboutQuotation(
+        'q-1',
+        'Is the margin reasonable?',
+      );
+
+      expect(mockAIService.askAboutQuotation).toHaveBeenCalledWith(
+        'q-1',
+        'Is the margin reasonable?',
+      );
+      expect(result.answer).toBe('The margin is reasonable.');
+    });
+
+    it('propagates error when service throws', async () => {
+      mockAIService.askAboutQuotation.mockRejectedValue(
+        new Error('Quotation q-999 not found'),
+      );
+
+      await expect(
+        resolver.askAboutQuotation('q-999', 'Any question?'),
+      ).rejects.toThrow('Quotation q-999 not found');
     });
   });
 

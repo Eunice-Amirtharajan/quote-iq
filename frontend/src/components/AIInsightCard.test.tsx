@@ -4,6 +4,7 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import AIInsightCard from "./AIInsightCard";
 import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
+import { ASK_ABOUT_QUOTATION_QUERY } from "../graphql/queries";
 import { AuthContext, type User } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
@@ -167,5 +168,55 @@ describe("AIInsightCard", () => {
     renderCard(mockManager, errorMock);
     await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(await screen.findByText(/analysis failed/i)).toBeInTheDocument();
+  });
+
+  it("shows Q&A input after insight is generated", async () => {
+    renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    await screen.findByText("Strong deal with good client history.");
+    expect(screen.getByPlaceholderText(/e\.g\. Is the margin/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ask/i })).toBeInTheDocument();
+  });
+
+  it("displays answer after Ask is clicked", async () => {
+    const mocksWithAnswer: MockLink.MockedResponse[] = [
+      ...successMock,
+      {
+        request: {
+          query: ASK_ABOUT_QUOTATION_QUERY,
+          variables: {
+            quotationId: "q-1",
+            question: "Is the margin reasonable?",
+          },
+        },
+        result: {
+          data: {
+            askAboutQuotation: { answer: "Yes, the margin looks solid." },
+          },
+        },
+      },
+    ];
+    renderCard(mockManager, mocksWithAnswer);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    await screen.findByText("Strong deal with good client history.");
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/e\.g\. Is the margin/i),
+      "Is the margin reasonable?",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /ask/i }));
+
+    expect(
+      await screen.findByText("Yes, the margin looks solid."),
+    ).toBeInTheDocument();
+  });
+
+  it("Ask button is disabled when question input is empty", async () => {
+    renderCard(mockManager);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    await screen.findByText("Strong deal with good client history.");
+    // Ask button is disabled until text is entered
+    const askBtn = screen.getByRole("button", { name: /^Ask$/ });
+    expect(askBtn).toBeDisabled();
   });
 });

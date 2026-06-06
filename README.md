@@ -53,6 +53,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 - 24-hour insight cache — avoids redundant API calls on repeated views
 - Conversion likelihood score badge on SENT quotations (0–100, HIGH/MEDIUM/LOW) — deterministic, cached 24h
 - Win/loss analysis page (managers/admins only) — overall approval rate, avg deal sizes, breakdown by rep and deal-size bucket (`<5k`, `5k–20k`, `>20k`), cached 1h
+- Natural language Q&A on quotation detail (managers/admins only) — ask free-text questions about a specific quotation; Groq answers in 2–4 sentences scoped strictly to that quotation's data via system/user message split
 - Edit quotation (DRAFT only) — reuses create modal with pre-populated fields, rep ownership enforced
 - Status history timeline on quotation detail — every status transition logged with actor, timestamp, and optional note
 - Demo credentials gate via `VITE_SHOW_DEMO_CREDENTIALS` env var
@@ -69,6 +70,7 @@ The quotation summary uses a **hybrid model**:
 4. **Zod validates** every AI response before it's used — TypeScript types don't protect at runtime
 5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
 6. **Self-healing fallback** — if the primary model (Llama 3.3 70B) is overloaded, the service automatically retries with Llama 3.1 8B then Mixtral 8x7B
+7. **Scoped NL Q&A** — `askAboutQuotation` uses the system/user message split to confine Groq strictly to one quotation's data; off-topic questions receive a fixed refusal without any additional DB query
 
 ---
 

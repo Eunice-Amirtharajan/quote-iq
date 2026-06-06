@@ -458,11 +458,18 @@ export class QuotationsService {
         : {}),
     };
 
-    return this.prisma.quotation.update({
+    const updated = await this.prisma.quotation.update({
       where: { id },
       data,
       include: { items: true, createdBy: true },
     });
+
+    // Invalidate stale AI insight cache — quotation content changed
+    await this.prisma.aIInsight.deleteMany({
+      where: { quotationId: id },
+    });
+
+    return updated;
   }
 
   async findStatusHistory(

@@ -79,6 +79,9 @@ type Mutation {
 }
 
 type Query {
+  """Answer a free-text question about a specific quotation"""
+  askAboutQuotation(question: String!, quotationId: ID!): QuotationAnswerType!
+
   """Deterministic conversion likelihood score for a quotation"""
   conversionScore(quotationId: ID!): ConversionScoreType!
   dashboardStats: DashboardStatsType!
@@ -90,6 +93,11 @@ type Query {
 
   """Aggregated win/loss analysis across all quotations"""
   winLossAnalysis: WinLossStatsType!
+}
+
+"""Answer to a free-text question about a quotation"""
+type QuotationAnswerType {
+  answer: String!
 }
 
 input QuotationFilterInput {

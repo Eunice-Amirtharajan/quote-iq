@@ -1,5 +1,7 @@
-import { useMutation } from "@apollo/client/react";
+import { useState } from "react";
+import { useMutation, useLazyQuery } from "@apollo/client/react";
 import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
+import { ASK_ABOUT_QUOTATION_QUERY } from "../graphql/queries";
 import { useAuth } from "../hooks/useAuth";
 
 interface QuotationSummary {
@@ -21,10 +23,17 @@ interface Props {
 
 export default function AIInsightCard({ quotationId }: Readonly<Props>) {
   const { user } = useAuth();
+  const [question, setQuestion] = useState("");
 
   const [generateSummary, { data, loading, error, called }] = useMutation<{
     quotationSummary: QuotationSummary;
   }>(QUOTATION_SUMMARY_MUTATION);
+
+  const [askQuestion, { data: answerData, loading: askLoading }] =
+    useLazyQuery<{ askAboutQuotation: { answer: string } }>(
+      ASK_ABOUT_QUOTATION_QUERY,
+      { fetchPolicy: "no-cache" },
+    );
 
   // Only managers see AI insights
   if (user?.role === "SALES_REP") return null;
@@ -87,13 +96,6 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
           >
             {style.label}
           </span>
-          <button
-            onClick={handleGenerate}
-            title="Regenerate"
-            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
-          >
-            ↺
-          </button>
         </div>
       </div>
 
@@ -130,6 +132,41 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
       )}
 
       <p className="text-xs text-gray-300 mt-4">Powered by Groq AI</p>
+
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <p className="text-xs font-medium text-gray-500 mb-2">Ask a question</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && question.trim()) {
+                void askQuestion({ variables: { quotationId, question } });
+              }
+            }}
+            placeholder="e.g. Is the margin reasonable?"
+            maxLength={500}
+            className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
+          />
+          <button
+            onClick={() => {
+              if (question.trim()) {
+                void askQuestion({ variables: { quotationId, question } });
+              }
+            }}
+            disabled={askLoading || !question.trim()}
+            className="px-3 py-1.5 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-40 transition-colors"
+          >
+            {askLoading ? "…" : "Ask"}
+          </button>
+        </div>
+        {answerData?.askAboutQuotation.answer && (
+          <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+            {answerData.askAboutQuotation.answer}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

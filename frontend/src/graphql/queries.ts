@@ -113,6 +113,14 @@ export const WIN_LOSS_ANALYSIS_QUERY = gql`
   }
 `;
 
+export const ASK_ABOUT_QUOTATION_QUERY = gql`
+  query AskAboutQuotation($quotationId: ID!, $question: String!) {
+    askAboutQuotation(quotationId: $quotationId, question: $question) {
+      answer
+    }
+  }
+`;
+
 export const STATUS_HISTORY_QUERY = gql`
   query StatusHistory($quotationId: ID!) {
     statusHistory(quotationId: $quotationId) {

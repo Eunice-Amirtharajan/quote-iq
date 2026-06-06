@@ -858,4 +858,70 @@ describe('QuoteIQ E2E', () => {
       expect(response.body.errors).toBeDefined();
     });
   });
+
+  describe('askAboutQuotation query', () => {
+    it('returns an answer for a manager with a valid quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query {
+              askAboutQuotation(
+                quotationId: "${managerQuotationId}"
+                question: "What is the total value of this quotation?"
+              ) {
+                answer
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      expect(typeof response.body.data.askAboutQuotation.answer).toBe('string');
+      expect(response.body.data.askAboutQuotation.answer.length).toBeGreaterThan(0);
+    });
+
+    it('blocks SALES_REP from asking questions', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              askAboutQuotation(
+                quotationId: "${quotationId}"
+                question: "What is the total?"
+              ) {
+                answer
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+
+    it('blocks unauthenticated request', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({
+          query: `
+            query {
+              askAboutQuotation(
+                quotationId: "any-id"
+                question: "What is the total?"
+              ) {
+                answer
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
 });

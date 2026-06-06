@@ -267,6 +267,35 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
+        <!-- NL Q&A PATH -->
+        <mxCell id="nlq-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;opacity=30;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="80" width="300" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-zone-label" value="NL Q&amp;A Path (managers/admins only — no cache)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="88" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-start" value="Manager types question&#xa;about a quotation" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="120" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-trim" value="Trim + slice to 500 chars&#xa;blank → return early message" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="220" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-fetch" value="Fetch quotation + items&#xa;+ createdBy (Prisma)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="320" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-groq" value="Groq — system prompt pins&#xa;quotation context; user msg&#xa;= manager's question" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1350" y="420" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-e1" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="nlq-start" target="nlq-trim" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-e2" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="nlq-trim" target="nlq-fetch" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="nlq-e3" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" source="nlq-fetch" target="nlq-groq" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
       </root>
     </mxGraphModel>
   </diagram>

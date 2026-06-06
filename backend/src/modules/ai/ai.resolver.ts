@@ -3,6 +3,7 @@ import { UseGuards } from '@nestjs/common';
 import { AIService } from './ai.service';
 import {
   ConversionScoreType,
+  QuotationAnswerType,
   QuotationSummaryType,
   WinLossStatsType,
 } from './ai-insight.entity';
@@ -47,5 +48,19 @@ export class AIResolver {
   @Roles(Role.SALES_MANAGER, Role.ADMIN)
   async winLossAnalysis(): Promise<WinLossStatsType> {
     return this.aiService.getWinLossAnalysis();
+  }
+
+  @Query(/* istanbul ignore next */ () => QuotationAnswerType, {
+    description: 'Answer a free-text question about a specific quotation',
+  })
+  @UseGuards(RolesGuard)
+  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  async askAboutQuotation(
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
+    quotationId: string,
+    @Args('question', { type: /* istanbul ignore next */ () => String })
+    question: string,
+  ): Promise<QuotationAnswerType> {
+    return this.aiService.askAboutQuotation(quotationId, question);
   }
 }
