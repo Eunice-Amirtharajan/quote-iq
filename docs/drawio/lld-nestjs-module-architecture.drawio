@@ -46,9 +46,6 @@
         <mxCell id="quotations-resolver" value="QuotationsResolver&#xa;quotations(filter?) · quotation&#xa;createQuotation&#xa;updateStatus · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="190" width="120" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="clients-resolver" value="ClientsResolver&#xa;clients · client&#xa;create · update · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="450" y="280" width="120" height="60" as="geometry" />
-        </mxCell>
         <mxCell id="dashboard-resolver" value="DashboardResolver&#xa;dashboardStats" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="360" width="120" height="50" as="geometry" />
         </mxCell>
@@ -65,9 +62,6 @@
         </mxCell>
         <mxCell id="quotations-service" value="QuotationsService&#xa;findAll(filter?) · findOne · create&#xa;updateStatus(role guard)&#xa;delete · calculateTotals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="200" width="120" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="clients-service" value="ClientsService&#xa;findAll · findOne&#xa;create · update · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="650" y="300" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="dashboard-service" value="DashboardService&#xa;getStats&#xa;Promise.all aggregation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="380" width="120" height="60" as="geometry" />
@@ -117,9 +111,6 @@
         <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="current-user" target="quotations-resolver" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="current-user" target="clients-resolver" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="current-user" target="dashboard-resolver" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -132,9 +123,6 @@
         <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="quotations-resolver" target="quotations-service" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="clients-resolver" target="clients-service" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="dashboard-resolver" target="dashboard-service" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -145,9 +133,6 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="quotations-service" target="prisma-service" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="clients-service" target="prisma-service" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="dashboard-service" target="prisma-service" parent="1">

@@ -25,13 +25,7 @@ interface QuotationDetail {
   taxAmount: number;
   total: number;
   createdAt: string;
-  client: {
-    name: string;
-    company: string;
-    email: string;
-    city: string | null;
-    country: string | null;
-  };
+  clientName: string;
   createdBy: {
     id: string;
     name: string;
@@ -339,29 +333,9 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
           {/* Client info */}
           <div className="bg-white rounded-xl border border-gray-100 p-5">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Client</h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-400">Name</p>
-                <p className="text-sm text-gray-700">{q.client.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Company</p>
-                <p className="text-sm text-gray-700">{q.client.company}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Email</p>
-                <p className="text-sm text-gray-700">{q.client.email}</p>
-              </div>
-              {(q.client.city || q.client.country) && (
-                <div>
-                  <p className="text-xs text-gray-400">Location</p>
-                  <p className="text-sm text-gray-700">
-                    {[q.client.city, q.client.country]
-                      .filter(Boolean)
-                      .join(", ")}
-                  </p>
-                </div>
-              )}
+            <div>
+              <p className="text-xs text-gray-400">Name</p>
+              <p className="text-sm text-gray-700">{q.clientName}</p>
             </div>
           </div>
 

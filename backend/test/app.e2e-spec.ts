@@ -8,7 +8,6 @@ describe('QuoteIQ E2E', () => {
   let app: INestApplication;
   let authCookie: string;
   let managerCookie: string;
-  let clientId: string;
   let quotationId: string;
   let managerQuotationId: string;
 
@@ -23,8 +22,7 @@ describe('QuoteIQ E2E', () => {
   });
 
   afterAll(async () => {
-    // Clean up test data created during the run so repeated runs don't pollute the shared DB.
-    // Quotations must be deleted before the client (no cascade on Client → Quotation).
+    // Clean up test data created during the run.
     // Each quotation must be deleted by its creator — ownership enforced at service layer.
     if (quotationId) {
       await request(app.getHttpServer())
@@ -34,12 +32,6 @@ describe('QuoteIQ E2E', () => {
     }
     // managerQuotationId is moved to SENT in the delete e2e test, so it cannot be deleted.
     // It is left in the DB — acceptable for a shared test environment.
-    if (clientId) {
-      await request(app.getHttpServer())
-        .post('/graphql')
-        .set('Cookie', managerCookie)
-        .send({ query: `mutation { deleteClient(id: "${clientId}") }` });
-    }
     await app.close();
   });
 
@@ -66,7 +58,6 @@ describe('QuoteIQ E2E', () => {
         role: 'SALES_REP',
       });
 
-      // Cookie should be set
       const cookies = response.headers['set-cookie'] as unknown as string[];
       expect(cookies).toBeDefined();
       authCookie = cookies[0];
@@ -174,102 +165,6 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
-  describe('Clients', () => {
-    it('creates a new client', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/graphql')
-        .set('Cookie', authCookie)
-        .send({
-          query: `
-            mutation {
-              createClient(input: {
-                name:    "Test Client"
-                company: "Test GmbH"
-                email:   "test@client.de"
-                city:    "Berlin"
-                country: "Germany"
-              }) {
-                id name company email city country
-              }
-            }
-          `,
-        })
-        .expect(200);
-
-      expect(response.body.data.createClient).toMatchObject({
-        name: 'Test Client',
-        company: 'Test GmbH',
-        email: 'test@client.de',
-      });
-
-      clientId = response.body.data.createClient.id;
-    });
-
-    it('lists clients for authenticated rep', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/graphql')
-        .set('Cookie', authCookie)
-        .send({
-          query: `
-            query {
-              clients {
-                id name company
-              }
-            }
-          `,
-        })
-        .expect(200);
-
-      expect(response.body.data.clients).toBeInstanceOf(Array);
-      expect(response.body.data.clients.length).toBeGreaterThan(0);
-    });
-
-    it('rejects client creation without auth', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/graphql')
-        .send({
-          query: `
-            mutation {
-              createClient(input: {
-                name: "Test" company: "Test" email: "test@test.de"
-              }) { id }
-            }
-          `,
-        })
-        .expect(200);
-
-      expect(response.body.errors).toBeDefined();
-    });
-
-    it('updates a client', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/graphql')
-        .set('Cookie', authCookie)
-        .send({
-          query: `
-            mutation {
-              updateClient(
-                id: "${clientId}"
-                input: {
-                  name:    "Updated Client"
-                  company: "Updated GmbH"
-                  email:   "updated@client.de"
-                }
-              ) {
-                id name company
-              }
-            }
-          `,
-        })
-        .expect(200);
-
-      expect(response.body.data.updateClient).toMatchObject({
-        name: 'Updated Client',
-        company: 'Updated GmbH',
-      });
-    });
-  });
-
   describe('Quotations', () => {
     it('creates a quotation with correct totals', async () => {
       const response = await request(app.getHttpServer())
@@ -279,9 +174,9 @@ describe('QuoteIQ E2E', () => {
           query: `
             mutation {
               createQuotation(input: {
-                title:    "E2E Test Quotation"
-                clientId: "${clientId}"
-                taxRate:  19
+                title:      "E2E Test Quotation"
+                clientName: "E2E Test Client"
+                taxRate:    19
                 items: [
                   { description: "Service A" quantity: 2 unitPrice: 1000 }
                   { description: "Service B" quantity: 1 unitPrice: 500  }
@@ -290,6 +185,7 @@ describe('QuoteIQ E2E', () => {
                 id
                 quotationNumber
                 title
+                clientName
                 status
                 subtotal
                 taxAmount
@@ -303,14 +199,15 @@ describe('QuoteIQ E2E', () => {
 
       const q = response.body.data.createQuotation;
       expect(q.title).toBe('E2E Test Quotation');
+      expect(q.clientName).toBe('E2E Test Client');
       expect(q.status).toBe('DRAFT');
-      expect(q.subtotal).toBe(2500); // 2*1000 + 1*500
-      expect(q.taxAmount).toBe(475); // 2500 * 19%
-      expect(q.total).toBe(2975); // 2500 + 475
+      expect(q.subtotal).toBe(2500);
+      expect(q.taxAmount).toBe(475);
+      expect(q.total).toBe(2975);
       expect(q.quotationNumber).toMatch(/^QT-\d{4}-\d{4}$/);
       expect(q.items).toHaveLength(2);
 
-      quotationId = q.id;
+      quotationId = q.id as string;
     });
 
     it('manager creates a quotation Anna cannot access', async () => {
@@ -321,9 +218,9 @@ describe('QuoteIQ E2E', () => {
           query: `
             mutation {
               createQuotation(input: {
-                title:    "Manager Quotation"
-                clientId: "${clientId}"
-                taxRate:  0
+                title:      "Manager Quotation"
+                clientName: "Manager Client"
+                taxRate:    0
                 items: [{ description: "Item" quantity: 1 unitPrice: 100 }]
               }) { id }
             }
@@ -369,7 +266,9 @@ describe('QuoteIQ E2E', () => {
 
       const quotations = response.body.data.quotations;
       expect(quotations).toBeInstanceOf(Array);
-      expect(quotations.every((q: { status: string }) => q.status === 'DRAFT')).toBe(true);
+      expect(
+        quotations.every((q: { status: string }) => q.status === 'DRAFT'),
+      ).toBe(true);
     });
 
     it('filters quotations by search term matching title', async () => {
@@ -389,7 +288,9 @@ describe('QuoteIQ E2E', () => {
 
       const quotations = response.body.data.quotations;
       expect(quotations).toBeInstanceOf(Array);
-      expect(quotations.some((q: { title: string }) => q.title.includes('E2E Test'))).toBe(true);
+      expect(
+        quotations.some((q: { title: string }) => q.title.includes('E2E Test')),
+      ).toBe(true);
     });
 
     it('filter returns empty array when no match', async () => {
@@ -418,7 +319,7 @@ describe('QuoteIQ E2E', () => {
           query: `
             query {
               quotation(id: "${quotationId}") {
-                id title status subtotal taxAmount total
+                id title clientName status subtotal taxAmount total
               }
             }
           `,
@@ -428,6 +329,7 @@ describe('QuoteIQ E2E', () => {
       expect(response.body.data.quotation).toMatchObject({
         id: quotationId,
         title: 'E2E Test Quotation',
+        clientName: 'E2E Test Client',
         subtotal: 2500,
         total: 2975,
       });
@@ -461,7 +363,7 @@ describe('QuoteIQ E2E', () => {
           query: `
             mutation {
               createQuotation(input: {
-                title: "Test" clientId: "${clientId}" items: []
+                title: "Test" clientName: "Test Client" items: []
               }) { id }
             }
           `,
@@ -544,9 +446,9 @@ describe('QuoteIQ E2E', () => {
           query: `
             mutation {
               createQuotation(input: {
-                title: "To Delete"
-                clientId: "${clientId}"
-                taxRate: 0
+                title:      "To Delete"
+                clientName: "Delete Test Client"
+                taxRate:    0
                 items: [{ description: "X" quantity: 1 unitPrice: 100 }]
               }) { id }
             }
@@ -567,8 +469,7 @@ describe('QuoteIQ E2E', () => {
       expect(deleteRes.body.data.deleteQuotation).toBe(true);
     });
 
-    it('non-creator (manager) cannot delete another user\'s DRAFT', async () => {
-      // Create a fresh DRAFT owned by the rep so we can test ownership enforcement
+    it("non-creator (manager) cannot delete another user's DRAFT", async () => {
       const createRes = await request(app.getHttpServer())
         .post('/graphql')
         .set('Cookie', authCookie)
@@ -576,9 +477,9 @@ describe('QuoteIQ E2E', () => {
           query: `
             mutation {
               createQuotation(input: {
-                title: "Rep Draft For Ownership Test"
-                clientId: "${clientId}"
-                taxRate: 0
+                title:      "Rep Draft For Ownership Test"
+                clientName: "Ownership Test Client"
+                taxRate:    0
                 items: [{ description: "X" quantity: 1 unitPrice: 50 }]
               }) { id }
             }

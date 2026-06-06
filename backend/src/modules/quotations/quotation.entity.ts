@@ -6,7 +6,6 @@ import {
   registerEnumType,
 } from '@nestjs/graphql';
 import { QuotationItemType } from './quotation-item.entity';
-import { ClientType } from '../clients/client.entity';
 import { UserType } from '../users/user.entity';
 import { QuotationStatus, type Quotation } from '@prisma/client';
 
@@ -26,6 +25,9 @@ export class QuotationType {
 
   @Field(() => String, { description: 'Quotation title or subject' })
   title!: string;
+
+  @Field(() => String, { description: 'Free-text client name' })
+  clientName!: string;
 
   @Field(() => QuotationStatus, {
     description: 'Current status in the pipeline',
@@ -61,15 +63,10 @@ export class QuotationType {
   @Field(() => [QuotationItemType])
   items!: QuotationItemType[];
 
-  @Field(() => ClientType)
-  client!: ClientType;
-
   @Field(() => UserType)
   createdBy!: UserType;
 
   createdById!: string;
-
-  clientId!: string;
 }
 
 type _ScalarFieldsMatch =
@@ -78,6 +75,7 @@ type _ScalarFieldsMatch =
     | 'id'
     | 'quotationNumber'
     | 'title'
+    | 'clientName'
     | 'status'
     | 'notes'
     | 'taxRate'
@@ -86,7 +84,6 @@ type _ScalarFieldsMatch =
     | 'total'
     | 'createdAt'
     | 'updatedAt'
-    | 'clientId'
     | 'createdById'
   >
     ? true

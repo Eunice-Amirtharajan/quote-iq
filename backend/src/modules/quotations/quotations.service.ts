@@ -37,7 +37,7 @@ export class QuotationsService {
   ) {
     this.logger.info(`Calculating totals`, QuotationsService.name);
     const itemsWithTotal = items.map((item) => ({
-      description: item.description, // explicitly carry through
+      description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       lineTotal: Math.round(item.quantity * item.unitPrice * 100) / 100,
@@ -90,11 +90,9 @@ export class QuotationsService {
                 },
               },
               {
-                client: {
-                  name: {
-                    contains: rawSearch,
-                    mode: 'insensitive' as const,
-                  },
+                clientName: {
+                  contains: rawSearch,
+                  mode: 'insensitive' as const,
                 },
               },
             ],
@@ -102,7 +100,7 @@ export class QuotationsService {
         : {};
       return await this.prisma.quotation.findMany({
         where: { ...ownerWhere, ...statusWhere, ...searchWhere },
-        include: { items: true, client: true, createdBy: true },
+        include: { items: true, createdBy: true },
         take: Math.min(take, 100),
         skip,
         orderBy: { createdAt: 'desc' },
@@ -142,7 +140,7 @@ export class QuotationsService {
     try {
       return await this.prisma.quotation.findFirst({
         where: { id },
-        include: { items: true, client: true, createdBy: true },
+        include: { items: true, createdBy: true },
       });
     } catch (error) {
       this.logger.error(
@@ -154,18 +152,61 @@ export class QuotationsService {
     }
   }
 
+  private static stripTags(v: string): string {
+    return v.replace(/<[^>]*>/g, '').trim();
+  }
+
   async create(
     input: CreateQuotationInput,
     user: UserType,
   ): Promise<QuotationType> {
+    const title = QuotationsService.stripTags(input.title);
+    if (!title || title.length > 100) {
+      throw new BadRequestException(
+        'title must be between 1 and 100 characters',
+      );
+    }
+
+    const clientName = QuotationsService.stripTags(input.clientName);
+    if (!clientName || clientName.length > 200) {
+      throw new BadRequestException(
+        'clientName must be between 1 and 200 characters',
+      );
+    }
+
+    const notes =
+      input.notes == null
+        ? undefined
+        : QuotationsService.stripTags(input.notes).slice(0, 500) || undefined;
+
+    const taxRate = input.taxRate ?? 0;
+    if (taxRate < 0 || taxRate > 100) {
+      throw new BadRequestException('taxRate must be between 0 and 100');
+    }
+
+    const sanitizedItems = input.items.map((item) => {
+      const description = QuotationsService.stripTags(item.description);
+      if (!description || description.length > 200) {
+        throw new BadRequestException(
+          'Each item description must be between 1 and 200 characters',
+        );
+      }
+      if (item.quantity <= 0) {
+        throw new BadRequestException('Item quantity must be greater than 0');
+      }
+      if (item.unitPrice <= 0) {
+        throw new BadRequestException('Item unit price must be greater than 0');
+      }
+      return { ...item, description };
+    });
+
     this.logger.info(
-      `Creating quotation — title: "${input.title}" clientId: ${input.clientId} userId: ${user.id}`,
+      `Creating quotation — title: "${title}" clientName: "${clientName}" userId: ${user.id}`,
       QuotationsService.name,
     );
     try {
-      const taxRate = input.taxRate ?? 0;
       const { itemsWithTotal, subtotal, taxAmount, total } =
-        this.calculateTotals(input.items, taxRate);
+        this.calculateTotals(sanitizedItems, taxRate);
 
       const seqResult = await this.prisma.$queryRaw<
         [{ nextval: bigint }]
@@ -176,9 +217,9 @@ export class QuotationsService {
       return await this.prisma.quotation.create({
         data: {
           quotationNumber: quoteNumber,
-          title: input.title,
-          clientId: input.clientId,
-          notes: input.notes,
+          title,
+          clientName,
+          notes,
           taxRate,
           subtotal,
           taxAmount,
@@ -191,11 +232,11 @@ export class QuotationsService {
             })),
           },
         },
-        include: { items: true, client: true, createdBy: true },
+        include: { items: true, createdBy: true },
       });
     } catch (error) {
       this.logger.error(
-        `Failed to create quotation — title: "${input.title}" clientId: ${input.clientId} userId: ${user.id}`,
+        `Failed to create quotation — title: "${title}" clientName: "${clientName}" userId: ${user.id}`,
         error instanceof Error ? error.stack : String(error),
         QuotationsService.name,
       );
@@ -257,7 +298,7 @@ export class QuotationsService {
       const quotation = await this.prisma.quotation.update({
         where: { id },
         data: { status },
-        include: { items: true, client: true, createdBy: true },
+        include: { items: true, createdBy: true },
       });
       return quotation;
     } catch (error) {

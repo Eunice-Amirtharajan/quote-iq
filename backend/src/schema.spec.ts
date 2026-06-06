@@ -13,21 +13,9 @@ describe('GraphQL schema contract', () => {
     });
   });
 
-  describe('Query.clients', () => {
-    it('exposes nullable skip and take args', () => {
-      expect(schema).toContain('clients(skip: Int, take: Int)');
-    });
-  });
-
   describe('Query.quotation', () => {
     it('accepts an ID arg and is nullable', () => {
       expect(schema).toContain('quotation(id: ID!): QuotationType');
-    });
-  });
-
-  describe('Query.client', () => {
-    it('accepts an ID arg and is nullable', () => {
-      expect(schema).toContain('client(id: ID!): ClientType');
     });
   });
 
@@ -51,12 +39,6 @@ describe('GraphQL schema contract', () => {
     });
   });
 
-  describe('Mutation.deleteClient', () => {
-    it('is restricted to ID arg and returns Boolean', () => {
-      expect(schema).toContain('deleteClient(id: ID!): Boolean!');
-    });
-  });
-
   describe('QuotationType', () => {
     it('does not expose createdById or clientId FK scalars', () => {
       const quotationTypeBlock = schema.slice(
@@ -65,6 +47,14 @@ describe('GraphQL schema contract', () => {
       );
       expect(quotationTypeBlock).not.toContain('createdById');
       expect(quotationTypeBlock).not.toContain('clientId');
+    });
+
+    it('exposes clientName as a String scalar', () => {
+      const quotationTypeBlock = schema.slice(
+        schema.indexOf('type QuotationType'),
+        schema.indexOf('}', schema.indexOf('type QuotationType')),
+      );
+      expect(quotationTypeBlock).toContain('clientName: String!');
     });
 
     it('items field is non-nullable list of non-nullable items', () => {
@@ -79,16 +69,6 @@ describe('GraphQL schema contract', () => {
         schema.indexOf('}', schema.indexOf('type QuotationItemType')),
       );
       expect(itemTypeBlock).not.toContain('quotationId');
-    });
-  });
-
-  describe('ClientType', () => {
-    it('does not expose createdById FK scalar', () => {
-      const clientTypeBlock = schema.slice(
-        schema.indexOf('type ClientType'),
-        schema.indexOf('}', schema.indexOf('type ClientType')),
-      );
-      expect(clientTypeBlock).not.toContain('createdById');
     });
   });
 

@@ -5,7 +5,6 @@ import LoginPage from "./pages/LoginPage";
 import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import QuotationsPage from "./pages/QuotationsPage";
-import ClientsPage from "./pages/ClientsPage";
 import QuotationDetailPage from "./pages/QuotationDetailPage";
 
 function AppContent() {
@@ -40,9 +39,7 @@ function AppContent() {
         return <DashboardPage />;
       case "quotations":
         return <QuotationsPage onSelect={setSelectedQuoteId} />;
-      case "clients":
-        return <ClientsPage />;
-      default:
+default:
         return <p className="text-gray-400">Coming soon</p>;
     }
   };

@@ -2,47 +2,8 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-input ClientInput {
-  city: String
-  company: String!
-  country: String
-  email: String!
-  name: String!
-  phone: String
-}
-
-"""A client or prospect in the system"""
-type ClientType {
-  """City"""
-  city: String
-
-  """Company or organisation name"""
-  company: String!
-
-  """Country"""
-  country: String
-
-  """Creation timestamp"""
-  createdAt: DateTime!
-
-  """Business email address"""
-  email: String!
-
-  """Unique identifier"""
-  id: ID!
-
-  """Contact person name"""
-  name: String!
-
-  """Phone number"""
-  phone: String
-
-  """Last update timestamp"""
-  updatedAt: DateTime!
-}
-
 input CreateQuotationInput {
-  clientId: String!
+  clientName: String!
   items: [QuotationItemInput!]!
   notes: String
   taxRate: Float
@@ -79,22 +40,17 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 type Mutation {
-  createClient(input: ClientInput!): ClientType!
   createQuotation(input: CreateQuotationInput!): QuotationType!
-  deleteClient(id: ID!): Boolean!
   deleteQuotation(id: ID!): Boolean!
   login(email: String!, password: String!): UserType!
   logout: Boolean!
 
   """Generate or refresh the AI summary for a quotation"""
   quotationSummary(quotationId: ID!): QuotationSummaryType!
-  updateClient(id: ID!, input: ClientInput!): ClientType!
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
 
 type Query {
-  client(id: ID!): ClientType
-  clients(skip: Int, take: Int): [ClientType!]!
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
@@ -146,7 +102,8 @@ type QuotationSummaryType {
 
 """A sales quotation with line items and calculated totals"""
 type QuotationType {
-  client: ClientType!
+  """Free-text client name"""
+  clientName: String!
 
   """Creation timestamp"""
   createdAt: DateTime!

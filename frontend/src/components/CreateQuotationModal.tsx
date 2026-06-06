@@ -1,13 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useMutation } from "@apollo/client/react";
 import { CREATE_QUOTATION_MUTATION } from "../graphql/mutations";
-import { CLIENTS_QUERY, QUOTATIONS_QUERY } from "../graphql/queries";
-
-interface Client {
-  id: string;
-  name: string;
-  company: string;
-}
+import { QUOTATIONS_QUERY } from "../graphql/queries";
 
 interface LineItem {
   description: string;
@@ -21,6 +15,7 @@ interface Props {
 }
 
 const TITLE_MAX = 100;
+const CLIENT_MAX = 200;
 const DESC_MAX = 200;
 const NOTES_MAX = 500;
 const ITEMS_MAX = 10;
@@ -30,14 +25,11 @@ const stripTags = (v: string) => v.replace(/<[^>]*>/g, "");
 
 export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Props>) {
   const [title, setTitle] = useState("");
-  const [clientId, setClientId] = useState("");
+  const [clientName, setClientName] = useState("");
   const [notes, setNotes] = useState("");
   const [taxRate, setTaxRate] = useState("0");
   const [items, setItems] = useState<LineItem[]>([{ ...EMPTY_ITEM }]);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const { data: clientsData } = useQuery<{ clients: Client[] }>(CLIENTS_QUERY);
-  const clients = clientsData?.clients ?? [];
 
   const [createQuotation, { loading }] = useMutation<{ createQuotation: { id: string } }>(CREATE_QUOTATION_MUTATION, {
     refetchQueries: [{ query: QUOTATIONS_QUERY }],
@@ -62,7 +54,7 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
     e.preventDefault();
     setFormError(null);
 
-    if (!clientId) { setFormError("Please select a client."); return; }
+    if (!clientName.trim()) { setFormError("Please enter a client name."); return; }
     if (items.some((it) => !it.description.trim())) {
       setFormError("All line items must have a description.");
       return;
@@ -80,7 +72,7 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
       variables: {
         input: {
           title: title.trim(),
-          clientId,
+          clientName: stripTags(clientName.trim()),
           notes: sanitizedNotes,
           taxRate: Number(taxRate),
           items: items.map((it) => ({
@@ -133,23 +125,24 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
             />
           </div>
 
-          {/* Client */}
+          {/* Client Name */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Client <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
-            >
-              <option value="">Select a client…</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} — {c.company}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-gray-700">
+                Client <span className="text-red-500">*</span>
+              </label>
+              <span className={`text-xs ${clientName.length >= CLIENT_MAX ? "text-red-500" : "text-gray-400"}`}>
+                {clientName.length}/{CLIENT_MAX}
+              </span>
+            </div>
+            <input
+              type="text"
+              value={clientName}
+              onChange={(e) => setClientName(stripTags(e.target.value).slice(0, CLIENT_MAX))}
+              maxLength={CLIENT_MAX}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              placeholder="e.g. Acme Corp"
+            />
           </div>
 
           {/* Tax rate */}

@@ -28,37 +28,22 @@ enum InsightType {
 }
 
 model User {
-  id         String      @id @default(uuid())
-  name       String
-  email      String      @unique
-  password   String
-  role       Role        @default(SALES_REP)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  quotations Quotation[] @relation("CreatedBy")
-  clients    Client[]    @relation("CreatedBy")
+  id            String          @id @default(uuid())
+  name          String
+  email         String          @unique
+  password      String
+  role          Role            @default(SALES_REP)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  quotations    Quotation[]     @relation("CreatedBy")
   statusChanges StatusHistory[]
-}
-
-model Client {
-  id          String      @id @default(uuid())
-  name        String
-  company     String
-  email       String      @unique
-  phone       String?
-  city        String?
-  country     String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  createdById String
-  createdBy   User        @relation("CreatedBy", fields:[createdById], references:[id])
-  quotations  Quotation[]
 }
 
 model Quotation {
   id              String          @id @default(uuid())
   quotationNumber String          @unique
   title           String
+  clientName      String
   status          QuotationStatus @default(DRAFT)
   notes           String?
   taxRate         Float           @default(0)
@@ -68,8 +53,6 @@ model Quotation {
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
-  clientId        String
-  client          Client          @relation(fields:[clientId], references:[id])
   createdById     String
   createdBy       User            @relation("CreatedBy", fields:[createdById], references:[id])
   items           QuotationItem[]

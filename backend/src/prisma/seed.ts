@@ -21,19 +21,6 @@ function calcTotals(
 async function main() {
   console.log('Seeding...');
 
-  // Remove clients left behind by e2e test runs (they write to the shared DB).
-  // Quotations and their items/history/insights cascade-delete via the Quotation relation.
-  const staleClients = await prisma.client.findMany({
-    where: { email: { in: ['test@client.de', 'updated@client.de'] } },
-    select: { id: true },
-  });
-  if (staleClients.length > 0) {
-    const ids = staleClients.map((c) => c.id);
-    await prisma.quotation.deleteMany({ where: { clientId: { in: ids } } });
-    await prisma.client.deleteMany({ where: { id: { in: ids } } });
-    console.log(`Removed ${staleClients.length} stale e2e client(s).`);
-  }
-
   const seedPassword = process.env.SEED_PASSWORD ?? 'password123';
   const hash = await bcrypt.hash(seedPassword, 10);
 
@@ -70,62 +57,11 @@ async function main() {
     }),
   ]);
 
-  async function upsertClient(data: {
-    name: string;
-    company: string;
-    email: string;
-    city?: string;
-    country?: string;
-    createdById: string;
-  }) {
-    const existing = await prisma.client.findFirst({
-      where: { email: data.email },
-    });
-    if (existing) return existing;
-    return prisma.client.create({ data });
-  }
-
-  // 4 clients — 2 per rep; idempotent via findUnique on email
-  const [bauer, vogel, fischer, richter] = await Promise.all([
-    upsertClient({
-      name: 'Hans Bauer',
-      company: 'Bauer Logistics GmbH',
-      email: 'hans@bauer-logistics.de',
-      city: 'Berlin',
-      country: 'Germany',
-      createdById: anna.id,
-    }),
-    upsertClient({
-      name: 'Lena Vogel',
-      company: 'Vogel Digital AG',
-      email: 'lena@vogeldigital.de',
-      city: 'Hamburg',
-      country: 'Germany',
-      createdById: anna.id,
-    }),
-    upsertClient({
-      name: 'Emma Fischer',
-      company: 'Fischer Tech Solutions',
-      email: 'emma@fischertech.de',
-      city: 'Munich',
-      country: 'Germany',
-      createdById: tom.id,
-    }),
-    upsertClient({
-      name: 'Klaus Richter',
-      company: 'Richter Manufacturing',
-      email: 'k.richter@richter-mfg.de',
-      city: 'Stuttgart',
-      country: 'Germany',
-      createdById: tom.id,
-    }),
-  ]);
-
   type QuotationDef = {
     num: string;
     title: string;
     status: QuotationStatus;
-    clientId: string;
+    clientName: string;
     repId: string;
     taxRate: number;
     notes?: string;
@@ -138,7 +74,7 @@ async function main() {
       num: 'QT-2026-0010',
       title: 'Enterprise Software Licensing',
       status: QuotationStatus.APPROVED,
-      clientId: bauer.id,
+      clientName: 'Bauer Logistics GmbH',
       repId: anna.id,
       taxRate: 19,
       notes: 'Annual renewal. Client confirmed budget in Q1 planning.',
@@ -159,7 +95,7 @@ async function main() {
       num: 'QT-2026-0011',
       title: 'Network Infrastructure Upgrade',
       status: QuotationStatus.APPROVED,
-      clientId: bauer.id,
+      clientName: 'Bauer Logistics GmbH',
       repId: anna.id,
       taxRate: 19,
       notes: 'Replacing end-of-life switches across 3 warehouse locations.',
@@ -185,7 +121,7 @@ async function main() {
       num: 'QT-2026-0012',
       title: 'Cybersecurity Assessment',
       status: QuotationStatus.SENT,
-      clientId: bauer.id,
+      clientName: 'Bauer Logistics GmbH',
       repId: anna.id,
       taxRate: 19,
       notes: 'Triggered by new NIS2 compliance requirement.',
@@ -206,7 +142,7 @@ async function main() {
       num: 'QT-2026-0013',
       title: 'Data Warehouse Implementation',
       status: QuotationStatus.DRAFT,
-      clientId: bauer.id,
+      clientName: 'Bauer Logistics GmbH',
       repId: anna.id,
       taxRate: 19,
       notes: 'Discovery phase completed. Scoping still in progress.',
@@ -234,7 +170,7 @@ async function main() {
       num: 'QT-2026-0014',
       title: 'Cloud Migration Strategy',
       status: QuotationStatus.APPROVED,
-      clientId: vogel.id,
+      clientName: 'Vogel Digital AG',
       repId: anna.id,
       taxRate: 19,
       notes: 'Phased migration to AWS. Phase 1 only — dev & staging envs.',
@@ -256,7 +192,7 @@ async function main() {
       num: 'QT-2026-0015',
       title: 'Full Cloud Migration (All Environments)',
       status: QuotationStatus.REJECTED,
-      clientId: vogel.id,
+      clientName: 'Vogel Digital AG',
       repId: anna.id,
       taxRate: 19,
       notes:
@@ -288,7 +224,7 @@ async function main() {
       num: 'QT-2026-0016',
       title: 'DevOps Toolchain Setup',
       status: QuotationStatus.REJECTED,
-      clientId: vogel.id,
+      clientName: 'Vogel Digital AG',
       repId: anna.id,
       taxRate: 19,
       notes: 'Lost to a competitor offering a lower day rate.',
@@ -314,7 +250,7 @@ async function main() {
       num: 'QT-2026-0017',
       title: 'API Gateway & Developer Portal',
       status: QuotationStatus.SENT,
-      clientId: vogel.id,
+      clientName: 'Vogel Digital AG',
       repId: anna.id,
       taxRate: 19,
       notes:
@@ -343,7 +279,7 @@ async function main() {
       num: 'QT-2026-0018',
       title: 'Custom ERP Module Development',
       status: QuotationStatus.APPROVED,
-      clientId: fischer.id,
+      clientName: 'Fischer Tech Solutions',
       repId: tom.id,
       taxRate: 19,
       notes: 'Extending existing SAP instance with bespoke reporting module.',
@@ -370,7 +306,7 @@ async function main() {
       num: 'QT-2026-0019',
       title: 'Mobile App — Field Service',
       status: QuotationStatus.APPROVED,
-      clientId: fischer.id,
+      clientName: 'Fischer Tech Solutions',
       repId: tom.id,
       taxRate: 19,
       notes: 'React Native app for field technicians. Offline-first.',
@@ -397,7 +333,7 @@ async function main() {
       num: 'QT-2026-0020',
       title: 'Analytics Platform',
       status: QuotationStatus.SENT,
-      clientId: fischer.id,
+      clientName: 'Fischer Tech Solutions',
       repId: tom.id,
       taxRate: 19,
       notes: 'Real-time KPI dashboards. Client has existing data in BigQuery.',
@@ -419,7 +355,7 @@ async function main() {
       num: 'QT-2026-0021',
       title: 'Legacy System Replatforming',
       status: QuotationStatus.REJECTED,
-      clientId: fischer.id,
+      clientName: 'Fischer Tech Solutions',
       repId: tom.id,
       taxRate: 19,
       notes: 'Client approved Phase 1 budget but full scope was above ceiling.',
@@ -452,7 +388,7 @@ async function main() {
       num: 'QT-2026-0022',
       title: 'IoT Sensor Integration',
       status: QuotationStatus.APPROVED,
-      clientId: richter.id,
+      clientName: 'Richter Manufacturing',
       repId: tom.id,
       taxRate: 19,
       notes: 'Pilot project — 20 sensors on production line.',
@@ -470,7 +406,7 @@ async function main() {
       num: 'QT-2026-0023',
       title: 'Full IoT Rollout — All Lines',
       status: QuotationStatus.REJECTED,
-      clientId: richter.id,
+      clientName: 'Richter Manufacturing',
       repId: tom.id,
       taxRate: 19,
       notes:
@@ -494,7 +430,7 @@ async function main() {
       num: 'QT-2026-0024',
       title: 'ERP Integration — Production Module',
       status: QuotationStatus.REJECTED,
-      clientId: richter.id,
+      clientName: 'Richter Manufacturing',
       repId: tom.id,
       taxRate: 19,
       notes:
@@ -517,7 +453,7 @@ async function main() {
       num: 'QT-2026-0025',
       title: 'IT Support Retainer',
       status: QuotationStatus.SENT,
-      clientId: richter.id,
+      clientName: 'Richter Manufacturing',
       repId: tom.id,
       taxRate: 19,
       notes:
@@ -539,7 +475,7 @@ async function main() {
       num: 'QT-2026-0026',
       title: 'Quality Management System',
       status: QuotationStatus.DRAFT,
-      clientId: richter.id,
+      clientName: 'Richter Manufacturing',
       repId: tom.id,
       taxRate: 19,
       notes: 'New requirement from ISO 9001 audit. Early-stage scoping.',
@@ -562,12 +498,12 @@ async function main() {
       ],
     },
 
-    // ── Two more for Anna — Vogel DRAFT and Bauer APPROVED ─────────────────
+    // ── Two more for Anna ───────────────────────────────────────────────────
     {
       num: 'QT-2026-0027',
       title: 'E-commerce Platform Rebuild',
       status: QuotationStatus.APPROVED,
-      clientId: bauer.id,
+      clientName: 'Bauer Logistics GmbH',
       repId: anna.id,
       taxRate: 19,
       notes: 'Migrating from Magento to Next.js + headless CMS.',
@@ -590,7 +526,7 @@ async function main() {
       num: 'QT-2026-0028',
       title: 'AI-Powered Search Integration',
       status: QuotationStatus.SENT,
-      clientId: vogel.id,
+      clientName: 'Vogel Digital AG',
       repId: anna.id,
       taxRate: 19,
       notes:
@@ -613,7 +549,7 @@ async function main() {
       num: 'QT-2026-0029',
       title: 'Compliance Reporting Automation',
       status: QuotationStatus.DRAFT,
-      clientId: vogel.id,
+      clientName: 'Vogel Digital AG',
       repId: anna.id,
       taxRate: 7,
       notes:
@@ -651,7 +587,7 @@ async function main() {
         quotationNumber: q.num,
         title: q.title,
         status: q.status,
-        clientId: q.clientId,
+        clientName: q.clientName,
         createdById: q.repId,
         notes: q.notes,
         taxRate: q.taxRate,
@@ -719,7 +655,7 @@ async function main() {
   // Advance the sequence past all seeded quotation numbers to prevent collisions
   await prisma.$executeRaw`SELECT setval('quote_number_seq', 100)`;
 
-  console.log('Seed complete — 4 clients, 20 quotations with realistic data');
+  console.log('Seed complete — 20 quotations with realistic data');
 }
 
 main()

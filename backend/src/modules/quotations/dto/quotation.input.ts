@@ -28,7 +28,7 @@ export class CreateQuotationInput {
   title!: string;
 
   @Field(() => String)
-  clientId!: string;
+  clientName!: string;
 
   @Field(() => String, { nullable: true })
   notes?: string;

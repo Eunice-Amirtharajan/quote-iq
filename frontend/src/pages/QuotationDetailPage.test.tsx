@@ -28,6 +28,7 @@ const baseQuotation = {
   id: "q-1",
   quotationNumber: "QT-2026-0001",
   title: "Enterprise License",
+  clientName: "Hans Bauer",
   status: "DRAFT",
   notes: "Annual license fee",
   taxRate: 19,
@@ -35,13 +36,6 @@ const baseQuotation = {
   taxAmount: 1140,
   total: 7140,
   createdAt: "2026-04-10T00:00:00.000Z",
-  client: {
-    name: "Hans Bauer",
-    company: "Bauer GmbH",
-    email: "hans@bauer.de",
-    city: "Berlin" as string | null,
-    country: "Germany" as string | null,
-  },
   createdBy: {
     id: "u-rep",
     name: "Anna Schmidt",
@@ -130,9 +124,6 @@ describe("QuotationDetailPage", () => {
     renderAs(mockManager, makeMock(baseQuotation));
     await screen.findByText("Enterprise License");
     expect(screen.getByText("Hans Bauer")).toBeInTheDocument();
-    expect(screen.getByText("Bauer GmbH")).toBeInTheDocument();
-    expect(screen.getByText("hans@bauer.de")).toBeInTheDocument();
-    expect(screen.getByText("Berlin, Germany")).toBeInTheDocument();
   });
 
   it("renders quotation number and created by", async () => {
@@ -145,16 +136,6 @@ describe("QuotationDetailPage", () => {
   it("renders notes when present", async () => {
     renderAs(mockManager, makeMock(baseQuotation));
     expect(await screen.findByText("Annual license fee")).toBeInTheDocument();
-  });
-
-  it("does not render location when city and country are null", async () => {
-    const noLocation = {
-      ...baseQuotation,
-      client: { ...baseQuotation.client, city: null, country: null },
-    };
-    renderAs(mockManager, makeMock(noLocation));
-    await screen.findByText("Enterprise License");
-    expect(screen.queryByText("Location")).not.toBeInTheDocument();
   });
 
   it("calls onBack when back button clicked", async () => {

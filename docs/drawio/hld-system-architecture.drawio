@@ -68,9 +68,6 @@
         <mxCell id="quotations-module" value="Quotations Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="390" y="290" width="140" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="clients-module" value="Clients Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="550" y="290" width="140" height="50" as="geometry" />
-        </mxCell>
         <mxCell id="dashboard-module" value="Dashboard Module&#xa;Resolver · Service" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="710" y="290" width="140" height="50" as="geometry" />
         </mxCell>
@@ -89,7 +86,7 @@
         <mxCell id="data-zone-label" value="Data Layer — Neon DB (PostgreSQL)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="380" y="585" width="260" height="25" as="geometry" />
         </mxCell>
-        <mxCell id="postgres" value="PostgreSQL&#xa;Users · Clients · Quotations&#xa;QuotationItems · StatusHistory · AIInsight" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="postgres" value="PostgreSQL&#xa;Users · Quotations&#xa;QuotationItems · StatusHistory · AIInsight" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="615" width="120" height="70" as="geometry" />
         </mxCell>
 
@@ -97,10 +94,10 @@
         <mxCell id="ai-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;opacity=30;" vertex="1" parent="1">
           <mxGeometry x="700" y="580" width="240" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="ai-zone-label" value="External AI — Google Cloud" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="ai-zone-label" value="External AI — Groq (External)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="700" y="585" width="240" height="25" as="geometry" />
         </mxCell>
-        <mxCell id="Groq" value="Google Groq API&#xa;Groq-1.5-flash" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="Groq" value="Groq API&#xa;Llama 3.3 70B" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="760" y="615" width="120" height="50" as="geometry" />
         </mxCell>
 
@@ -128,9 +125,6 @@
         <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="guards" target="quotations-module" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="guards" target="clients-module" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="guards" target="dashboard-module" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -138,9 +132,6 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="quotations-module" target="prisma" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="clients-module" target="prisma" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="dashboard-module" target="prisma" parent="1">

@@ -8,13 +8,10 @@ interface Quotation {
   id: string;
   quotationNumber: string;
   title: string;
+  clientName: string;
   status: string;
   total: number;
   createdAt: string;
-  client: {
-    name: string;
-    company: string;
-  };
 }
 
 interface Props {
@@ -199,8 +196,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                       <p className="text-sm font-medium text-gray-900">{q.title}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">{q.client.name}</p>
-                      <p className="text-xs text-gray-400">{q.client.company}</p>
+                      <p className="text-sm text-gray-900">{q.clientName}</p>
                     </td>
                     <td className="px-6 py-4">
                       <span

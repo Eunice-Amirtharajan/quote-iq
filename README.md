@@ -41,7 +41,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 ## Features
 
 ### Implemented
-- Sales reps create and manage clients and quotations with line items and tax calculation
+- Sales reps create quotations with a free-text client name and line items with tax calculation
 - Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
 - Status workflow: DRAFT → SENT (rep submits for approval) → APPROVED / REJECTED (manager)
 - Role-based transition enforcement — SALES_REP cannot approve or reject (blocked at service layer)
@@ -121,7 +121,7 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 
 | Role | Access |
 |---|---|
-| SALES_REP | Own clients and quotations only. Can create and submit DRAFT → SENT for manager approval |
+| SALES_REP | Own quotations only. Can create (with free-text client name) and submit DRAFT → SENT for manager approval |
 | SALES_MANAGER | Full team visibility. Can approve/reject SENT quotations. Access to AI features and dashboard |
 | ADMIN | Everything SALES_MANAGER can do plus user management and delete access |
 
@@ -133,7 +133,7 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 npx prisma db seed
 ```
 
-Creates three users (one manager, two sales reps) and sample quotations across multiple clients with varied statuses and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
+Creates three users (one manager, two sales reps) and sample quotations with varied client names, statuses, and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
 
 ---
 
@@ -155,7 +155,6 @@ quote-iq/
 │       ├── modules/
 │       │   ├── ai/          # Groq integration, hybrid recommendation model
 │       │   ├── auth/        # JWT, HttpOnly cookie, passport-jwt
-│       │   ├── clients/
 │       │   ├── dashboard/
 │       │   ├── quotations/
 │       │   └── users/
@@ -167,7 +166,7 @@ quote-iq/
 │       ├── graphql/         # queries.ts, mutations.ts
 │       ├── hooks/           # useAuth
 │       ├── lib/             # Apollo client
-│       └── pages/           # Dashboard, Quotations, Clients, QuotationDetail, Login
+│       └── pages/           # Dashboard, Quotations, QuotationDetail, Login
 ├── docs/
 │   ├── cicd-flow.md         # Mermaid CI/CD diagram (renders on GitHub)
 │   └── drawio/              # Architecture, ERD, sequence, AI pipeline diagrams

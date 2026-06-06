@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import QuotationsPage from './QuotationsPage';
-import { CLIENTS_QUERY, QUOTATIONS_QUERY } from '../graphql/queries';
+import { QUOTATIONS_QUERY } from '../graphql/queries';
 import { CREATE_QUOTATION_MUTATION } from '../graphql/mutations';
 import { AuthContext } from '../context/auth-context';
 import type { MockLink } from '@apollo/client/testing';
@@ -13,19 +13,19 @@ const mockQuotations = [
     id:              'q-1',
     quotationNumber: 'QT-2026-0001',
     title:           'Enterprise License',
+    clientName:      'Hans Bauer',
     status:          'APPROVED',
     total:           7140,
     createdAt:       '2026-04-10T00:00:00.000Z',
-    client: { name: 'Hans Bauer', company: 'Bauer GmbH' },
   },
   {
     id:              'q-2',
     quotationNumber: 'QT-2026-0002',
     title:           'Cloud Setup',
+    clientName:      'Emma Fischer',
     status:          'SENT',
     total:           10000,
     createdAt:       '2026-04-10T00:00:00.000Z',
-    client: { name: 'Emma Fischer', company: 'Fischer Tech' },
   },
 ];
 
@@ -97,11 +97,10 @@ describe('QuotationsPage', () => {
     expect(screen.getByText('QT-2026-0002')).toBeInTheDocument();
   });
 
-  it('renders client names and companies', async () => {
+  it('renders client names', async () => {
     renderAs(mockRep, successMock);
     await screen.findByText('Enterprise License');
     expect(screen.getByText('Hans Bauer')).toBeInTheDocument();
-    expect(screen.getByText('Bauer GmbH')).toBeInTheDocument();
     expect(screen.getByText('Emma Fischer')).toBeInTheDocument();
   });
 
@@ -285,18 +284,17 @@ describe('QuotationsPage', () => {
       id: 'q-new',
       quotationNumber: 'QT-2026-0099',
       title: 'New Deal',
+      clientName: 'Hans Bauer',
       status: 'DRAFT',
-      total: 0,
+      total: 500,
       createdAt: new Date().toISOString(),
-      client: { name: 'Hans Bauer', company: 'Bauer GmbH' },
     };
     const mocks: MockLink.MockedResponse[] = [
       { request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } }, result: { data: { quotations: mockQuotations } } },
-      { request: { query: CLIENTS_QUERY }, result: { data: { clients: [{ id: 'c-1', name: 'Hans Bauer', company: 'Bauer GmbH' }] } } },
       {
         request: {
           query: CREATE_QUOTATION_MUTATION,
-          variables: { input: { title: 'New Deal', clientId: 'c-1', notes: undefined, taxRate: 0, items: [{ description: 'Consulting', quantity: 1, unitPrice: 500 }] } },
+          variables: { input: { title: 'New Deal', clientName: 'Hans Bauer', notes: undefined, taxRate: 0, items: [{ description: 'Consulting', quantity: 1, unitPrice: 500 }] } },
         },
         result: { data: { createQuotation: newQuotation } },
       },
@@ -309,9 +307,8 @@ describe('QuotationsPage', () => {
     await user.click(screen.getByText('New Quotation'));
     expect(screen.getByRole('dialog', { name: 'Create quotation' })).toBeInTheDocument();
 
-    await screen.findByRole('option', { name: /Hans Bauer/i });
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Deal');
-    await user.selectOptions(screen.getByRole('dialog').querySelector('select')!, 'c-1');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Hans Bauer');
     await user.type(screen.getAllByPlaceholderText('Description')[0], 'Consulting');
     const priceInputs = screen.getAllByPlaceholderText('0.00');
     await user.type(priceInputs[0], '500');

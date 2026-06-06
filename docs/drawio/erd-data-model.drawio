@@ -18,19 +18,11 @@
           <mxGeometry x="60" y="115" width="200" height="130" as="geometry" />
         </mxCell>
 
-        <!-- CLIENT table -->
-        <mxCell id="client-header" value="Client" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="320" width="200" height="35" as="geometry" />
-        </mxCell>
-        <mxCell id="client-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;company: String&#xa;email: String&#xa;phone: String?&#xa;city: String?&#xa;country: String?&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="60" y="355" width="200" height="170" as="geometry" />
-        </mxCell>
-
         <!-- QUOTATION table -->
         <mxCell id="quotation-header" value="Quotation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="420" y="80" width="220" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;quotationNumber: String (unique)&#xa;title: String&#xa;status: DRAFT|SENT|APPROVED|REJECTED|EXPIRED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;validUntil: DateTime?&#xa;🔗 clientId: UUID (FK → Client)&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;quotationNumber: String (unique)&#xa;title: String&#xa;clientName: String&#xa;status: DRAFT|SENT|APPROVED|REJECTED|EXPIRED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;validUntil: DateTime?&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
           <mxGeometry x="420" y="115" width="220" height="250" as="geometry" />
         </mxCell>
 
@@ -59,27 +51,11 @@
         </mxCell>
 
         <!-- RELATIONSHIPS -->
-        <!-- User → Client (1:many) -->
-        <mxCell id="r1" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#6c8ebf;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.7;" edge="1" source="user-fields" target="client-fields" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="r1-label" value="creates" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
         <!-- User → Quotation (1:many) -->
         <mxCell id="r2" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="user-fields" target="quotation-fields" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="r2-label" value="creates" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r2">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- Client → Quotation (1:many) -->
-        <mxCell id="r3" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="client-fields" target="quotation-fields" parent="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="r3-label" value="has" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r3">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 

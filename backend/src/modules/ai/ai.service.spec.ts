@@ -61,7 +61,7 @@ const mockQuotation = {
   taxAmount: 1140,
   taxRate: 19,
   notes: null,
-  clientId: 'c-1',
+  clientName: 'Bauer Logistics GmbH',
   createdAt: new Date(),
   items: [
     {
@@ -71,7 +71,6 @@ const mockQuotation = {
       lineTotal: 5000,
     },
   ],
-  client: { name: 'Hans Bauer', company: 'Bauer GmbH' },
   createdBy: { name: 'Anna Schmidt', email: 'anna@quoteiq.com' },
 };
 
@@ -157,7 +156,11 @@ describe('AIService', () => {
       expect(result).toBeDefined();
       expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ clientId: 'c-1' }),
+          where: expect.objectContaining({
+            clientName: expect.objectContaining({
+              equals: 'Bauer Logistics GmbH',
+            }),
+          }),
         }),
       );
     });
@@ -299,7 +302,6 @@ describe('AIService', () => {
     it('throws InternalServerErrorException when quotation has missing relations', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue({
         ...mockQuotation,
-        client: null,
         createdBy: null,
       });
 

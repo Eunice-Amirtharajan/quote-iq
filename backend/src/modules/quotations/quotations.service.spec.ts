@@ -151,7 +151,7 @@ describe('QuotationsService', () => {
       );
     });
 
-    it('applies search filter across title, quotationNumber, and client name', async () => {
+    it('applies search filter across title, quotationNumber, and clientName', async () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
         search: 'enterprise',
@@ -301,7 +301,7 @@ describe('QuotationsService', () => {
 
     const mockInput = {
       title: 'Enterprise License',
-      clientId: 'c-1',
+      clientName: 'Hans Bauer',
       taxRate: 19,
       notes: 'Annual license',
       items: [
@@ -399,6 +399,30 @@ describe('QuotationsService', () => {
         'DB error',
       );
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when clientName contains only HTML tags', async () => {
+      await expect(
+        service.create({ ...mockInput, clientName: '<b></b>' }, mockUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when clientName exceeds 200 characters', async () => {
+      await expect(
+        service.create({ ...mockInput, clientName: 'A'.repeat(201) }, mockUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('strips HTML tags from clientName before saving', async () => {
+      await service.create(
+        { ...mockInput, clientName: '<b>Hans Bauer</b>' },
+        mockUser,
+      );
+      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ clientName: 'Hans Bauer' }),
+        }),
+      );
     });
   });
 
@@ -512,7 +536,9 @@ describe('QuotationsService', () => {
     });
 
     it('throws BadRequestException on illegal status transition', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(approvedQuotation);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(
+        approvedQuotation,
+      );
 
       await expect(
         service.updateStatus(
@@ -594,7 +620,9 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findMany.mockRejectedValue(
         'plain string error',
       );
-      await expect(service.findAll(mockUser)).rejects.toBe('plain string error');
+      await expect(service.findAll(mockUser)).rejects.toBe(
+        'plain string error',
+      );
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.any(String),
         'plain string error',
@@ -635,7 +663,7 @@ describe('QuotationsService', () => {
         service.create(
           {
             title: 'T',
-            clientId: 'c-1',
+            clientName: 'Hans Bauer',
             taxRate: 0,
             items: [{ description: 'X', quantity: 1, unitPrice: 10 }],
           },
@@ -653,7 +681,9 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.delete.mockRejectedValue(
         'plain string error',
       );
-      await expect(service.delete('q-1')).rejects.toBe('plain string error');
+      await expect(service.delete('q-1', 'user-1')).rejects.toBe(
+        'plain string error',
+      );
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.any(String),
         'plain string error',

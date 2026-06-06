@@ -34,7 +34,6 @@ const GROQ_MODELS = [
 
 export type QuotationSummary = z.infer<typeof QuotationSummarySchema>;
 type QuotationWithRelations = QuotationType & {
-  client: NonNullable<QuotationType['client']>;
   createdBy: NonNullable<QuotationType['createdBy']>;
   items: NonNullable<QuotationType['items']>;
 };
@@ -106,8 +105,7 @@ ${quotation.items.map((i) => `- ${i.description}: ${i.quantity} x €${i.unitPri
 </quotation_data>
 
 <client_data>
-Name: ${quotation.client.name}
-Company: ${quotation.client.company}
+Client: ${quotation.clientName}
 Total previous quotations: ${clientHistory}
 Approved: ${approvedCount}
 Rejected: ${rejectedCount}
@@ -193,20 +191,24 @@ strong contradicting signals. Justify your reasoning.
 
     const quotation = await this.prisma.quotation.findFirst({
       where: { id: quotationId },
-      include: { items: true, client: true, createdBy: true },
+      include: { items: true, createdBy: true },
     });
 
     if (!quotation) {
       this.logger.warn(`Quotation not found: ${quotationId}`, AIService.name);
       throw new NotFoundException(`Quotation ${quotationId} not found`);
     }
-    if (!quotation.client || !quotation.createdBy) {
+    if (!quotation.createdBy) {
       throw new InternalServerErrorException(`Quotation has missing relations`);
     }
 
+    // History by matching clientName (case-insensitive) across all quotations
     const clientHistory = await this.prisma.quotation.findMany({
       where: {
-        clientId: quotation.clientId,
+        clientName: {
+          equals: quotation.clientName,
+          mode: 'insensitive',
+        },
         id: { not: quotationId },
         createdAt: { lt: quotation.createdAt },
       },

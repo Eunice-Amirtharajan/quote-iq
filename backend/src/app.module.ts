@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { Request, Response } from 'express';
-import { ClientsModule } from './modules/clients/clients.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { LoggerModule } from './common/logger/logger.module';
@@ -29,7 +28,11 @@ import { AIModule } from './modules/ai/ai.module';
           msg.includes('Connection refused') ||
           msg.includes('prisma');
         if (isDbDown) {
-          return { ...err, message: 'Service temporarily unavailable. Please try again in a moment.' };
+          return {
+            ...err,
+            message:
+              'Service temporarily unavailable. Please try again in a moment.',
+          };
         }
         return err;
       },
@@ -40,7 +43,6 @@ import { AIModule } from './modules/ai/ai.module';
     }),
     PrismaModule,
     AuthModule,
-    ClientsModule,
     QuotationsModule,
     DashboardModule,
     AIModule,

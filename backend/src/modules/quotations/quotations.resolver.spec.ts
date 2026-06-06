@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { QuotationsResolver } from './quotations.resolver';
 import { QuotationsService } from './quotations.service';
-import { ClientsService } from '../clients/clients.service';
 import { Role, QuotationStatus } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { UserType } from '../users/user.entity';
@@ -13,10 +12,6 @@ const mockQuotationsService = {
   create: jest.fn(),
   updateStatus: jest.fn(),
   delete: jest.fn(),
-};
-
-const mockClientsService = {
-  findOwner: jest.fn(),
 };
 
 const mockUser: User = {
@@ -33,6 +28,7 @@ const mockQuotation = {
   id: 'q-1',
   quotationNumber: 'QT-2026-0001',
   title: 'Enterprise License',
+  clientName: 'Hans Bauer',
   status: QuotationStatus.DRAFT,
   total: 7140,
   createdById: 'user-1',
@@ -46,7 +42,6 @@ describe('QuotationsResolver', () => {
       providers: [
         QuotationsResolver,
         { provide: QuotationsService, useValue: mockQuotationsService },
-        { provide: ClientsService, useValue: mockClientsService },
       ],
     }).compile();
 
@@ -126,14 +121,13 @@ describe('QuotationsResolver', () => {
   });
 
   describe('createQuotation', () => {
-    it('creates and returns quotation for owner of client', async () => {
+    it('creates and returns quotation', async () => {
       const input = {
         title: 'New Quote',
-        clientId: 'c-1',
+        clientName: 'Hans Bauer',
         taxRate: 19,
         items: [],
       };
-      mockClientsService.findOwner.mockResolvedValue({ createdById: 'user-1' });
       mockQuotationsService.create.mockResolvedValue(mockQuotation);
 
       const result = await resolver.createQuotation(input, mockUser);
@@ -145,41 +139,14 @@ describe('QuotationsResolver', () => {
       expect(result).toEqual(mockQuotation);
     });
 
-    it('throws NotFoundException when client not found', async () => {
-      mockClientsService.findOwner.mockResolvedValue(null);
-      await expect(
-        resolver.createQuotation(
-          { title: 'Q', clientId: 'c-999', taxRate: 0, items: [] },
-          mockUser,
-        ),
-      ).rejects.toThrow('Client c-999 not found');
-      expect(mockQuotationsService.create).not.toHaveBeenCalled();
-    });
-
-    it('throws ForbiddenException when client belongs to another rep', async () => {
-      mockClientsService.findOwner.mockResolvedValue({
-        createdById: 'user-999',
-      });
-      await expect(
-        resolver.createQuotation(
-          { title: 'Q', clientId: 'c-1', taxRate: 0, items: [] },
-          mockUser,
-        ),
-      ).rejects.toThrow('Forbidden');
-      expect(mockQuotationsService.create).not.toHaveBeenCalled();
-    });
-
-    it('allows ADMIN to create quotation for any client', async () => {
+    it('allows ADMIN to create quotation', async () => {
       const admin = { ...mockUser, role: Role.ADMIN };
       const input = {
         title: 'Admin Quote',
-        clientId: 'c-other',
+        clientName: 'Some Client',
         taxRate: 0,
         items: [],
       };
-      mockClientsService.findOwner.mockResolvedValue({
-        createdById: 'user-999',
-      });
       mockQuotationsService.create.mockResolvedValue(mockQuotation);
 
       const result = await resolver.createQuotation(input, admin);
@@ -187,17 +154,14 @@ describe('QuotationsResolver', () => {
       expect(result).toEqual(mockQuotation);
     });
 
-    it('allows SALES_MANAGER to create quotation for any client', async () => {
+    it('allows SALES_MANAGER to create quotation', async () => {
       const manager = { ...mockUser, role: Role.SALES_MANAGER };
       const input = {
         title: 'Manager Quote',
-        clientId: 'c-other',
+        clientName: 'Another Client',
         taxRate: 0,
         items: [],
       };
-      mockClientsService.findOwner.mockResolvedValue({
-        createdById: 'user-999',
-      });
       mockQuotationsService.create.mockResolvedValue(mockQuotation);
 
       const result = await resolver.createQuotation(input, manager);

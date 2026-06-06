@@ -3,32 +3,22 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import CreateQuotationModal from './CreateQuotationModal';
-import { CLIENTS_QUERY, QUOTATIONS_QUERY } from '../graphql/queries';
+import { QUOTATIONS_QUERY } from '../graphql/queries';
 import { CREATE_QUOTATION_MUTATION } from '../graphql/mutations';
 import type { MockLink } from '@apollo/client/testing';
-
-const mockClients = [
-  { id: 'c-1', name: 'Hans Bauer', company: 'Bauer GmbH' },
-  { id: 'c-2', name: 'Emma Fischer', company: 'Fischer Tech' },
-];
 
 const createdQuotation = {
   id: 'q-new',
   quotationNumber: 'QT-2026-0099',
   title: 'New Service',
+  clientName: 'Acme Corp',
   status: 'DRAFT',
   total: 1190,
   createdAt: new Date().toISOString(),
-  client: { name: 'Hans Bauer', company: 'Bauer GmbH' },
-};
-
-const clientsMock: MockLink.MockedResponse = {
-  request: { query: CLIENTS_QUERY },
-  result: { data: { clients: mockClients } },
 };
 
 const quotationsMock: MockLink.MockedResponse = {
-  request: { query: QUOTATIONS_QUERY },
+  request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
   result: { data: { quotations: [] } },
 };
 
@@ -38,7 +28,7 @@ const createMock: MockLink.MockedResponse = {
     variables: {
       input: {
         title: 'New Service',
-        clientId: 'c-1',
+        clientName: 'Acme Corp',
         notes: undefined,
         taxRate: 0,
         items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
@@ -54,7 +44,7 @@ const createErrorMock: MockLink.MockedResponse = {
     variables: {
       input: {
         title: 'New Service',
-        clientId: 'c-1',
+        clientName: 'Acme Corp',
         notes: undefined,
         taxRate: 0,
         items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
@@ -79,60 +69,48 @@ describe('CreateQuotationModal', () => {
   afterEach(() => vi.clearAllMocks());
 
   it('renders the modal with dialog role', () => {
-    renderModal([clientsMock]);
+    renderModal([]);
     expect(
       screen.getByRole('dialog', { name: 'Create quotation' }),
     ).toBeInTheDocument();
   });
 
   it('renders form fields', () => {
-    renderModal([clientsMock]);
+    renderModal([]);
     expect(screen.getByPlaceholderText(/Software Development/i)).toBeInTheDocument();
-    expect(screen.getByText('Select a client…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Acme Corp/i)).toBeInTheDocument();
   });
 
   it('calls onClose when Cancel is clicked', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
     await user.click(screen.getByText('Cancel'));
     expect(mockOnClose).toHaveBeenCalled();
   });
 
   it('calls onClose when × button is clicked', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
     await user.click(screen.getByLabelText('Close'));
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('shows client options after loading', async () => {
-    renderModal([clientsMock]);
-    expect(
-      await screen.findByRole('option', { name: /Hans Bauer/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('option', { name: /Emma Fischer/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('shows validation error when no client selected on submit', async () => {
+  it('shows validation error when no client name entered on submit', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
-    await screen.findByRole('option', { name: /Hans Bauer/i });
+    renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
     await user.click(screen.getByText('Create Quotation'));
 
-    expect(screen.getByText('Please select a client.')).toBeInTheDocument();
+    expect(screen.getByText('Please enter a client name.')).toBeInTheDocument();
   });
 
   it('shows validation error when line item description is empty', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
-    await screen.findByRole('option', { name: /Hans Bauer/i });
+    renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.selectOptions(screen.getByRole('combobox'), 'c-1');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
     await user.click(screen.getByText('Create Quotation'));
 
     expect(
@@ -142,11 +120,10 @@ describe('CreateQuotationModal', () => {
 
   it('submits successfully and calls onCreated', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock, createMock, quotationsMock]);
-    await screen.findByRole('option', { name: /Hans Bauer/i });
+    renderModal([createMock, quotationsMock]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.selectOptions(screen.getByRole('combobox'), 'c-1');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Consulting');
@@ -167,11 +144,10 @@ describe('CreateQuotationModal', () => {
 
   it('shows error message when mutation fails', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock, createErrorMock]);
-    await screen.findByRole('option', { name: /Hans Bauer/i });
+    renderModal([createErrorMock]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.selectOptions(screen.getByRole('combobox'), 'c-1');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Consulting');
@@ -190,11 +166,10 @@ describe('CreateQuotationModal', () => {
 
   it('shows validation error when quantity is empty', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
-    await screen.findByRole('option', { name: /Hans Bauer/i });
+    renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'Test');
-    await user.selectOptions(screen.getByRole('combobox'), 'c-1');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Item');
@@ -220,7 +195,7 @@ describe('CreateQuotationModal', () => {
         variables: {
           input: {
             title: 'New Service',
-            clientId: 'c-1',
+            clientName: 'Acme Corp',
             notes: 'Some notes',
             taxRate: 0,
             items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
@@ -229,11 +204,10 @@ describe('CreateQuotationModal', () => {
       },
       result: { data: { createQuotation: createdQuotation } },
     };
-    renderModal([clientsMock, createWithNotesMock, quotationsMock]);
-    await screen.findByRole('option', { name: /Hans Bauer/i });
+    renderModal([createWithNotesMock, quotationsMock]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.selectOptions(screen.getByRole('combobox'), 'c-1');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Consulting');
@@ -252,7 +226,7 @@ describe('CreateQuotationModal', () => {
 
   it('can add and remove line items', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
 
     await user.click(screen.getByText('+ Add item'));
     expect(screen.getAllByPlaceholderText('Description')).toHaveLength(2);
@@ -264,7 +238,7 @@ describe('CreateQuotationModal', () => {
 
   it('disables Add item button at the 10-item limit', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
 
     for (let i = 0; i < 9; i++) {
       await user.click(screen.getByText('+ Add item'));
@@ -276,7 +250,7 @@ describe('CreateQuotationModal', () => {
 
   it('strips HTML tags from title input', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
 
     const titleInput = screen.getByPlaceholderText(/Software Development/i);
     await user.type(titleInput, '<script>alert(1)</script>');
@@ -285,7 +259,7 @@ describe('CreateQuotationModal', () => {
 
   it('updates tax rate when changed', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
 
     const taxInput = screen.getByDisplayValue('0');
     await user.clear(taxInput);
@@ -295,7 +269,7 @@ describe('CreateQuotationModal', () => {
 
   it('blocks e and E keys in tax rate input', async () => {
     const user = userEvent.setup();
-    renderModal([clientsMock]);
+    renderModal([]);
 
     const taxInput = screen.getByDisplayValue('0');
     await user.type(taxInput, 'e');
@@ -303,7 +277,7 @@ describe('CreateQuotationModal', () => {
   });
 
   it('shows red counter when notes reaches max length', () => {
-    renderModal([clientsMock]);
+    renderModal([]);
 
     const notesArea = screen.getByPlaceholderText(/Optional notes/i);
     fireEvent.change(notesArea, { target: { value: 'a'.repeat(500) } });
@@ -311,7 +285,7 @@ describe('CreateQuotationModal', () => {
   });
 
   it('shows red counter when title reaches max length', () => {
-    renderModal([clientsMock]);
+    renderModal([]);
 
     const titleInput = screen.getByPlaceholderText(/Software Development/i);
     fireEvent.change(titleInput, { target: { value: 'a'.repeat(100) } });

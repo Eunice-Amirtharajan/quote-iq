@@ -26,11 +26,11 @@
         </mxCell>
 
         <!-- FETCH DATA -->
-        <mxCell id="fetch-quotation" value="Fetch Quotation&#xa;+ items + client + createdBy&#xa;(Prisma findUnique)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="fetch-quotation" value="Fetch Quotation&#xa;+ items + createdBy&#xa;(Prisma findUnique)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="100" y="390" width="180" height="70" as="geometry" />
         </mxCell>
 
-        <mxCell id="fetch-history" value="Fetch Client History&#xa;(last 5 prior quotations&#xa;createdAt &lt; current)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="fetch-history" value="Fetch Prior Quotations&#xa;by clientName (case-insensitive)&#xa;last 5, createdAt &lt; current" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="100" y="500" width="180" height="70" as="geometry" />
         </mxCell>
 
@@ -56,7 +56,7 @@
         </mxCell>
 
         <!-- Groq -->
-        <mxCell id="Groq" value="Google Groq API&#xa;(Groq-1.5-flash&#xa;dynamic model resolution)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="Groq" value="Groq API&#xa;(Llama 3.3 70B&#xa;dynamic model resolution)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="730" y="560" width="180" height="70" as="geometry" />
         </mxCell>
 

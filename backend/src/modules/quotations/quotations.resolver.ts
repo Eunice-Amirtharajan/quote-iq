@@ -1,7 +1,7 @@
 import { Resolver, Query, Mutation, Args, ID, Int } from '@nestjs/graphql';
 import {
-  ForbiddenException,
   NotFoundException,
+  ForbiddenException,
   UseGuards,
 } from '@nestjs/common';
 import { QuotationsService } from './quotations.service';
@@ -15,15 +15,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserType } from '../users/user.entity';
 import { Role } from '@prisma/client';
-import { ClientsService } from '../clients/clients.service';
 
 @Resolver(() => QuotationType)
 @UseGuards(JwtAuthGuard)
 export class QuotationsResolver {
-  constructor(
-    private readonly quotationsService: QuotationsService,
-    private readonly clientsService: ClientsService,
-  ) {}
+  constructor(private readonly quotationsService: QuotationsService) {}
 
   @Query(/* istanbul ignore next */ () => [QuotationType])
   async quotations(
@@ -65,16 +61,6 @@ export class QuotationsResolver {
     @Args('input') input: CreateQuotationInput,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType> {
-    const clientOwner = await this.clientsService.findOwner(input.clientId);
-    if (!clientOwner)
-      throw new NotFoundException(`Client ${input.clientId} not found`);
-    // SALES_REP may only quote against clients they own; managers can quote any client
-    if (
-      user.role !== Role.ADMIN &&
-      user.role !== Role.SALES_MANAGER &&
-      user.id !== clientOwner.createdById
-    )
-      throw new ForbiddenException();
     return this.quotationsService.create(input, user);
   }
 

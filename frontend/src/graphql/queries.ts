@@ -20,27 +20,9 @@ export const QUOTATIONS_QUERY = gql`
       id
       quotationNumber
       title
+      clientName
       status
       total
-      createdAt
-      client {
-        name
-        company
-      }
-    }
-  }
-`;
-
-export const CLIENTS_QUERY = gql`
-  query Clients {
-    clients {
-      id
-      name
-      company
-      email
-      phone
-      city
-      country
       createdAt
     }
   }
@@ -52,6 +34,7 @@ export const QUOTATION_QUERY = gql`
       id
       quotationNumber
       title
+      clientName
       status
       notes
       taxRate
@@ -59,14 +42,6 @@ export const QUOTATION_QUERY = gql`
       taxAmount
       total
       createdAt
-      client {
-        id
-        name
-        company
-        email
-        city
-        country
-      }
       createdBy {
         id
         name

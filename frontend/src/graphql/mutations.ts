@@ -26,10 +26,7 @@ export const CREATE_QUOTATION_MUTATION = gql`
       status
       total
       createdAt
-      client {
-        name
-        company
-      }
+      clientName
     }
   }
 `;
