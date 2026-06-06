@@ -75,6 +75,17 @@ const mockQuotation = {
   createdBy: { name: 'Anna Schmidt', email: 'anna@quoteiq.com' },
 };
 
+describe('AIService — missing API key', () => {
+  it('throws on construction when GROQ_API_KEY is not set', () => {
+    const savedKey = process.env.GROQ_API_KEY;
+    delete process.env.GROQ_API_KEY;
+    expect(
+      () => new AIService(mockPrismaService as never, mockLogger as never),
+    ).toThrow('GROQ_API_KEY is not set');
+    process.env.GROQ_API_KEY = savedKey;
+  });
+});
+
 describe('AIService', () => {
   let service: AIService;
 
@@ -308,6 +319,80 @@ describe('AIService', () => {
       );
       // Should have tried multiple models
       expect(mockCreate).toHaveBeenCalledTimes(3);
+    });
+
+    it('throws immediately on non-transient Groq error without trying next model', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockRejectedValue(new Error('Authentication failed'));
+
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'Authentication failed',
+      );
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('includes notes in prompt when quotation has notes', async () => {
+      const quotationWithNotes = { ...mockQuotation, notes: 'Special discount applies' };
+      mockPrismaService.quotation.findFirst.mockResolvedValue(quotationWithNotes);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result).toBeDefined();
+    });
+
+    it('shows "First deal" label when no client history and deal total is zero', async () => {
+      // total=0, avgDealSize=0 → total > avgDealSize is false → avgDealSize > 0 is false → "First deal"
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        ...mockQuotation,
+        total: 0,
+      });
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result).toBeDefined();
+    });
+
+    it('shows "% below average" label when deal is smaller than client average', async () => {
+      // mockQuotation.total = 7140; history average = 20000 → below average
+      const clientHistory = [
+        { ...mockQuotation, id: 'q-old-1', status: 'APPROVED', total: 20000 },
+      ];
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue(clientHistory);
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result).toBeDefined();
+    });
+
+    it('handles empty choices content from Groq gracefully', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: null } }],
+      });
+
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'AI response could not be parsed',
+      );
+    });
+
+    it('logs String(error) when a non-Error is thrown during summary generation', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockRejectedValue('plain string error');
+
+      await expect(service.generateQuotationSummary('q-1')).rejects.toBe(
+        'plain string error',
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        AIService.name,
+      );
     });
   });
 });

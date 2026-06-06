@@ -4,7 +4,7 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import QuotationDetailPage from "./QuotationDetailPage";
 import { QUOTATION_QUERY } from "../graphql/queries";
-import { UPDATE_QUOTATION_STATUS_MUTATION } from "../graphql/mutations";
+import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
@@ -327,6 +327,75 @@ describe("QuotationDetailPage", () => {
       await waitFor(() => {
         expect(screen.queryByText("Rejecting…")).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("delete draft", () => {
+    it("shows Delete Draft button for owner of a DRAFT quotation", async () => {
+      renderAs(mockRep, makeMock(baseQuotation));
+      expect(await screen.findByText("Delete Draft")).toBeInTheDocument();
+    });
+
+    it("does not show Delete Draft button for non-owner", async () => {
+      renderAs(mockManager, makeMock(baseQuotation));
+      await screen.findByText("Enterprise License");
+      expect(screen.queryByText("Delete Draft")).not.toBeInTheDocument();
+    });
+
+    it("does not show Delete Draft button for non-DRAFT status", async () => {
+      renderAs(mockRep, makeMock({ ...baseQuotation, status: "SENT" }));
+      await screen.findByText("Enterprise License");
+      expect(screen.queryByText("Delete Draft")).not.toBeInTheDocument();
+    });
+
+    it("shows confirmation prompt when Delete Draft is clicked", async () => {
+      const user = userEvent.setup();
+      renderAs(mockRep, makeMock(baseQuotation));
+      await user.click(await screen.findByText("Delete Draft"));
+      expect(screen.getByText("Delete this draft permanently?")).toBeInTheDocument();
+      expect(screen.getByText("Yes, delete")).toBeInTheDocument();
+      expect(screen.getByText("Cancel")).toBeInTheDocument();
+    });
+
+    it("hides confirmation when Cancel is clicked", async () => {
+      const user = userEvent.setup();
+      renderAs(mockRep, makeMock(baseQuotation));
+      await user.click(await screen.findByText("Delete Draft"));
+      await user.click(screen.getByText("Cancel"));
+      expect(screen.queryByText("Delete this draft permanently?")).not.toBeInTheDocument();
+      expect(screen.getByText("Delete Draft")).toBeInTheDocument();
+    });
+
+    it("calls onBack after successful deletion", async () => {
+      const user = userEvent.setup();
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(baseQuotation),
+        {
+          request: { query: DELETE_QUOTATION_MUTATION, variables: { id: "q-1" } },
+          result: { data: { deleteQuotation: true } },
+        },
+      ];
+      renderAs(mockRep, mocks);
+      await user.click(await screen.findByText("Delete Draft"));
+      await user.click(screen.getByText("Yes, delete"));
+      await waitFor(() => expect(mockOnBack).toHaveBeenCalled());
+    });
+
+    it("shows error when deletion fails", async () => {
+      const user = userEvent.setup();
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(baseQuotation),
+        {
+          request: { query: DELETE_QUOTATION_MUTATION, variables: { id: "q-1" } },
+          error: new Error("Only DRAFT quotations can be deleted"),
+        },
+      ];
+      renderAs(mockRep, mocks);
+      await user.click(await screen.findByText("Delete Draft"));
+      await user.click(screen.getByText("Yes, delete"));
+      expect(
+        await screen.findByText("Only DRAFT quotations can be deleted"),
+      ).toBeInTheDocument();
     });
   });
 });

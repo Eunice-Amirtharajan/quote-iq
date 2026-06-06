@@ -25,13 +25,15 @@ describe('QuoteIQ E2E', () => {
   afterAll(async () => {
     // Clean up test data created during the run so repeated runs don't pollute the shared DB.
     // Quotations must be deleted before the client (no cascade on Client → Quotation).
-    const toDelete = [quotationId, managerQuotationId].filter(Boolean);
-    for (const id of toDelete) {
+    // Each quotation must be deleted by its creator — ownership enforced at service layer.
+    if (quotationId) {
       await request(app.getHttpServer())
         .post('/graphql')
-        .set('Cookie', managerCookie)
-        .send({ query: `mutation { deleteQuotation(id: "${id}") }` });
+        .set('Cookie', authCookie)
+        .send({ query: `mutation { deleteQuotation(id: "${quotationId}") }` });
     }
+    // managerQuotationId is moved to SENT in the delete e2e test, so it cannot be deleted.
+    // It is left in the DB — acceptable for a shared test environment.
     if (clientId) {
       await request(app.getHttpServer())
         .post('/graphql')
@@ -534,10 +536,10 @@ describe('QuoteIQ E2E', () => {
       expect(result === null || hasError).toBe(true);
     });
 
-    it('SALES_MANAGER can delete a quotation', async () => {
+    it('creator can delete their own DRAFT quotation', async () => {
       const createRes = await request(app.getHttpServer())
         .post('/graphql')
-        .set('Cookie', managerCookie)
+        .set('Cookie', authCookie)
         .send({
           query: `
             mutation {
@@ -556,7 +558,7 @@ describe('QuoteIQ E2E', () => {
 
       const deleteRes = await request(app.getHttpServer())
         .post('/graphql')
-        .set('Cookie', managerCookie)
+        .set('Cookie', authCookie)
         .send({
           query: `mutation { deleteQuotation(id: "${toDeleteId}") }`,
         })
@@ -565,16 +567,68 @@ describe('QuoteIQ E2E', () => {
       expect(deleteRes.body.data.deleteQuotation).toBe(true);
     });
 
-    it('SALES_REP cannot delete a quotation', async () => {
-      const response = await request(app.getHttpServer())
+    it('non-creator (manager) cannot delete another user\'s DRAFT', async () => {
+      // Create a fresh DRAFT owned by the rep so we can test ownership enforcement
+      const createRes = await request(app.getHttpServer())
         .post('/graphql')
         .set('Cookie', authCookie)
         .send({
-          query: `mutation { deleteQuotation(id: "${quotationId}") }`,
+          query: `
+            mutation {
+              createQuotation(input: {
+                title: "Rep Draft For Ownership Test"
+                clientId: "${clientId}"
+                taxRate: 0
+                items: [{ description: "X" quantity: 1 unitPrice: 50 }]
+              }) { id }
+            }
+          `,
+        })
+        .expect(200);
+      const repDraftId = createRes.body.data.createQuotation.id as string;
+
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `mutation { deleteQuotation(id: "${repDraftId}") }`,
         })
         .expect(200);
 
       expect(response.body.errors).toBeDefined();
+      expect(response.body.errors[0].message).toContain('own quotations');
+
+      // Clean up the draft (rep deletes their own)
+      await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({ query: `mutation { deleteQuotation(id: "${repDraftId}") }` });
+    });
+
+    it('rejects deletion of a non-DRAFT quotation', async () => {
+      // Submit the manager's quotation to SENT so it is no longer DRAFT
+      await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            mutation {
+              updateQuotationStatus(id: "${managerQuotationId}", input: { status: SENT }) { id status }
+            }
+          `,
+        })
+        .expect(200);
+
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `mutation { deleteQuotation(id: "${managerQuotationId}") }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+      expect(response.body.errors[0].message).toContain('DRAFT');
     });
   });
 

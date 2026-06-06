@@ -14,8 +14,6 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserType } from '../users/user.entity';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { ClientsService } from '../clients/clients.service';
 
@@ -101,11 +99,10 @@ export class QuotationsResolver {
   }
 
   @Mutation(/* istanbul ignore next */ () => Boolean)
-  @UseGuards(RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
   async deleteQuotation(
     @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
+    @CurrentUser() user: UserType,
   ): Promise<boolean> {
-    return this.quotationsService.delete(id);
+    return this.quotationsService.delete(id, user.id);
   }
 }

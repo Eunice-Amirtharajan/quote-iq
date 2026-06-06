@@ -43,6 +43,12 @@ export const UPDATE_QUOTATION_STATUS_MUTATION = gql`
   }
 `;
 
+export const DELETE_QUOTATION_MUTATION = gql`
+  mutation DeleteQuotation($id: ID!) {
+    deleteQuotation(id: $id)
+  }
+`;
+
 export const QUOTATION_SUMMARY_MUTATION = gql`
   mutation QuotationSummary($quotationId: ID!) {
     quotationSummary(quotationId: $quotationId) {

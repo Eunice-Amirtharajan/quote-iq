@@ -286,10 +286,16 @@ describe('QuotationsResolver', () => {
   });
 
   describe('deleteQuotation', () => {
-    it('deletes and returns true', async () => {
+    it('passes id and userId to service and returns true', async () => {
       mockQuotationsService.delete.mockResolvedValue(true);
-      const result = await resolver.deleteQuotation('q-1');
-      expect(mockQuotationsService.delete).toHaveBeenCalledWith('q-1');
+      const result = await resolver.deleteQuotation(
+        'q-1',
+        mockUser as UserType,
+      );
+      expect(mockQuotationsService.delete).toHaveBeenCalledWith(
+        'q-1',
+        'user-1',
+      );
       expect(result).toBe(true);
     });
   });

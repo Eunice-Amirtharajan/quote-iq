@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
-import { QUOTATION_QUERY } from "../graphql/queries";
-import { UPDATE_QUOTATION_STATUS_MUTATION } from "../graphql/mutations";
+import { QUOTATION_QUERY, QUOTATIONS_QUERY } from "../graphql/queries";
+import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import AIInsightCard from "../components/AIInsightCard";
 
@@ -56,24 +56,35 @@ interface StatusActionsProps {
   status: string;
   createdById: string;
   refetch: () => void;
+  onDeleted: () => void;
 }
 
-function StatusActions({ quotationId, status, createdById, refetch }: Readonly<StatusActionsProps>) {
+function StatusActions({ quotationId, status, createdById, refetch, onDeleted }: Readonly<StatusActionsProps>) {
   const { user } = useAuth();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const [updateStatus] = useMutation(
-    UPDATE_QUOTATION_STATUS_MUTATION,
+  const [updateStatus] = useMutation(UPDATE_QUOTATION_STATUS_MUTATION, {
+    onCompleted: () => {
+      setActionError(null);
+      setPendingAction(null);
+      refetch();
+    },
+    onError: (err) => {
+      setActionError(err.message);
+      setPendingAction(null);
+    },
+  });
+
+  const [deleteQuotation, { loading: deleting }] = useMutation(
+    DELETE_QUOTATION_MUTATION,
     {
-      onCompleted: () => {
-        setActionError(null);
-        setPendingAction(null);
-        refetch();
-      },
+      refetchQueries: [{ query: QUOTATIONS_QUERY }],
+      onCompleted: () => onDeleted(),
       onError: (err) => {
         setActionError(err.message);
-        setPendingAction(null);
+        setConfirmDelete(false);
       },
     },
   );
@@ -88,9 +99,10 @@ function StatusActions({ quotationId, status, createdById, refetch }: Readonly<S
   const isOwner = user?.id === createdById;
 
   const showSend = status === "DRAFT" && isOwner;
+  const showDelete = status === "DRAFT" && isOwner;
   const showApproveReject = status === "SENT" && isManager;
 
-  if (!showSend && !showApproveReject) return null;
+  if (!showSend && !showApproveReject && !showDelete) return null;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
@@ -104,7 +116,7 @@ function StatusActions({ quotationId, status, createdById, refetch }: Readonly<S
         {showSend && (
           <button
             onClick={() => act("SENT")}
-            disabled={pendingAction !== null}
+            disabled={pendingAction !== null || deleting}
             className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {pendingAction === "SENT" ? "Submitting…" : "Submit for Approval"}
@@ -127,6 +139,36 @@ function StatusActions({ quotationId, status, createdById, refetch }: Readonly<S
               {pendingAction === "REJECTED" ? "Rejecting…" : "Reject"}
             </button>
           </>
+        )}
+        {showDelete && !confirmDelete && (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            disabled={pendingAction !== null || deleting}
+            className="w-full py-2 px-4 rounded-lg text-sm font-medium border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Delete Draft
+          </button>
+        )}
+        {showDelete && confirmDelete && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+            <p className="text-xs text-red-700 font-medium">Delete this draft permanently?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => void deleteQuotation({ variables: { id: quotationId } })}
+                disabled={deleting}
+                className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -268,6 +310,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             status={q.status}
             createdById={q.createdBy.id}
             refetch={refetch}
+            onDeleted={onBack}
           />
 
           {/* Quotation info */}

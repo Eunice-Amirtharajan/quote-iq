@@ -272,9 +272,18 @@ export class QuotationsService {
     }
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: string, userId: string): Promise<boolean> {
     this.logger.info(`Deleting quotation: ${id}`, QuotationsService.name);
     try {
+      const quotation = await this.prisma.quotation.findFirst({
+        where: { id },
+        select: { status: true, createdById: true },
+      });
+      if (!quotation) throw new NotFoundException(`Quotation ${id} not found`);
+      if (quotation.status !== QuotationStatus.DRAFT)
+        throw new BadRequestException('Only DRAFT quotations can be deleted');
+      if (quotation.createdById !== userId)
+        throw new ForbiddenException('You can only delete your own quotations');
       await this.prisma.quotation.delete({ where: { id } });
       return true;
     } catch (error) {
@@ -284,6 +293,7 @@ export class QuotationsService {
       ) {
         throw new NotFoundException(`Quotation ${id} not found`);
       }
+      if (error instanceof HttpException) throw error;
       this.logger.error(
         `Unexpected error while deleting the quotation: "${id}"`,
         error instanceof Error ? error.stack : String(error),

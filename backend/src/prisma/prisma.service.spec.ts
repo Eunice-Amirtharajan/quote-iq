@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PrismaService, isDbConnectionError, withDbRetry } from './prisma.service';
-import { Logger } from '@nestjs/common';
+import {
+  PrismaService,
+  isDbConnectionError,
+  withDbRetry,
+} from './prisma.service';
+import { PrismaNeon } from '@prisma/adapter-neon';
 
 jest.mock('@prisma/adapter-neon', () => ({
   PrismaNeon: jest.fn().mockImplementation(() => ({
@@ -40,6 +44,45 @@ describe('PrismaService — Neon URL', () => {
       .mockResolvedValue(undefined);
     await service.onModuleDestroy();
     expect(disconnectSpy).toHaveBeenCalled();
+  });
+});
+
+describe('PrismaService — missing DATABASE_URL', () => {
+  const savedUrl = process.env.DATABASE_URL;
+
+  beforeEach(() => {
+    delete process.env.DATABASE_URL;
+  });
+
+  afterEach(() => {
+    process.env.DATABASE_URL = savedUrl;
+  });
+
+  it('throws on construction when DATABASE_URL is not set', () => {
+    expect(() => new PrismaService()).toThrow('DATABASE_URL is not set');
+  });
+});
+
+describe('PrismaService — neon.database URL variant', () => {
+  const savedUrl = process.env.DATABASE_URL;
+
+  beforeEach(() => {
+    process.env.DATABASE_URL = 'postgresql://user:pass@ep-xxx.neon.database/db';
+  });
+
+  afterEach(() => {
+    process.env.DATABASE_URL = savedUrl;
+    jest.clearAllMocks();
+  });
+
+  it('uses Neon adapter for neon.database hostnames', async () => {
+    (PrismaNeon as jest.Mock).mockClear();
+    const module = await Test.createTestingModule({
+      providers: [PrismaService],
+    }).compile();
+    const service = module.get<PrismaService>(PrismaService);
+    expect(service).toBeDefined();
+    expect(PrismaNeon).toHaveBeenCalled();
   });
 });
 
@@ -83,7 +126,9 @@ describe('isDbConnectionError', () => {
   });
 
   it("returns true for message containing \"Can't reach database\"", () => {
-    expect(isDbConnectionError({ message: "Can't reach database server" })).toBe(true);
+    expect(
+      isDbConnectionError({ message: "Can't reach database server" }),
+    ).toBe(true);
   });
 
   it('returns true for message containing "Connection refused"', () => {
@@ -91,7 +136,9 @@ describe('isDbConnectionError', () => {
   });
 
   it('returns true for message containing "ECONNREFUSED"', () => {
-    expect(isDbConnectionError({ message: 'connect ECONNREFUSED 127.0.0.1:5432' })).toBe(true);
+    expect(
+      isDbConnectionError({ message: 'connect ECONNREFUSED 127.0.0.1:5432' }),
+    ).toBe(true);
   });
 
   it('returns false for unrelated error codes', () => {
@@ -99,7 +146,9 @@ describe('isDbConnectionError', () => {
   });
 
   it('returns false for unrelated error messages', () => {
-    expect(isDbConnectionError({ message: 'Unique constraint failed' })).toBe(false);
+    expect(isDbConnectionError({ message: 'Unique constraint failed' })).toBe(
+      false,
+    );
   });
 
   it('returns false for non-object errors', () => {
@@ -133,14 +182,22 @@ describe('withDbRetry', () => {
   });
 
   it('throws immediately on non-connection error', async () => {
-    const fn = jest.fn().mockRejectedValue(new Error('Unique constraint failed'));
-    await expect(withDbRetry(fn, mockLogger, 3, 0)).rejects.toThrow('Unique constraint failed');
+    const fn = jest
+      .fn()
+      .mockRejectedValue(new Error('Unique constraint failed'));
+    await expect(withDbRetry(fn, mockLogger, 3, 0)).rejects.toThrow(
+      'Unique constraint failed',
+    );
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
   it('throws after exhausting all retries', async () => {
-    const fn = jest.fn().mockRejectedValue({ code: 'P1001', message: "Can't reach database" });
-    await expect(withDbRetry(fn, mockLogger, 3, 0)).rejects.toMatchObject({ code: 'P1001' });
+    const fn = jest
+      .fn()
+      .mockRejectedValue({ code: 'P1001', message: "Can't reach database" });
+    await expect(withDbRetry(fn, mockLogger, 3, 0)).rejects.toMatchObject({
+      code: 'P1001',
+    });
     expect(fn).toHaveBeenCalledTimes(3);
   });
 });

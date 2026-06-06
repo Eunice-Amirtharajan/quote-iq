@@ -232,27 +232,58 @@ describe('QuotationsService', () => {
   });
 
   describe('delete', () => {
-    it('returns true on successful delete', async () => {
+    const mockDraft = { status: QuotationStatus.DRAFT, createdById: 'user-1' };
+
+    it('returns true when creator deletes their own DRAFT', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockDraft);
       mockPrismaService.quotation.delete.mockResolvedValue({});
-      const result = await service.delete('q-1');
+      const result = await service.delete('q-1', 'user-1');
       expect(result).toBe(true);
     });
 
-    it('throws NotFoundException when quotation does not exist (P2025)', async () => {
+    it('throws NotFoundException when quotation does not exist', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      await expect(service.delete('q-999', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when status is not DRAFT', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        status: QuotationStatus.SENT,
+        createdById: 'user-1',
+      });
+      await expect(service.delete('q-1', 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws ForbiddenException when user is not the creator', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockDraft);
+      await expect(service.delete('q-1', 'other-user')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws NotFoundException on P2025 from delete call', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockDraft);
       const p2025 = new PrismaClientKnownRequestError('Not found', {
         code: 'P2025',
         clientVersion: '0',
       });
       mockPrismaService.quotation.delete.mockRejectedValue(p2025);
-      await expect(service.delete('q-999')).rejects.toThrow(NotFoundException);
+      await expect(service.delete('q-1', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
       expect(mockLogger.error).not.toHaveBeenCalled();
     });
 
     it('throws and logs error for unexpected prisma failure', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockDraft);
       mockPrismaService.quotation.delete.mockRejectedValue(
         new Error('DB error'),
       );
-      await expect(service.delete('q-1')).rejects.toThrow('DB error');
+      await expect(service.delete('q-1', 'user-1')).rejects.toThrow('DB error');
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });

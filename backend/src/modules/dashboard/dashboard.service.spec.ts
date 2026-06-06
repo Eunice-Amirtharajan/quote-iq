@@ -149,5 +149,31 @@ describe('DashboardService', () => {
 
       expect(mockLogger.error).toHaveBeenCalled();
     });
+
+    it('logs String(error) when a non-Error is thrown', async () => {
+      mockPrismaService.quotation.count.mockRejectedValue('plain string error');
+
+      await expect(
+        service.getStats(mockUser(Role.SALES_MANAGER)),
+      ).rejects.toBe('plain string error');
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.any(String),
+        'plain string error',
+        DashboardService.name,
+      );
+    });
+
+    it('returns zero conversion rate when no approved or rejected quotations', async () => {
+      mockPrismaService.quotation.count
+        .mockResolvedValueOnce(5) // totalQuotations
+        .mockResolvedValueOnce(3) // totalSent
+        .mockResolvedValueOnce(0) // totalApproved
+        .mockResolvedValueOnce(0); // totalRejected
+
+      const result = await service.getStats(mockUser(Role.SALES_MANAGER));
+
+      expect(result.conversionRate).toBe(0);
+    });
   });
 });

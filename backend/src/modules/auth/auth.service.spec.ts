@@ -139,6 +139,23 @@ describe('AuthService', () => {
       );
     });
 
+    it('sets secure:true and sameSite:none in production', async () => {
+      const savedEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      mockJwtService.sign.mockReturnValue('mock-jwt-token');
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await service.login('marcus@quoteiq.com', 'password123', mockResponse);
+
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ secure: true, sameSite: 'none' }),
+      );
+      process.env.NODE_ENV = savedEnv;
+    });
+
     it('uses default JWT_EXPIRES_IN of 7d when env var is not set', async () => {
       const saved = process.env.JWT_EXPIRES_IN;
       delete process.env.JWT_EXPIRES_IN;
@@ -166,6 +183,19 @@ describe('AuthService', () => {
         secure: false,
       });
       expect(result).toBe(true);
+    });
+
+    it('uses secure:true and sameSite:none in production', () => {
+      const savedEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+
+      service.logout(mockResponse);
+
+      expect(mockResponse.clearCookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.objectContaining({ secure: true, sameSite: 'none' }),
+      );
+      process.env.NODE_ENV = savedEnv;
     });
 
     it('logs String(error) when a non-Error is thrown during clearCookie', () => {

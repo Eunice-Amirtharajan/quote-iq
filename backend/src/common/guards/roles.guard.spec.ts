@@ -58,4 +58,14 @@ describe('RolesGuard', () => {
     const result = guard.canActivate(mockContext('ADMIN'));
     expect(result).toBe(true);
   });
+
+  it('denies access when user has no role (undefined)', () => {
+    reflector.getAllAndOverride.mockReturnValue([Role.SALES_MANAGER]);
+    (GqlExecutionContext.create as jest.Mock).mockReturnValue({
+      getContext: () => ({ req: { user: undefined } }),
+    });
+    const ctx = { getHandler: jest.fn(), getClass: jest.fn() } as unknown as ExecutionContext;
+    const result = guard.canActivate(ctx);
+    expect(result).toBe(false);
+  });
 });

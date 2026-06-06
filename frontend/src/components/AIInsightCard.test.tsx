@@ -66,9 +66,25 @@ describe("AIInsightCard", () => {
   });
 
   it("shows loading state while mutation is in flight", async () => {
-    renderCard(mockManager);
-    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
-    expect(screen.getByText("Analysing...")).toBeInTheDocument();
+    const delayedMock: MockLink.MockedResponse[] = [
+      {
+        request: {
+          query: QUOTATION_SUMMARY_MUTATION,
+          variables: { quotationId: "q-1" },
+        },
+        result: { data: { quotationSummary: mockSummary } },
+        delay: 200,
+      },
+    ];
+    render(
+      <MockedProvider mocks={delayedMock}>
+        <AuthContext.Provider value={{ user: mockManager, setUser: vi.fn() }}>
+          <AIInsightCard quotationId="q-1" />
+        </AuthContext.Provider>
+      </MockedProvider>,
+    );
+    void userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    expect(await screen.findByText("Analysing...")).toBeInTheDocument();
   });
 
   it("renders summary after generate is clicked", async () => {
