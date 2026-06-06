@@ -51,3 +51,21 @@ export class UpdateQuotationStatusInput {
   @Field(() => String, { nullable: true })
   note?: string;
 }
+
+@InputType()
+export class UpdateQuotationInput {
+  @Field(() => String, { nullable: true })
+  title?: string;
+
+  @Field(() => String, { nullable: true })
+  clientName?: string;
+
+  @Field(() => String, { nullable: true })
+  notes?: string;
+
+  @Field(() => Float, { nullable: true })
+  taxRate?: number;
+
+  @Field(() => [QuotationItemInput], { nullable: true })
+  items?: QuotationItemInput[];
+}

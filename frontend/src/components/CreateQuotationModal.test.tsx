@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import CreateQuotationModal from './CreateQuotationModal';
-import { QUOTATIONS_QUERY } from '../graphql/queries';
-import { CREATE_QUOTATION_MUTATION } from '../graphql/mutations';
+import { QUOTATIONS_QUERY, QUOTATION_QUERY } from '../graphql/queries';
+import { CREATE_QUOTATION_MUTATION, UPDATE_QUOTATION_MUTATION } from '../graphql/mutations';
 import type { MockLink } from '@apollo/client/testing';
 
 const createdQuotation = {
@@ -290,5 +290,78 @@ describe('CreateQuotationModal', () => {
     const titleInput = screen.getByPlaceholderText(/Software Development/i);
     fireEvent.change(titleInput, { target: { value: 'a'.repeat(100) } });
     expect(screen.getByText('100/100')).toHaveClass('text-red-500');
+  });
+});
+
+describe('CreateQuotationModal — edit mode', () => {
+  const existingQuotation = {
+    id: 'q-1',
+    title: 'Old Title',
+    clientName: 'Old Corp',
+    notes: 'Old notes',
+    taxRate: 0,
+    items: [{ description: 'Old Item', quantity: 1, unitPrice: 500, sortOrder: 0 }],
+  };
+
+  const updateMock: MockLink.MockedResponse = {
+    request: {
+      query: UPDATE_QUOTATION_MUTATION,
+      variables: {
+        id: 'q-1',
+        input: {
+          title: 'Old Title',
+          clientName: 'Old Corp',
+          notes: 'Old notes',
+          taxRate: 0,
+          items: [{ description: 'Old Item', quantity: 1, unitPrice: 500 }],
+        },
+      },
+    },
+    result: { data: { updateQuotation: { id: 'q-1', title: 'Old Title' } } },
+  };
+
+  const quotationRefetchMock: MockLink.MockedResponse = {
+    request: { query: QUOTATION_QUERY, variables: { id: 'q-1' } },
+    result: { data: { quotation: null } },
+  };
+
+  function renderEditModal(mocks: MockLink.MockedResponse[]) {
+    return render(
+      <MockedProvider mocks={mocks}>
+        <CreateQuotationModal
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          quotation={existingQuotation}
+        />
+      </MockedProvider>,
+    );
+  }
+
+  afterEach(() => vi.clearAllMocks());
+
+  it('renders in edit mode with pre-populated fields', () => {
+    renderEditModal([]);
+    expect(screen.getByRole('dialog', { name: 'Edit quotation' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Old Title')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Old Corp')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Old notes')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Old Item')).toBeInTheDocument();
+    expect(screen.getByText('Save Changes')).toBeInTheDocument();
+  });
+
+  it('calls updateQuotation and closes on save', async () => {
+    const user = userEvent.setup();
+    const mockOnClose = vi.fn();
+    render(
+      <MockedProvider mocks={[updateMock, quotationRefetchMock]}>
+        <CreateQuotationModal
+          onClose={mockOnClose}
+          onCreated={vi.fn()}
+          quotation={existingQuotation}
+        />
+      </MockedProvider>,
+    );
+    await user.click(screen.getByText('Save Changes'));
+    await waitFor(() => expect(mockOnClose).toHaveBeenCalled());
   });
 });

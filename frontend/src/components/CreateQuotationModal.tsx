@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@apollo/client/react";
-import { CREATE_QUOTATION_MUTATION } from "../graphql/mutations";
-import { QUOTATIONS_QUERY } from "../graphql/queries";
+import { CREATE_QUOTATION_MUTATION, UPDATE_QUOTATION_MUTATION } from "../graphql/mutations";
+import { QUOTATIONS_QUERY, QUOTATION_QUERY } from "../graphql/queries";
 
 interface LineItem {
   description: string;
@@ -9,9 +9,19 @@ interface LineItem {
   unitPrice: string;
 }
 
+interface ExistingQuotation {
+  id: string;
+  title: string;
+  clientName: string;
+  notes: string | null;
+  taxRate: number;
+  items: { description: string; quantity: number; unitPrice: number; sortOrder: number }[];
+}
+
 interface Props {
   onClose: () => void;
   onCreated: (id: string) => void;
+  quotation?: ExistingQuotation;
 }
 
 const TITLE_MAX = 100;
@@ -23,21 +33,54 @@ const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
 
 const stripTags = (v: string) => v.replace(/<[^>]*>/g, "");
 
-export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Props>) {
-  const [title, setTitle] = useState("");
-  const [clientName, setClientName] = useState("");
-  const [notes, setNotes] = useState("");
-  const [taxRate, setTaxRate] = useState("0");
-  const [items, setItems] = useState<LineItem[]>([{ ...EMPTY_ITEM }]);
+function toLineItems(
+  items: ExistingQuotation["items"],
+): LineItem[] {
+  return [...items]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((i) => ({
+      description: i.description,
+      quantity: String(i.quantity),
+      unitPrice: String(i.unitPrice),
+    }));
+}
+
+export default function CreateQuotationModal({
+  onClose,
+  onCreated,
+  quotation,
+}: Readonly<Props>) {
+  const isEdit = quotation != null;
+
+  const [title, setTitle] = useState(quotation?.title ?? "");
+  const [clientName, setClientName] = useState(quotation?.clientName ?? "");
+  const [notes, setNotes] = useState(quotation?.notes ?? "");
+  const [taxRate, setTaxRate] = useState(String(quotation?.taxRate ?? 0));
+  const [items, setItems] = useState<LineItem[]>(
+    quotation ? toLineItems(quotation.items) : [{ ...EMPTY_ITEM }],
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [createQuotation, { loading }] = useMutation<{ createQuotation: { id: string } }>(CREATE_QUOTATION_MUTATION, {
+  const [createQuotation, { loading: creating }] = useMutation<{
+    createQuotation: { id: string };
+  }>(CREATE_QUOTATION_MUTATION, {
     refetchQueries: [{ query: QUOTATIONS_QUERY, variables: { filter: undefined } }],
-    onCompleted: (data) => {
-      onCreated(data.createQuotation.id);
-    },
+    onCompleted: (data) => onCreated(data.createQuotation.id),
     onError: (err) => setFormError(err.message),
   });
+
+  const [updateQuotation, { loading: updating }] = useMutation(
+    UPDATE_QUOTATION_MUTATION,
+    {
+      refetchQueries: quotation
+        ? [{ query: QUOTATION_QUERY, variables: { id: quotation.id } }]
+        : [],
+      onCompleted: () => onClose(),
+      onError: (err) => setFormError(err.message),
+    },
+  );
+
+  const loading = creating || updating;
 
   const updateItem = (index: number, field: keyof LineItem, value: string) => {
     setItems((prev) =>
@@ -45,7 +88,10 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
     );
   };
 
-  const addItem = () => setItems((prev) => prev.length < ITEMS_MAX ? [...prev, { ...EMPTY_ITEM }] : prev);
+  const addItem = () =>
+    setItems((prev) =>
+      prev.length < ITEMS_MAX ? [...prev, { ...EMPTY_ITEM }] : prev,
+    );
 
   const removeItem = (index: number) =>
     setItems((prev) => prev.filter((_, i) => i !== index));
@@ -54,35 +100,59 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
     e.preventDefault();
     setFormError(null);
 
-    if (!clientName.trim()) { setFormError("Please enter a client name."); return; }
+    if (!clientName.trim()) {
+      setFormError("Please enter a client name.");
+      return;
+    }
     if (items.some((it) => !it.description.trim())) {
       setFormError("All line items must have a description.");
       return;
     }
     const parsePrice = (v: string) => parseFloat(v);
-    const validQty = (v: string) => { const n = parseInt(v, 10); return !isNaN(n) && n >= 1; };
-    if (items.some((it) => !validQty(it.quantity) || parsePrice(it.unitPrice) <= 0)) {
+    const validQty = (v: string) => {
+      const n = parseInt(v, 10);
+      return !isNaN(n) && n >= 1;
+    };
+    if (
+      items.some((it) => !validQty(it.quantity) || parsePrice(it.unitPrice) <= 0)
+    ) {
       setFormError("Quantity and unit price must be greater than 0.");
       return;
     }
 
     const sanitizedNotes = stripTags(notes.trim()) || undefined;
+    const parsedItems = items.map((it) => ({
+      description: it.description.trim(),
+      quantity: parseInt(it.quantity, 10),
+      unitPrice: parsePrice(it.unitPrice),
+    }));
 
-    void createQuotation({
-      variables: {
-        input: {
-          title: title.trim(),
-          clientName: stripTags(clientName.trim()),
-          notes: sanitizedNotes,
-          taxRate: Number(taxRate),
-          items: items.map((it) => ({
-            description: it.description.trim(),
-            quantity: parseInt(it.quantity, 10),
-            unitPrice: parsePrice(it.unitPrice),
-          })),
+    if (isEdit) {
+      void updateQuotation({
+        variables: {
+          id: quotation.id,
+          input: {
+            title: title.trim(),
+            clientName: stripTags(clientName.trim()),
+            notes: sanitizedNotes ?? null,
+            taxRate: Number(taxRate),
+            items: parsedItems,
+          },
         },
-      },
-    });
+      });
+    } else {
+      void createQuotation({
+        variables: {
+          input: {
+            title: title.trim(),
+            clientName: stripTags(clientName.trim()),
+            notes: sanitizedNotes,
+            taxRate: Number(taxRate),
+            items: parsedItems,
+          },
+        },
+      });
+    }
   };
 
   return (
@@ -90,11 +160,13 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
-      aria-label="Create quotation"
+      aria-label={isEdit ? "Edit quotation" : "Create quotation"}
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">New Quotation</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            {isEdit ? "Edit Quotation" : "New Quotation"}
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -111,14 +183,18 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
               <label className="text-xs font-medium text-gray-700">
                 Title <span className="text-red-500">*</span>
               </label>
-              <span className={`text-xs ${title.length >= TITLE_MAX ? "text-red-500" : "text-gray-400"}`}>
+              <span
+                className={`text-xs ${title.length >= TITLE_MAX ? "text-red-500" : "text-gray-400"}`}
+              >
                 {title.length}/{TITLE_MAX}
               </span>
             </div>
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(stripTags(e.target.value).slice(0, TITLE_MAX))}
+              onChange={(e) =>
+                setTitle(stripTags(e.target.value).slice(0, TITLE_MAX))
+              }
               maxLength={TITLE_MAX}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="e.g. Software Development Services Q3"
@@ -131,14 +207,18 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
               <label className="text-xs font-medium text-gray-700">
                 Client <span className="text-red-500">*</span>
               </label>
-              <span className={`text-xs ${clientName.length >= CLIENT_MAX ? "text-red-500" : "text-gray-400"}`}>
+              <span
+                className={`text-xs ${clientName.length >= CLIENT_MAX ? "text-red-500" : "text-gray-400"}`}
+              >
                 {clientName.length}/{CLIENT_MAX}
               </span>
             </div>
             <input
               type="text"
               value={clientName}
-              onChange={(e) => setClientName(stripTags(e.target.value).slice(0, CLIENT_MAX))}
+              onChange={(e) =>
+                setClientName(stripTags(e.target.value).slice(0, CLIENT_MAX))
+              }
               maxLength={CLIENT_MAX}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               placeholder="e.g. Acme Corp"
@@ -154,7 +234,9 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
               type="number"
               value={taxRate}
               onChange={(e) => setTaxRate(e.target.value)}
-              onKeyDown={(e) => { if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault(); }}
+              onKeyDown={(e) => {
+                if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+              }}
               min="0"
               max="100"
               step="0.1"
@@ -167,7 +249,9 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-gray-700">
                 Line Items <span className="text-red-500">*</span>
-                <span className="ml-1 font-normal text-gray-400">({items.length}/{ITEMS_MAX})</span>
+                <span className="ml-1 font-normal text-gray-400">
+                  ({items.length}/{ITEMS_MAX})
+                </span>
               </label>
               <button
                 type="button"
@@ -184,7 +268,13 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
                   <input
                     type="text"
                     value={item.description}
-                    onChange={(e) => updateItem(idx, "description", stripTags(e.target.value).slice(0, DESC_MAX))}
+                    onChange={(e) =>
+                      updateItem(
+                        idx,
+                        "description",
+                        stripTags(e.target.value).slice(0, DESC_MAX),
+                      )
+                    }
                     maxLength={DESC_MAX}
                     placeholder="Description"
                     className="col-span-6 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -197,20 +287,30 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
                       const v = e.target.value.replace(/[^0-9]/g, "");
                       updateItem(idx, "quantity", v);
                     }}
-                    onKeyDown={(e) => { if (["e", "E", "+", "-", ".", ","].includes(e.key)) e.preventDefault(); }}
+                    onKeyDown={(e) => {
+                      if (["e", "E", "+", "-", ".", ","].includes(e.key))
+                        e.preventDefault();
+                    }}
                     min="1"
                     step="1"
                     placeholder="Qty"
                     className="col-span-2 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
                   <div className="col-span-3 flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-gray-900 overflow-hidden">
-                    <span className="px-2 text-sm text-gray-400 bg-gray-50 border-r border-gray-200 select-none">€</span>
+                    <span className="px-2 text-sm text-gray-400 bg-gray-50 border-r border-gray-200 select-none">
+                      €
+                    </span>
                     <input
                       type="number"
                       inputMode="decimal"
                       value={item.unitPrice}
-                      onChange={(e) => updateItem(idx, "unitPrice", e.target.value)}
-                      onKeyDown={(e) => { if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault(); }}
+                      onChange={(e) =>
+                        updateItem(idx, "unitPrice", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (["e", "E", "+", "-"].includes(e.key))
+                          e.preventDefault();
+                      }}
                       min="0"
                       step="0.01"
                       placeholder="0.00"
@@ -234,14 +334,20 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
           {/* Notes */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-gray-700">Notes</label>
-              <span className={`text-xs ${notes.length >= NOTES_MAX ? "text-red-500" : "text-gray-400"}`}>
+              <label className="block text-xs font-medium text-gray-700">
+                Notes
+              </label>
+              <span
+                className={`text-xs ${notes.length >= NOTES_MAX ? "text-red-500" : "text-gray-400"}`}
+              >
                 {notes.length}/{NOTES_MAX}
               </span>
             </div>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(stripTags(e.target.value).slice(0, NOTES_MAX))}
+              onChange={(e) =>
+                setNotes(stripTags(e.target.value).slice(0, NOTES_MAX))
+              }
               rows={3}
               maxLength={NOTES_MAX}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
@@ -268,7 +374,13 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
               disabled={loading}
               className="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Creating…" : "Create Quotation"}
+              {loading
+                ? isEdit
+                  ? "Saving…"
+                  : "Creating…"
+                : isEdit
+                  ? "Save Changes"
+                  : "Create Quotation"}
             </button>
           </div>
         </form>

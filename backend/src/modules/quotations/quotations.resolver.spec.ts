@@ -10,8 +10,10 @@ const mockQuotationsService = {
   findOwner: jest.fn(),
   findOne: jest.fn(),
   create: jest.fn(),
+  update: jest.fn(),
   updateStatus: jest.fn(),
   delete: jest.fn(),
+  findStatusHistory: jest.fn(),
 };
 
 const mockUser: User = {
@@ -261,6 +263,48 @@ describe('QuotationsResolver', () => {
         'user-1',
       );
       expect(result).toBe(true);
+    });
+  });
+
+  describe('updateQuotation', () => {
+    it('delegates to service with id, input, and userId', async () => {
+      const updated = { ...mockQuotation, title: 'Revised' };
+      mockQuotationsService.update.mockResolvedValue(updated);
+      const result = await resolver.updateQuotation(
+        'q-1',
+        { title: 'Revised' },
+        mockUser as UserType,
+      );
+      expect(mockQuotationsService.update).toHaveBeenCalledWith(
+        'q-1',
+        { title: 'Revised' },
+        'user-1',
+      );
+      expect(result).toEqual(updated);
+    });
+  });
+
+  describe('statusHistory', () => {
+    const mockHistory = [
+      {
+        id: 'sh-1',
+        fromStatus: QuotationStatus.DRAFT,
+        toStatus: QuotationStatus.SENT,
+        note: null,
+        changedAt: new Date('2026-01-01'),
+        changedBy: { name: 'Anna Schmidt' },
+      },
+    ];
+
+    it('delegates to service with quotationId, userId, and role', async () => {
+      mockQuotationsService.findStatusHistory.mockResolvedValue(mockHistory);
+      const result = await resolver.statusHistory('q-1', mockUser as UserType);
+      expect(mockQuotationsService.findStatusHistory).toHaveBeenCalledWith(
+        'q-1',
+        'user-1',
+        Role.SALES_REP,
+      );
+      expect(result).toEqual(mockHistory);
     });
   });
 });

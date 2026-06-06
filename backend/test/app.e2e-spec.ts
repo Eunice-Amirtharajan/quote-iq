@@ -644,6 +644,107 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
+  describe('updateQuotation mutation', () => {
+    it('rep can edit their own DRAFT quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            mutation {
+              updateQuotation(
+                id: "${quotationId}",
+                input: { title: "Updated Title" }
+              ) {
+                id
+                title
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      expect(response.body.data.updateQuotation.title).toBe('Updated Title');
+    });
+
+    it('unauthenticated user cannot update a quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({
+          query: `
+            mutation {
+              updateQuotation(id: "${quotationId}", input: { title: "Hack" }) {
+                id
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
+  describe('statusHistory query', () => {
+    it('rep can fetch status history for own quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              statusHistory(quotationId: "${quotationId}") {
+                id
+                fromStatus
+                toStatus
+                changedAt
+                changedBy { name }
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      const history = response.body.data.statusHistory as {
+        id: string;
+        fromStatus: string;
+        toStatus: string;
+      }[];
+      expect(Array.isArray(history)).toBe(true);
+    });
+
+    it('manager can fetch status history for any quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query {
+              statusHistory(quotationId: "${quotationId}") {
+                id fromStatus toStatus changedAt
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+    });
+
+    it('unauthenticated user cannot fetch status history', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({
+          query: `query { statusHistory(quotationId: "${quotationId}") { id } }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
   describe('Dashboard', () => {
     it('returns stats for manager', async () => {
       const response = await request(app.getHttpServer())
@@ -688,6 +789,69 @@ describe('QuoteIQ E2E', () => {
         .set('Cookie', authCookie)
         .send({
           query: `query { dashboardStats { totalQuotations } }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
+  describe('winLossAnalysis query', () => {
+    it('returns stats for SALES_MANAGER', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query {
+              winLossAnalysis {
+                approvalRate
+                avgApprovedDeal
+                avgRejectedDeal
+                byRep {
+                  repName
+                  sent
+                  approved
+                  rejected
+                  approvalRate
+                }
+                byDealSize {
+                  bucket
+                  total
+                  approved
+                  approvalRate
+                }
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      const stats = response.body.data.winLossAnalysis;
+      expect(stats).toBeDefined();
+      expect(typeof stats.approvalRate).toBe('number');
+      expect(Array.isArray(stats.byRep)).toBe(true);
+      expect(Array.isArray(stats.byDealSize)).toBe(true);
+    });
+
+    it('blocks SALES_REP from accessing win/loss analysis', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `query { winLossAnalysis { approvalRate } }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+
+    it('blocks unauthenticated request', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({
+          query: `query { winLossAnalysis { approvalRate } }`,
         })
         .expect(200);
 

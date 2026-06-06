@@ -1,7 +1,11 @@
 import { Resolver, Mutation, Query, Args, ID } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AIService } from './ai.service';
-import { ConversionScoreType, QuotationSummaryType } from './ai-insight.entity';
+import {
+  ConversionScoreType,
+  QuotationSummaryType,
+  WinLossStatsType,
+} from './ai-insight.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -34,5 +38,14 @@ export class AIResolver {
     quotationId: string,
   ): Promise<ConversionScoreType> {
     return this.aiService.getConversionScore(quotationId);
+  }
+
+  @Query(/* istanbul ignore next */ () => WinLossStatsType, {
+    description: 'Aggregated win/loss analysis across all quotations',
+  })
+  @UseGuards(RolesGuard)
+  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  async winLossAnalysis(): Promise<WinLossStatsType> {
+    return this.aiService.getWinLossAnalysis();
   }
 }

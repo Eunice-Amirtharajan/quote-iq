@@ -89,3 +89,41 @@ export const CONVERSION_SCORE_QUERY = gql`
     }
   }
 `;
+
+export const WIN_LOSS_ANALYSIS_QUERY = gql`
+  query WinLossAnalysis {
+    winLossAnalysis {
+      approvalRate
+      avgApprovedDeal
+      avgRejectedDeal
+      byRep {
+        repName
+        sent
+        approved
+        rejected
+        approvalRate
+      }
+      byDealSize {
+        bucket
+        total
+        approved
+        approvalRate
+      }
+    }
+  }
+`;
+
+export const STATUS_HISTORY_QUERY = gql`
+  query StatusHistory($quotationId: ID!) {
+    statusHistory(quotationId: $quotationId) {
+      id
+      fromStatus
+      toStatus
+      note
+      changedAt
+      changedBy {
+        name
+      }
+    }
+  }
+`;

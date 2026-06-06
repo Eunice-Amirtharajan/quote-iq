@@ -43,13 +43,13 @@
         <mxCell id="auth-resolver" value="AuthResolver&#xa;login · logout · me · salesReps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="120" width="120" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="quotations-resolver" value="QuotationsResolver&#xa;quotations(filter?) · quotation&#xa;createQuotation&#xa;updateStatus · delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="quotations-resolver" value="QuotationsResolver&#xa;quotations(filter?) · quotation&#xa;createQuotation · updateQuotation&#xa;updateStatus · delete · statusHistory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="190" width="120" height="70" as="geometry" />
         </mxCell>
         <mxCell id="dashboard-resolver" value="DashboardResolver&#xa;dashboardStats" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="360" width="120" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="ai-resolver" value="AIResolver&#xa;quotationSummary · conversionScore" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="ai-resolver" value="AIResolver&#xa;quotationSummary · conversionScore · winLossAnalysis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="450" y="430" width="120" height="50" as="geometry" />
         </mxCell>
 
@@ -60,13 +60,13 @@
         <mxCell id="auth-service" value="AuthService&#xa;login · logout&#xa;bcrypt · JWT sign" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="120" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="quotations-service" value="QuotationsService&#xa;findAll(filter?) · findOne · create&#xa;updateStatus(role guard)&#xa;delete · calculateTotals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="quotations-service" value="QuotationsService&#xa;findAll(filter?) · findOne · create&#xa;update(DRAFT guard) · updateStatus&#xa;delete · findStatusHistory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="200" width="120" height="80" as="geometry" />
         </mxCell>
         <mxCell id="dashboard-service" value="DashboardService&#xa;getStats&#xa;Promise.all aggregation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="380" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="ai-service" value="AIService&#xa;generateSummary · getConversionScore&#xa;computeRecommendation&#xa;buildPrompt · resolveModel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="ai-service" value="AIService&#xa;generateSummary · getConversionScore&#xa;getWinLossAnalysis · computeRecommendation&#xa;buildPrompt · resolveModel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="650" y="460" width="120" height="70" as="geometry" />
         </mxCell>
 

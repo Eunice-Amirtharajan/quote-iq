@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import QuotationDetailPage from "./QuotationDetailPage";
-import { QUOTATION_QUERY } from "../graphql/queries";
+import { QUOTATION_QUERY, STATUS_HISTORY_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
@@ -60,6 +60,11 @@ const baseQuotation = {
   ],
 };
 
+const emptyHistoryMock: MockLink.MockedResponse = {
+  request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } },
+  result: { data: { statusHistory: [] } },
+};
+
 const makeMock = (
   quotation: typeof baseQuotation,
 ): MockLink.MockedResponse[] => [
@@ -67,6 +72,7 @@ const makeMock = (
     request: { query: QUOTATION_QUERY, variables: { id: "q-1" } },
     result: { data: { quotation } },
   },
+  emptyHistoryMock,
 ];
 
 const errorMock: MockLink.MockedResponse[] = [
@@ -377,6 +383,44 @@ describe("QuotationDetailPage", () => {
       expect(
         await screen.findByText("Only DRAFT quotations can be deleted"),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("StatusTimeline", () => {
+    it("renders status history entries when present", async () => {
+      const historyMock: MockLink.MockedResponse = {
+        request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } },
+        result: {
+          data: {
+            statusHistory: [
+              {
+                id: "sh-1",
+                fromStatus: "DRAFT",
+                toStatus: "SENT",
+                note: "Ready for review",
+                changedAt: "2026-04-11T10:00:00.000Z",
+                changedBy: { name: "Anna Schmidt" },
+              },
+            ],
+          },
+        },
+      };
+      const mocks: MockLink.MockedResponse[] = [
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: baseQuotation } } },
+        historyMock,
+      ];
+      renderAs(mockRep, mocks);
+      await screen.findByText("Enterprise License");
+      expect(await screen.findByText("Status History")).toBeInTheDocument();
+      expect(screen.getByText("Draft")).toBeInTheDocument();
+      expect(screen.getByText("Sent")).toBeInTheDocument();
+      expect(screen.getByText("Ready for review")).toBeInTheDocument();
+    });
+
+    it("hides the timeline when history is empty", async () => {
+      renderAs(mockRep, makeMock(baseQuotation));
+      await screen.findByText("Enterprise License");
+      expect(screen.queryByText("Status History")).not.toBeInTheDocument();
     });
   });
 });

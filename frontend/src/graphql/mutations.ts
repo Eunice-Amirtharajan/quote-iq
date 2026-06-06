@@ -46,6 +46,26 @@ export const DELETE_QUOTATION_MUTATION = gql`
   }
 `;
 
+export const UPDATE_QUOTATION_MUTATION = gql`
+  mutation UpdateQuotation($id: ID!, $input: UpdateQuotationInput!) {
+    updateQuotation(id: $id, input: $input) {
+      id
+      quotationNumber
+      title
+      clientName
+      status
+      notes
+      taxRate
+      subtotal
+      taxAmount
+      total
+      createdAt
+      createdBy { id name email role }
+      items { id description quantity unitPrice lineTotal sortOrder }
+    }
+  }
+`;
+
 export const QUOTATION_SUMMARY_MUTATION = gql`
   mutation QuotationSummary($quotationId: ID!) {
     quotationSummary(quotationId: $quotationId) {

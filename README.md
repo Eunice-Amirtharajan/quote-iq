@@ -51,11 +51,11 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 - AI-generated quotation summary with PROCEED / FOLLOW_UP / RECONSIDER recommendation
 - Hybrid recommendation model — rules-based scoring anchors the Groq prompt, hard override prevents AI from reversing a RECONSIDER verdict
 - 24-hour insight cache — avoids redundant API calls on repeated views
-
-### In Progress
-- Conversion likelihood score badge on SENT quotations (0–100, green/amber/red)
-- Win/loss pattern analysis page — approval rate by deal size, by rep, clients at risk
-- Natural language pipeline querying
+- Conversion likelihood score badge on SENT quotations (0–100, HIGH/MEDIUM/LOW) — deterministic, cached 24h
+- Win/loss analysis page (managers/admins only) — overall approval rate, avg deal sizes, breakdown by rep and deal-size bucket (`<5k`, `5k–20k`, `>20k`), cached 1h
+- Edit quotation (DRAFT only) — reuses create modal with pre-populated fields, rep ownership enforced
+- Status history timeline on quotation detail — every status transition logged with actor, timestamp, and optional note
+- Demo credentials gate via `VITE_SHOW_DEMO_CREDENTIALS` env var
 
 ---
 
@@ -166,7 +166,7 @@ quote-iq/
 │       ├── graphql/         # queries.ts, mutations.ts
 │       ├── hooks/           # useAuth
 │       ├── lib/             # Apollo client
-│       └── pages/           # Dashboard, Quotations, QuotationDetail, Login
+│       └── pages/           # Dashboard, Quotations, QuotationDetail, WinLoss, Login
 ├── docs/
 │   ├── cicd-flow.md         # Mermaid CI/CD diagram (renders on GitHub)
 │   └── drawio/              # Architecture, ERD, sequence, AI pipeline diagrams

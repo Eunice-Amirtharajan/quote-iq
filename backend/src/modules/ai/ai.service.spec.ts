@@ -40,6 +40,8 @@ const mockPrismaService = {
   aIInsight: {
     findFirst: jest.fn().mockResolvedValue(null),
     upsert: jest.fn().mockResolvedValue({}),
+    create: jest.fn().mockResolvedValue({}),
+    update: jest.fn().mockResolvedValue({}),
     delete: jest.fn().mockResolvedValue({}),
   },
 };
@@ -395,6 +397,163 @@ describe('AIService', () => {
         'plain string error',
         AIService.name,
       );
+    });
+  });
+
+  describe('getWinLossAnalysis', () => {
+    const approved1 = {
+      id: 'q-a1',
+      status: 'APPROVED',
+      total: 10000,
+      createdById: 'user-alice',
+      createdBy: { name: 'Alice' },
+    };
+    const approved2 = {
+      id: 'q-a2',
+      status: 'APPROVED',
+      total: 20000,
+      createdById: 'user-bob',
+      createdBy: { name: 'Bob' },
+    };
+    const rejected1 = {
+      id: 'q-r1',
+      status: 'REJECTED',
+      total: 8000,
+      createdById: 'user-alice',
+      createdBy: { name: 'Alice' },
+    };
+    const sent1 = {
+      id: 'q-s1',
+      status: 'SENT',
+      total: 3000,
+      createdById: 'user-alice',
+      createdBy: { name: 'Alice' },
+    };
+
+    it('computes overall approval rate correctly', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findMany.mockResolvedValue([
+        approved1,
+        approved2,
+        rejected1,
+      ]);
+
+      const result = await service.getWinLossAnalysis();
+
+      // 2 approved / (2 approved + 1 rejected) = 66.7%
+      expect(result.approvalRate).toBe(66.7);
+    });
+
+    it('computes avg deal sizes for approved and rejected quotations', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findMany.mockResolvedValue([
+        approved1,
+        approved2,
+        rejected1,
+      ]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.avgApprovedDeal).toBe(15000); // (10000+20000)/2
+      expect(result.avgRejectedDeal).toBe(8000);
+    });
+
+    it('builds byRep stats sorted by approvalRate descending', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      // Alice: 1 approved, 1 rejected, 1 sent → approvalRate 50%
+      // Bob: 1 approved → approvalRate 100%
+      mockPrismaService.quotation.findMany.mockResolvedValue([
+        approved1,
+        approved2,
+        rejected1,
+        sent1,
+      ]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.byRep[0].repName).toBe('Bob');
+      expect(result.byRep[0].approvalRate).toBe(100);
+      expect(result.byRep[1].repName).toBe('Alice');
+    });
+
+    it('returns cached result when valid cache exists', async () => {
+      const cached = {
+        approvalRate: 75,
+        avgApprovedDeal: 12000,
+        avgRejectedDeal: 9000,
+        byRep: [],
+        byDealSize: [],
+      };
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue({
+        id: 'insight-wl',
+        content: JSON.stringify(cached),
+      });
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result).toEqual(cached);
+      expect(mockPrismaService.quotation.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns zero rates when no approved or rejected quotations exist', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findMany.mockResolvedValue([sent1]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.approvalRate).toBe(0);
+      expect(result.avgApprovedDeal).toBe(0);
+      expect(result.avgRejectedDeal).toBe(0);
+    });
+
+    it('assigns quotations to correct deal-size buckets', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      // <5k bucket: rejected1 (8000 — actually >5k, let's use a 3000 deal)
+      const small = { id: 'q-sm', status: 'APPROVED', total: 3000, createdById: 'user-alice', createdBy: { name: 'Alice' } };
+      const mid = { id: 'q-md', status: 'APPROVED', total: 10000, createdById: 'user-alice', createdBy: { name: 'Alice' } };
+      const large = { id: 'q-lg', status: 'REJECTED', total: 25000, createdById: 'user-bob', createdBy: { name: 'Bob' } };
+      mockPrismaService.quotation.findMany.mockResolvedValue([small, mid, large]);
+
+      const result = await service.getWinLossAnalysis();
+
+      const buckets = Object.fromEntries(result.byDealSize.map((b) => [b.bucket, b]));
+      expect(buckets['<5k'].total).toBe(1);
+      expect(buckets['5k–20k'].total).toBe(1);
+      expect(buckets['>20k'].total).toBe(1);
+    });
+
+    it('persists result to AIInsight with WIN_LOSS_ANALYSIS insightType', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findMany.mockResolvedValue([approved1]);
+
+      await service.getWinLossAnalysis();
+
+      expect(mockPrismaService.aIInsight.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            insightType: 'WIN_LOSS_ANALYSIS',
+            quotationId: null,
+          }),
+        }),
+      );
+    });
+
+    it('updates existing cache entry instead of creating a new one', async () => {
+      // First findFirst (cache check) returns null (expired/missing),
+      // second findFirst (before persist) returns existing stale row.
+      mockPrismaService.aIInsight.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: 'wl-cache-1', content: '{}' });
+      mockPrismaService.quotation.findMany.mockResolvedValue([approved1]);
+
+      await service.getWinLossAnalysis();
+
+      expect(mockPrismaService.aIInsight.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'wl-cache-1' },
+        }),
+      );
+      expect(mockPrismaService.aIInsight.create).not.toHaveBeenCalled();
     });
   });
 

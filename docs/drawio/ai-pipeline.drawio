@@ -216,6 +216,57 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
+        <!-- WIN/LOSS ANALYSIS PATH (deterministic, no LLM, managers/admins only) -->
+        <mxCell id="wl-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;strokeWidth=2;opacity=20;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="100" width="360" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="wl-zone-label" value="Win/Loss Analysis Path (no LLM — deterministic, managers/admins only)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="108" width="360" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wl-start" value="Manager requests&#xa;Win/Loss Analysis" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wl-cache" value="Check AIInsight cache&#xa;(insightType=WIN_LOSS_ANALYSIS&#xa;quotationId=null, expiresAt &gt; now)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1445" y="240" width="210" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wl-fetch" value="Fetch all APPROVED /&#xa;REJECTED / SENT quotations&#xa;with createdBy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="370" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wl-compute" value="Compute stats&#xa;• approvalRate (approved/decided)&#xa;• avgApprovedDeal / avgRejectedDeal&#xa;• byRep (sorted by rate desc)&#xa;• byDealSize (&lt;5k / 5k–20k / &gt;20k)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1445" y="460" width="210" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wl-persist" value="findFirst + create/update&#xa;WIN_LOSS_ANALYSIS&#xa;(expiresAt = now + 1h)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="580" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wl-cache-hit" value="Return cached stats" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1670" y="265" width="130" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Win/loss edges -->
+        <mxCell id="we1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="wl-start" target="wl-cache" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="we2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="wl-cache" target="wl-cache-hit" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="we2-label" value="HIT" style="edgeLabel;html=1;fontSize=10;fontStyle=1;fillColor=#d5e8d4;" vertex="1" connectable="0" parent="we2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="we3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="wl-cache" target="wl-fetch" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="we3-label" value="MISS" style="edgeLabel;html=1;fontSize=10;fontStyle=1;fillColor=#f8cecc;" vertex="1" connectable="0" parent="we3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="we4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="wl-fetch" target="wl-compute" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="we5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="wl-compute" target="wl-persist" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
       </root>
     </mxGraphModel>
   </diagram>

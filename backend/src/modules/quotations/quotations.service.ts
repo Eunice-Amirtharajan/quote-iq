@@ -9,10 +9,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateQuotationInput,
   QuotationFilterInput,
+  UpdateQuotationInput,
 } from './dto/quotation.input';
 import { QuotationStatus, Role } from '@prisma/client';
 import { AppLogger } from '../../common/logger/logger.service';
 import { QuotationType } from './quotation.entity';
+import { StatusHistoryType } from './status-history.entity';
 import { UserType } from '../users/user.entity';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
@@ -344,5 +346,148 @@ export class QuotationsService {
       );
       throw error;
     }
+  }
+
+  async update(
+    id: string,
+    input: UpdateQuotationInput,
+    userId: string,
+  ): Promise<QuotationType> {
+    this.logger.info(
+      `Updating quotation: ${id} userId: ${userId}`,
+      QuotationsService.name,
+    );
+
+    const existing = await this.prisma.quotation.findFirst({
+      where: { id },
+      select: { status: true, createdById: true },
+    });
+    if (!existing) throw new NotFoundException(`Quotation ${id} not found`);
+    if (existing.status !== QuotationStatus.DRAFT)
+      throw new BadRequestException('Only DRAFT quotations can be edited');
+    if (existing.createdById !== userId)
+      throw new ForbiddenException('You can only edit your own quotations');
+
+    const title =
+      input.title != null
+        ? QuotationsService.stripTags(input.title)
+        : undefined;
+    if (title !== undefined && (!title || title.length > 100))
+      throw new BadRequestException(
+        'title must be between 1 and 100 characters',
+      );
+
+    const clientName =
+      input.clientName != null
+        ? QuotationsService.stripTags(input.clientName)
+        : undefined;
+    if (clientName !== undefined && (!clientName || clientName.length > 200))
+      throw new BadRequestException(
+        'clientName must be between 1 and 200 characters',
+      );
+
+    const notes =
+      input.notes != null
+        ? QuotationsService.stripTags(input.notes).slice(0, 500) || null
+        : undefined;
+
+    const taxRate = input.taxRate;
+    if (taxRate !== undefined && (taxRate < 0 || taxRate > 100))
+      throw new BadRequestException('taxRate must be between 0 and 100');
+
+    let totalsData:
+      | ReturnType<QuotationsService['calculateTotals']>
+      | undefined;
+    let sanitizedItems:
+      | { description: string; quantity: number; unitPrice: number }[]
+      | undefined;
+
+    if (input.items) {
+      sanitizedItems = input.items.map((item) => {
+        const description = QuotationsService.stripTags(item.description);
+        if (!description || description.length > 200)
+          throw new BadRequestException(
+            'Each item description must be between 1 and 200 characters',
+          );
+        if (item.quantity <= 0)
+          throw new BadRequestException('Item quantity must be greater than 0');
+        if (item.unitPrice <= 0)
+          throw new BadRequestException(
+            'Item unit price must be greater than 0',
+          );
+        return { ...item, description };
+      });
+      totalsData = this.calculateTotals(
+        sanitizedItems,
+        taxRate ??
+          (await this.prisma.quotation.findFirst({
+            where: { id },
+            select: { taxRate: true },
+          }))!.taxRate,
+      );
+    } else if (taxRate !== undefined) {
+      // Only taxRate changed — recalculate totals from existing items
+      const existingItems = await this.prisma.quotationItem.findMany({
+        where: { quotationId: id },
+      });
+      totalsData = this.calculateTotals(existingItems, taxRate);
+    }
+
+    const data: Parameters<typeof this.prisma.quotation.update>[0]['data'] = {
+      ...(title !== undefined ? { title } : {}),
+      ...(clientName !== undefined ? { clientName } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+      ...(taxRate !== undefined ? { taxRate } : {}),
+      ...(totalsData
+        ? {
+            subtotal: totalsData.subtotal,
+            taxAmount: totalsData.taxAmount,
+            total: totalsData.total,
+          }
+        : {}),
+      ...(sanitizedItems
+        ? {
+            items: {
+              deleteMany: {},
+              create: totalsData!.itemsWithTotal.map((item, i) => ({
+                ...item,
+                sortOrder: i,
+              })),
+            },
+          }
+        : {}),
+    };
+
+    return this.prisma.quotation.update({
+      where: { id },
+      data,
+      include: { items: true, createdBy: true },
+    });
+  }
+
+  async findStatusHistory(
+    quotationId: string,
+    userId: string,
+    role: Role,
+  ): Promise<StatusHistoryType[]> {
+    this.logger.info(
+      `Fetching status history for quotation: ${quotationId}`,
+      QuotationsService.name,
+    );
+    const isManager = role === Role.SALES_MANAGER || role === Role.ADMIN;
+    if (!isManager) {
+      const owner = await this.prisma.quotation.findFirst({
+        where: { id: quotationId },
+        select: { createdById: true },
+      });
+      if (!owner)
+        throw new NotFoundException(`Quotation ${quotationId} not found`);
+      if (owner.createdById !== userId) throw new ForbiddenException();
+    }
+    return this.prisma.statusHistory.findMany({
+      where: { quotationId },
+      include: { changedBy: true },
+      orderBy: { changedAt: 'asc' },
+    });
   }
 }

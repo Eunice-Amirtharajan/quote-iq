@@ -20,8 +20,12 @@ const mockPrismaService = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  quotationItem: {
+    findMany: jest.fn(),
+  },
   statusHistory: {
     create: jest.fn(),
+    findMany: jest.fn(),
   },
   $queryRaw: jest.fn(),
 };
@@ -713,6 +717,177 @@ describe('QuotationsService', () => {
         'plain string error',
         QuotationsService.name,
       );
+    });
+  });
+
+  describe('findStatusHistory', () => {
+    const mockHistory = [
+      {
+        id: 'sh-1',
+        quotationId: 'q-1',
+        fromStatus: QuotationStatus.DRAFT,
+        toStatus: QuotationStatus.SENT,
+        note: null,
+        changedAt: new Date('2026-01-01'),
+        changedById: 'user-1',
+        changedBy: { id: 'user-1', name: 'Anna Schmidt' },
+      },
+    ];
+
+    it('returns history for a manager without ownership check', async () => {
+      mockPrismaService.statusHistory.findMany.mockResolvedValue(mockHistory);
+      const result = await service.findStatusHistory(
+        'q-1',
+        'user-1',
+        Role.SALES_MANAGER,
+      );
+      expect(mockPrismaService.quotation.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.statusHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { quotationId: 'q-1' } }),
+      );
+      expect(result).toEqual(mockHistory);
+    });
+
+    it('returns history for a SALES_REP who owns the quotation', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        createdById: 'user-1',
+      });
+      mockPrismaService.statusHistory.findMany.mockResolvedValue(mockHistory);
+      const result = await service.findStatusHistory(
+        'q-1',
+        'user-1',
+        Role.SALES_REP,
+      );
+      expect(result).toEqual(mockHistory);
+    });
+
+    it('throws NotFoundException when quotation not found for SALES_REP', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      await expect(
+        service.findStatusHistory('q-999', 'user-1', Role.SALES_REP),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when SALES_REP accesses another rep history', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        createdById: 'user-999',
+      });
+      await expect(
+        service.findStatusHistory('q-1', 'user-1', Role.SALES_REP),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('update', () => {
+    const draftOwned = {
+      id: 'q-1',
+      status: QuotationStatus.DRAFT,
+      createdById: 'user-1',
+      taxRate: 0,
+    };
+    const updatedQuotation = {
+      id: 'q-1',
+      title: 'Updated Title',
+      clientName: 'Updated Corp',
+      status: QuotationStatus.DRAFT,
+      items: [],
+      createdBy: { id: 'user-1', name: 'Anna' },
+    };
+
+    it('updates title and clientName for owner', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+      const result = await service.update(
+        'q-1',
+        { title: 'Updated Title', clientName: 'Updated Corp' },
+        'user-1',
+      );
+      expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'q-1' },
+          data: expect.objectContaining({
+            title: 'Updated Title',
+            clientName: 'Updated Corp',
+          }),
+        }),
+      );
+      expect(result).toEqual(updatedQuotation);
+    });
+
+    it('recalculates totals when items are replaced', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+      await service.update(
+        'q-1',
+        {
+          items: [{ description: 'New Item', quantity: 2, unitPrice: 500 }],
+        },
+        'user-1',
+      );
+      expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            subtotal: 1000,
+            total: 1000,
+          }),
+        }),
+      );
+    });
+
+    it('recalculates totals from existing items when only taxRate changes', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotationItem.findMany.mockResolvedValue([
+        { description: 'Item', quantity: 1, unitPrice: 1000, lineTotal: 1000 },
+      ]);
+      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+      await service.update('q-1', { taxRate: 19 }, 'user-1');
+      expect(mockPrismaService.quotationItem.findMany).toHaveBeenCalled();
+      expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ taxRate: 19, taxAmount: 190 }),
+        }),
+      );
+    });
+
+    it('throws NotFoundException when quotation not found', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      await expect(service.update('q-999', {}, 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when quotation is not DRAFT', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        ...draftOwned,
+        status: QuotationStatus.SENT,
+      });
+      await expect(service.update('q-1', {}, 'user-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws ForbiddenException when user does not own the quotation', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        ...draftOwned,
+        createdById: 'user-999',
+      });
+      await expect(service.update('q-1', {}, 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('throws BadRequestException when title is empty after strip', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      await expect(
+        service.update('q-1', { title: '<b></b>' }, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when taxRate is out of range', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      await expect(
+        service.update('q-1', { taxRate: 101 }, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

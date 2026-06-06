@@ -7,8 +7,14 @@ import Groq from 'groq-sdk';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { z, ZodError } from 'zod';
-import { ConversionLabel, Recommendation } from './ai-insight.entity';
-import { ConversionScoreType } from './ai-insight.entity';
+import {
+  ConversionLabel,
+  ConversionScoreType,
+  Recommendation,
+  WinLossStatsType,
+  RepStatType,
+  BucketStatType,
+} from './ai-insight.entity';
 import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
 
@@ -414,6 +420,153 @@ strong contradicting signals. Justify your reasoning.
 
     this.logger.info(
       `Conversion score: ${score} (${label}) for quotation: ${quotationId}`,
+      AIService.name,
+    );
+    return result;
+  }
+
+  /**
+   * Deterministic win/loss aggregation across all quotations (no LLM).
+   * Cached 1 h as AIInsight(WIN_LOSS_ANALYSIS, quotationId: null).
+   *
+   * Sections:
+   *   approvalRate  — approved / (approved + rejected) across all history
+   *   byRep         — per sales-rep breakdown (sent, approved, rejected, rate)
+   *   byDealSize    — three buckets: <5 000, 5 000–20 000, >20 000
+   */
+  async getWinLossAnalysis(): Promise<WinLossStatsType> {
+    this.logger.info('Fetching win/loss analysis', AIService.name);
+
+    const cached = await this.prisma.aIInsight.findFirst({
+      where: {
+        quotationId: null,
+        insightType: InsightType.WIN_LOSS_ANALYSIS,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (cached) {
+      return JSON.parse(cached.content) as WinLossStatsType;
+    }
+
+    const quotations = await this.prisma.quotation.findMany({
+      where: {
+        status: {
+          in: [
+            QuotationStatus.APPROVED,
+            QuotationStatus.REJECTED,
+            QuotationStatus.SENT,
+          ],
+        },
+      },
+      include: { createdBy: true },
+    });
+
+    const approved = quotations.filter(
+      (q) => q.status === QuotationStatus.APPROVED,
+    );
+    const rejected = quotations.filter(
+      (q) => q.status === QuotationStatus.REJECTED,
+    );
+    const decided = approved.length + rejected.length;
+
+    const approvalRate =
+      decided > 0 ? Math.round((approved.length / decided) * 1000) / 10 : 0;
+
+    const avg = (arr: typeof quotations) =>
+      arr.length > 0
+        ? Math.round(arr.reduce((s, q) => s + q.total, 0) / arr.length)
+        : 0;
+
+    // By rep
+    const repMap = new Map<
+      string,
+      { repName: string; sent: number; approved: number; rejected: number }
+    >();
+    for (const q of quotations) {
+      const name = q.createdBy?.name ?? 'Unknown';
+      const key = q.createdById;
+      if (!repMap.has(key)) {
+        repMap.set(key, { repName: name, sent: 0, approved: 0, rejected: 0 });
+      }
+      const entry = repMap.get(key)!;
+      entry.sent++;
+      if (q.status === QuotationStatus.APPROVED) entry.approved++;
+      if (q.status === QuotationStatus.REJECTED) entry.rejected++;
+    }
+    const byRep: RepStatType[] = [...repMap.values()]
+      .map((r) => ({
+        ...r,
+        approvalRate:
+          r.approved + r.rejected > 0
+            ? Math.round((r.approved / (r.approved + r.rejected)) * 1000) / 10
+            : 0,
+      }))
+      .sort((a, b) => b.approvalRate - a.approvalRate);
+
+    // By deal-size bucket
+    const BUCKETS = [
+      { label: '<5k', test: (t: number) => t < 5_000 },
+      { label: '5k–20k', test: (t: number) => t >= 5_000 && t <= 20_000 },
+      { label: '>20k', test: (t: number) => t > 20_000 },
+    ];
+    const byDealSize: BucketStatType[] = BUCKETS.map(({ label, test }) => {
+      const inBucket = quotations.filter((q) => test(q.total));
+      const approvedInBucket = inBucket.filter(
+        (q) => q.status === QuotationStatus.APPROVED,
+      ).length;
+      const decidedInBucket = inBucket.filter(
+        (q) =>
+          q.status === QuotationStatus.APPROVED ||
+          q.status === QuotationStatus.REJECTED,
+      ).length;
+      return {
+        bucket: label,
+        total: inBucket.length,
+        approved: approvedInBucket,
+        approvalRate:
+          decidedInBucket > 0
+            ? Math.round((approvedInBucket / decidedInBucket) * 1000) / 10
+            : 0,
+      };
+    });
+
+    const result: WinLossStatsType = {
+      approvalRate,
+      avgApprovedDeal: avg(approved),
+      avgRejectedDeal: avg(rejected),
+      byRep,
+      byDealSize,
+    };
+
+    // Prisma cannot use null in a compound unique key lookup, so we manage
+    // the WIN_LOSS_ANALYSIS cache entry manually.
+    const existing = await this.prisma.aIInsight.findFirst({
+      where: {
+        quotationId: null,
+        insightType: InsightType.WIN_LOSS_ANALYSIS,
+      },
+    });
+    const cachePayload = {
+      content: JSON.stringify(result),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    };
+    if (existing) {
+      await this.prisma.aIInsight.update({
+        where: { id: existing.id },
+        data: cachePayload,
+      });
+    } else {
+      await this.prisma.aIInsight.create({
+        data: {
+          quotationId: null,
+          insightType: InsightType.WIN_LOSS_ANALYSIS,
+          ...cachePayload,
+        },
+      });
+    }
+
+    this.logger.info(
+      `Win/loss analysis computed — approvalRate: ${approvalRate}%`,
       AIService.name,
     );
     return result;

@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { QuotationsService } from './quotations.service';
 import { QuotationType } from './quotation.entity';
+import { StatusHistoryType } from './status-history.entity';
 import {
   CreateQuotationInput,
   QuotationFilterInput,
+  UpdateQuotationInput,
   UpdateQuotationStatusInput,
 } from './dto/quotation.input';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -65,6 +67,15 @@ export class QuotationsResolver {
   }
 
   @Mutation(/* istanbul ignore next */ () => QuotationType)
+  async updateQuotation(
+    @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
+    @Args('input') input: UpdateQuotationInput,
+    @CurrentUser() user: UserType,
+  ): Promise<QuotationType> {
+    return this.quotationsService.update(id, input, user.id);
+  }
+
+  @Mutation(/* istanbul ignore next */ () => QuotationType)
   async updateQuotationStatus(
     @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
     @Args('input') input: UpdateQuotationStatusInput,
@@ -90,5 +101,18 @@ export class QuotationsResolver {
     @CurrentUser() user: UserType,
   ): Promise<boolean> {
     return this.quotationsService.delete(id, user.id);
+  }
+
+  @Query(/* istanbul ignore next */ () => [StatusHistoryType])
+  async statusHistory(
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
+    quotationId: string,
+    @CurrentUser() user: UserType,
+  ): Promise<StatusHistoryType[]> {
+    return this.quotationsService.findStatusHistory(
+      quotationId,
+      user.id,
+      user.role,
+    );
   }
 }

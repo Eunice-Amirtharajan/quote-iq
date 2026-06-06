@@ -2,6 +2,18 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+"""Approval stats for a deal-size bucket"""
+type BucketStatType {
+  approvalRate: Float!
+  approved: Int!
+
+  """
+  e.g. "<5k", "5k–20k", ">20k"
+  """
+  bucket: String!
+  total: Int!
+}
+
 enum ConversionLabel {
   HIGH
   LOW
@@ -62,6 +74,7 @@ type Mutation {
 
   """Generate or refresh the AI summary for a quotation"""
   quotationSummary(quotationId: ID!): QuotationSummaryType!
+  updateQuotation(id: ID!, input: UpdateQuotationInput!): QuotationType!
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
 
@@ -73,6 +86,10 @@ type Query {
   quotation(id: ID!): QuotationType
   quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
   salesReps: [UserType!]!
+  statusHistory(quotationId: ID!): [StatusHistoryType!]!
+
+  """Aggregated win/loss analysis across all quotations"""
+  winLossAnalysis: WinLossStatsType!
 }
 
 input QuotationFilterInput {
@@ -166,10 +183,46 @@ enum Recommendation {
   RECONSIDER
 }
 
+"""Approval stats for a single sales rep"""
+type RepStatType {
+  approvalRate: Float!
+  approved: Int!
+  rejected: Int!
+  repName: String!
+  sent: Int!
+}
+
 enum Role {
   ADMIN
   SALES_MANAGER
   SALES_REP
+}
+
+"""A recorded status transition on a quotation"""
+type StatusHistoryType {
+  """When the transition occurred"""
+  changedAt: DateTime!
+
+  """User who made the change"""
+  changedBy: UserType
+
+  """Status before the transition"""
+  fromStatus: QuotationStatus!
+  id: ID!
+
+  """Optional note recorded at transition time"""
+  note: String
+
+  """Status after the transition"""
+  toStatus: QuotationStatus!
+}
+
+input UpdateQuotationInput {
+  clientName: String
+  items: [QuotationItemInput!]
+  notes: String
+  taxRate: Float
+  title: String
 }
 
 input UpdateQuotationStatusInput {
@@ -196,4 +249,18 @@ type UserType {
 
   """Last update timestamp"""
   updatedAt: DateTime!
+}
+
+"""Aggregated win/loss analysis across all quotations"""
+type WinLossStatsType {
+  """Overall approval rate 0–100"""
+  approvalRate: Float!
+
+  """Average deal size of approved quotations"""
+  avgApprovedDeal: Float!
+
+  """Average deal size of rejected quotations"""
+  avgRejectedDeal: Float!
+  byDealSize: [BucketStatType!]!
+  byRep: [RepStatType!]!
 }

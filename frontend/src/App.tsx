@@ -6,6 +6,7 @@ import Layout from "./components/Layout";
 import DashboardPage from "./pages/DashboardPage";
 import QuotationsPage from "./pages/QuotationsPage";
 import QuotationDetailPage from "./pages/QuotationDetailPage";
+import WinLossPage from "./pages/WinLossPage";
 
 function AppContent() {
   const { user } = useAuth();
@@ -39,7 +40,9 @@ function AppContent() {
         return <DashboardPage />;
       case "quotations":
         return <QuotationsPage onSelect={setSelectedQuoteId} />;
-default:
+      case "winloss":
+        return <WinLossPage />;
+      default:
         return <p className="text-gray-400">Coming soon</p>;
     }
   };

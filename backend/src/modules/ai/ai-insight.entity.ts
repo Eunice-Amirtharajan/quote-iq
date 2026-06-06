@@ -1,4 +1,10 @@
-import { ObjectType, Field, Int, registerEnumType } from '@nestjs/graphql';
+import {
+  ObjectType,
+  Field,
+  Int,
+  Float,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 export enum Recommendation {
   PROCEED = 'PROCEED',
@@ -41,4 +47,61 @@ export class ConversionScoreType {
     description: 'HIGH ≥ 65, MEDIUM ≥ 35, LOW < 35',
   })
   label!: ConversionLabel;
+}
+
+@ObjectType({ description: 'Approval stats for a single sales rep' })
+export class RepStatType {
+  @Field(() => String)
+  repName!: string;
+
+  @Field(() => Int)
+  sent!: number;
+
+  @Field(() => Int)
+  approved!: number;
+
+  @Field(() => Int)
+  rejected!: number;
+
+  @Field(() => Float)
+  approvalRate!: number;
+}
+
+@ObjectType({ description: 'Approval stats for a deal-size bucket' })
+export class BucketStatType {
+  @Field(() => String, { description: 'e.g. "<5k", "5k–20k", ">20k"' })
+  bucket!: string;
+
+  @Field(() => Int)
+  total!: number;
+
+  @Field(() => Int)
+  approved!: number;
+
+  @Field(() => Float)
+  approvalRate!: number;
+}
+
+@ObjectType({
+  description: 'Aggregated win/loss analysis across all quotations',
+})
+export class WinLossStatsType {
+  @Field(() => Float, { description: 'Overall approval rate 0–100' })
+  approvalRate!: number;
+
+  @Field(() => Float, {
+    description: 'Average deal size of approved quotations',
+  })
+  avgApprovedDeal!: number;
+
+  @Field(() => Float, {
+    description: 'Average deal size of rejected quotations',
+  })
+  avgRejectedDeal!: number;
+
+  @Field(() => [RepStatType])
+  byRep!: RepStatType[];
+
+  @Field(() => [BucketStatType])
+  byDealSize!: BucketStatType[];
 }

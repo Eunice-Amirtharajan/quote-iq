@@ -10,6 +10,11 @@ const NAV_ITEMS = [
     href: "quotations",
     roles: ["SALES_REP", "SALES_MANAGER", "ADMIN"],
   },
+  {
+    label: "Win/Loss",
+    href: "winloss",
+    roles: ["SALES_MANAGER", "ADMIN"],
+  },
 ];
 
 interface LayoutProps {

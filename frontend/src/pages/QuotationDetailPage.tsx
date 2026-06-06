@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
-import { QUOTATION_QUERY, QUOTATIONS_QUERY, CONVERSION_SCORE_QUERY } from "../graphql/queries";
+import { QUOTATION_QUERY, QUOTATIONS_QUERY, CONVERSION_SCORE_QUERY, STATUS_HISTORY_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import AIInsightCard from "../components/AIInsightCard";
+import CreateQuotationModal from "../components/CreateQuotationModal";
 
 interface QuotationItem {
   id: string;
@@ -31,6 +32,65 @@ interface QuotationDetail {
     name: string;
   };
   items: QuotationItem[];
+}
+
+interface StatusHistoryEntry {
+  id: string;
+  fromStatus: string;
+  toStatus: string;
+  note: string | null;
+  changedAt: string;
+  changedBy: { name: string } | null;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+  EXPIRED: "Expired",
+};
+
+function StatusTimeline({ quotationId }: Readonly<{ quotationId: string }>) {
+  const { data, loading } = useQuery<{ statusHistory: StatusHistoryEntry[] }>(
+    STATUS_HISTORY_QUERY,
+    { variables: { quotationId } },
+  );
+
+  if (loading) return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <div className="h-4 bg-gray-100 rounded animate-pulse w-32 mb-3" />
+      <div className="space-y-2">
+        {[1, 2].map((i) => <div key={i} className="h-4 bg-gray-100 rounded animate-pulse" />)}
+      </div>
+    </div>
+  );
+
+  const entries = data?.statusHistory ?? [];
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <h3 className="text-sm font-medium text-gray-900 mb-4">Status History</h3>
+      <ol className="relative border-l border-gray-100 space-y-4 ml-2">
+        {entries.map((e) => (
+          <li key={e.id} className="ml-4">
+            <span className="absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white bg-gray-300" />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400">{STATUS_LABELS[e.fromStatus] ?? e.fromStatus}</span>
+              <span className="text-xs text-gray-300">→</span>
+              <span className="text-xs font-medium text-gray-700">{STATUS_LABELS[e.toStatus] ?? e.toStatus}</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {new Date(e.changedAt).toLocaleDateString("en-DE", { day: "2-digit", month: "short", year: "numeric" })}
+              {e.changedBy ? ` · ${e.changedBy.name}` : ""}
+            </p>
+            {e.note && <p className="text-xs text-gray-500 mt-0.5 italic">{e.note}</p>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
 }
 
 function ConversionScoreCard({ quotationId }: Readonly<{ quotationId: string }>) {
@@ -76,9 +136,10 @@ interface StatusActionsProps {
   createdById: string;
   refetch: () => void;
   onDeleted: () => void;
+  onEdit: () => void;
 }
 
-function StatusActions({ quotationId, status, createdById, refetch, onDeleted }: Readonly<StatusActionsProps>) {
+function StatusActions({ quotationId, status, createdById, refetch, onDeleted, onEdit }: Readonly<StatusActionsProps>) {
   const { user } = useAuth();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -118,6 +179,7 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted }:
   const isOwner = user?.id === createdById;
 
   const showSend = status === "DRAFT" && isOwner;
+  const showEdit = status === "DRAFT" && isOwner;
   const showDelete = status === "DRAFT" && isOwner;
   const showApproveReject = status === "SENT" && isManager;
 
@@ -132,6 +194,15 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted }:
         </p>
       )}
       <div className="flex flex-col gap-2">
+        {showEdit && (
+          <button
+            onClick={onEdit}
+            disabled={pendingAction !== null || deleting}
+            className="w-full py-2 px-4 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Edit Draft
+          </button>
+        )}
         {showSend && (
           <button
             onClick={() => act("SENT")}
@@ -197,6 +268,7 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted }:
 export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { user } = useAuth();
   const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
+  const [showEdit, setShowEdit] = useState(false);
   const { data, loading, error, refetch } = useQuery<{ quotation: QuotationDetail }>(
     QUOTATION_QUERY,
     { variables: { id } },
@@ -233,6 +305,21 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
 
   return (
     <div>
+      {showEdit && q.status === "DRAFT" && (
+        <CreateQuotationModal
+          quotation={{
+            id: q.id,
+            title: q.title,
+            clientName: q.clientName,
+            notes: q.notes ?? null,
+            taxRate: q.taxRate,
+            items: q.items,
+          }}
+          onClose={() => { setShowEdit(false); refetch(); }}
+          onCreated={() => setShowEdit(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-2 mb-6 text-sm">
         <button
@@ -332,6 +419,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             createdById={q.createdBy.id}
             refetch={refetch}
             onDeleted={onBack}
+            onEdit={() => setShowEdit(true)}
           />
 
           {/* Quotation info */}
@@ -366,6 +454,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             </div>
           </div>
 
+          <StatusTimeline quotationId={id} />
           <AIInsightCard quotationId={id} />
           {q.status === "SENT" && isManager && (
             <ConversionScoreCard quotationId={id} />
