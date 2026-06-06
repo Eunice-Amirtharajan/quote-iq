@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@apollo/client/react";
-import { QUOTATIONS_QUERY } from "../graphql/queries";
+import { QUOTATIONS_QUERY, SALES_REPS_QUERY, CONVERSION_SCORE_QUERY } from "../graphql/queries";
 import { useAuth } from "../hooks/useAuth";
 import CreateQuotationModal from "../components/CreateQuotationModal";
 
@@ -12,6 +12,25 @@ interface Quotation {
   status: string;
   total: number;
   createdAt: string;
+}
+
+interface SalesRep {
+  id: string;
+  name: string;
+}
+
+interface ConversionScore {
+  score: number;
+}
+
+function ConversionCell({ quotationId }: Readonly<{ quotationId: string }>) {
+  const { data } = useQuery<{ conversionScore: ConversionScore }>(
+    CONVERSION_SCORE_QUERY,
+    { variables: { quotationId } },
+  );
+  const s = data?.conversionScore;
+  if (!s) return <span className="text-gray-300 text-sm">—</span>;
+  return <span className="text-sm text-gray-700">{s.score}%</span>;
 }
 
 interface Props {
@@ -28,8 +47,10 @@ const ALL_STATUSES = ["DRAFT", "SENT", "APPROVED", "REJECTED"];
 
 export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const { user } = useAuth();
+  const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [repFilter, setRepFilter] = useState<string>("");
   const [searchText, setSearchText] = useState<string>("");
   const [committedSearch, setCommittedSearch] = useState<string>("");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,10 +68,11 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   };
 
   const filter =
-    statusFilter || committedSearch
+    statusFilter || committedSearch || repFilter
       ? {
           ...(statusFilter ? { status: statusFilter } : {}),
           ...(committedSearch ? { search: committedSearch } : {}),
+          ...(repFilter ? { repId: repFilter } : {}),
         }
       : undefined;
 
@@ -59,8 +81,14 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
     { variables: { filter } },
   );
 
+  const { data: repsData } = useQuery<{ salesReps: SalesRep[] }>(
+    SALES_REPS_QUERY,
+    { skip: !isManager },
+  );
+
   const quotations = data?.quotations ?? [];
-  const canCreate = user?.role === "SALES_REP" || user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
+  const salesReps = repsData?.salesReps ?? [];
+  const canCreate = user?.role === "SALES_REP" || isManager;
 
   return (
     <>
@@ -124,6 +152,20 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
               </option>
             ))}
           </select>
+          {isManager && salesReps.length > 0 && (
+            <select
+              value={repFilter}
+              onChange={(e) => setRepFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
+            >
+              <option value="">All reps</option>
+              {salesReps.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {error ? (
@@ -135,7 +177,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {["Number", "Title", "Client", "Status", "Total", "Created On"].map((h) => (
+                  {["Number", "Title", "Client", "Status", ...(isManager ? ["Win chance"] : []), "Total", "Created On"].map((h) => (
                     <th key={h} className="text-left text-xs font-medium text-gray-400 px-6 py-3">
                       {h}
                     </th>
@@ -145,7 +187,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
               <tbody>
                 {Array.from({ length: 3 }).map((_, i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    {Array.from({ length: 6 }).map((__, j) => (
+                    {Array.from({ length: isManager ? 7 : 6 }).map((__, j) => (
                       <td key={j} className="px-6 py-4">
                         <div className="h-4 bg-gray-100 rounded animate-pulse w-24" />
                       </td>
@@ -178,6 +220,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                   <th className="text-left text-xs font-medium text-gray-400 px-6 py-3">Title</th>
                   <th className="text-left text-xs font-medium text-gray-400 px-6 py-3">Client</th>
                   <th className="text-left text-xs font-medium text-gray-400 px-6 py-3">Status</th>
+                  {isManager && <th className="text-right text-xs font-medium text-gray-400 px-6 py-3">Win chance</th>}
                   <th className="text-right text-xs font-medium text-gray-400 px-6 py-3">Total</th>
                   <th className="text-left text-xs font-medium text-gray-400 px-6 py-3">Date</th>
                 </tr>
@@ -192,11 +235,11 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                     <td className="px-6 py-4 text-sm font-mono text-gray-500">
                       {q.quotationNumber}
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-gray-900">{q.title}</p>
+                    <td className="px-6 py-4 max-w-50">
+                      <p className="text-sm font-medium text-gray-900 truncate" title={q.title}>{q.title}</p>
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-900">{q.clientName}</p>
+                    <td className="px-6 py-4 max-w-40">
+                      <p className="text-sm text-gray-900 truncate" title={q.clientName}>{q.clientName}</p>
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -205,6 +248,13 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                         {q.status}
                       </span>
                     </td>
+                    {isManager && (
+                      <td className="px-6 py-4 text-right">
+                        {q.status === "SENT"
+                          ? <ConversionCell quotationId={q.id} />
+                          : <span className="text-gray-300 text-sm">—</span>}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right text-sm font-medium text-gray-900">
                       €{q.total.toLocaleString()}
                     </td>

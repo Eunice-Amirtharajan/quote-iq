@@ -13,6 +13,7 @@ import { Response } from 'express';
 const mockPrismaService = {
   user: {
     findFirst: jest.fn(),
+    findMany: jest.fn(),
   },
 };
 
@@ -212,6 +213,30 @@ describe('AuthService', () => {
         'plain string error',
         AuthService.name,
       );
+    });
+  });
+
+  describe('salesReps', () => {
+    it('returns all users with SALES_REP role ordered by name', async () => {
+      const mockReps = [
+        { id: 'u-1', name: 'Anna Schmidt', role: 'SALES_REP' },
+        { id: 'u-2', name: 'Ben Müller', role: 'SALES_REP' },
+      ];
+      mockPrismaService.user.findMany.mockResolvedValue(mockReps);
+
+      const result = await service.salesReps();
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        where: { role: 'SALES_REP' },
+        orderBy: { name: 'asc' },
+      });
+      expect(result).toEqual(mockReps);
+    });
+
+    it('returns empty array when no reps exist', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+      const result = await service.salesReps();
+      expect(result).toEqual([]);
     });
   });
 

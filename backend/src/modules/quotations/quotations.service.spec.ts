@@ -169,6 +169,30 @@ describe('QuotationsService', () => {
       );
     });
 
+    it('applies repId filter when manager specifies a rep', async () => {
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
+        repId: 'user-rep-1',
+      });
+      expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ createdById: 'user-rep-1' }),
+        }),
+      );
+    });
+
+    it('ignores repId filter for SALES_REP — always scoped to own quotations', async () => {
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      await service.findAll(mockUser(Role.SALES_REP), 20, 0, {
+        repId: 'user-other',
+      });
+      expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ createdById: 'user-1' }),
+        }),
+      );
+    });
+
     it('throws and logs error when prisma fails', async () => {
       mockPrismaService.quotation.findMany.mockRejectedValue(
         new Error('DB error'),

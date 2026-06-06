@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AIService } from './ai.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
-import { Recommendation } from './ai-insight.entity';
+import { ConversionLabel, Recommendation } from './ai-insight.entity';
 
 const mockGroqResponse = {
   choices: [
@@ -394,6 +394,100 @@ describe('AIService', () => {
         expect.any(String),
         'plain string error',
         AIService.name,
+      );
+    });
+  });
+
+  describe('getConversionScore', () => {
+    it('throws NotFoundException when quotation does not exist', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+
+      await expect(service.getConversionScore('q-999')).rejects.toThrow(
+        'Quotation q-999 not found',
+      );
+    });
+
+    it('returns cached score when valid cache exists', async () => {
+      const cached = { score: 72, label: ConversionLabel.HIGH };
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue({
+        id: 'insight-1',
+        content: JSON.stringify(cached),
+      });
+
+      const result = await service.getConversionScore('q-1');
+
+      expect(result).toEqual(cached);
+      expect(mockPrismaService.quotation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('computes HIGH label when approval rate is strong and deal is near average', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      // 4 approved out of 5, average deal = 7000 (within 20% of mockQuotation.total = 7140)
+      const history = [
+        { ...mockQuotation, id: 'h-1', status: 'APPROVED', total: 7000 },
+        { ...mockQuotation, id: 'h-2', status: 'APPROVED', total: 7000 },
+        { ...mockQuotation, id: 'h-3', status: 'APPROVED', total: 7000 },
+        { ...mockQuotation, id: 'h-4', status: 'APPROVED', total: 7000 },
+        { ...mockQuotation, id: 'h-5', status: 'REJECTED', total: 7000 },
+      ];
+      mockPrismaService.quotation.findMany.mockResolvedValue(history);
+
+      const result = await service.getConversionScore('q-1');
+
+      expect(result.label).toBe(ConversionLabel.HIGH);
+      expect(result.score).toBeGreaterThanOrEqual(65);
+      expect(mockPrismaService.aIInsight.upsert).toHaveBeenCalled();
+    });
+
+    it('caps score at 30 when rejection rate exceeds 60%', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      // 4 rejected out of 5 = 80% rejection rate — clearly above 60% threshold
+      const history = [
+        { ...mockQuotation, id: 'h-1', status: 'REJECTED', total: 7000 },
+        { ...mockQuotation, id: 'h-2', status: 'REJECTED', total: 7000 },
+        { ...mockQuotation, id: 'h-3', status: 'REJECTED', total: 7000 },
+        { ...mockQuotation, id: 'h-4', status: 'REJECTED', total: 7000 },
+        { ...mockQuotation, id: 'h-5', status: 'APPROVED', total: 7000 },
+      ];
+      mockPrismaService.quotation.findMany.mockResolvedValue(history);
+
+      const result = await service.getConversionScore('q-1');
+
+      expect(result.score).toBeLessThanOrEqual(30);
+      expect(result.label).toBe(ConversionLabel.LOW);
+    });
+
+    it('returns MEDIUM label and neutral bonus when no client history exists', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+
+      const result = await service.getConversionScore('q-1');
+
+      // No history → approvalRate = 0.5 → base = 35, + neutral bonus 15 = 50
+      expect(result.score).toBe(50);
+      expect(result.label).toBe(ConversionLabel.MEDIUM);
+    });
+
+    it('persists score to AIInsight with CONVERSION_SCORE insightType', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+
+      await service.getConversionScore('q-1');
+
+      expect(mockPrismaService.aIInsight.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            quotationId_insightType: {
+              quotationId: 'q-1',
+              insightType: 'CONVERSION_SCORE',
+            },
+          },
+        }),
       );
     });
   });

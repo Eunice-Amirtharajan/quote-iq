@@ -7,7 +7,8 @@ import Groq from 'groq-sdk';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { z, ZodError } from 'zod';
-import { Recommendation } from './ai-insight.entity';
+import { ConversionLabel, Recommendation } from './ai-insight.entity';
+import { ConversionScoreType } from './ai-insight.entity';
 import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
 
@@ -304,5 +305,117 @@ strong contradicting signals. Justify your reasoning.
       );
       throw error;
     }
+  }
+
+  /**
+   * Deterministic conversion likelihood score (0–100) for a SENT quotation.
+   *
+   * Formula (no LLM call):
+   *   base  = approvalRate × 70          (0–70 pts; defaults to 0.5 × 70 = 35 with no history)
+   *   bonus = max(0, 30 − max(0, |dealDeviation%| − 20))   (0–30 pts; full 30 when within ±20% of avg)
+   *   score = base + bonus               (then clamped to 0–100)
+   *   cap   = if rejectionRate > 60%, score = min(score, 30)
+   *
+   * No history: base = 35, bonus = 15 (neutral) → score = 50.
+   * Result is cached for 24 h as AIInsight(CONVERSION_SCORE).
+   */
+  async getConversionScore(quotationId: string): Promise<ConversionScoreType> {
+    this.logger.info(
+      `Fetching conversion score for: ${quotationId}`,
+      AIService.name,
+    );
+
+    const cached = await this.prisma.aIInsight.findFirst({
+      where: {
+        quotationId,
+        insightType: InsightType.CONVERSION_SCORE,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (cached) {
+      return JSON.parse(cached.content) as ConversionScoreType;
+    }
+
+    const quotation = await this.prisma.quotation.findFirst({
+      where: { id: quotationId },
+    });
+    if (!quotation) {
+      throw new NotFoundException(`Quotation ${quotationId} not found`);
+    }
+
+    const history = await this.prisma.quotation.findMany({
+      where: {
+        clientName: { equals: quotation.clientName, mode: 'insensitive' },
+        id: { not: quotationId },
+        createdAt: { lt: quotation.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    const approved = history.filter(
+      (q) => q.status === QuotationStatus.APPROVED,
+    ).length;
+    const rejected = history.filter(
+      (q) => q.status === QuotationStatus.REJECTED,
+    ).length;
+    const total = history.length;
+
+    // Base score from approval rate (0–70 points)
+    const approvalRate = total > 0 ? approved / total : 0.5;
+    const rejectionRate = total > 0 ? rejected / total : 0;
+    let score = Math.round(approvalRate * 70);
+
+    // Deal-size bonus/penalty (±30 points)
+    if (total > 0) {
+      const avg = history.reduce((s, q) => s + q.total, 0) / total;
+      const deviation = avg > 0 ? (quotation.total - avg) / avg : 0;
+      // Within ±20% of average: full +30; each % over 20% costs 1 point
+      const dealBonus = Math.round(
+        Math.max(0, 30 - Math.max(0, Math.abs(deviation) * 100 - 20)),
+      );
+      score += dealBonus;
+    } else {
+      // No history — neutral: add 15
+      score += 15;
+    }
+
+    // Hard cap: high rejection rate drags score down
+    if (rejectionRate > 0.6) score = Math.min(score, 30);
+
+    score = Math.max(0, Math.min(100, score));
+    const label: ConversionLabel =
+      score >= 65
+        ? ConversionLabel.HIGH
+        : score >= 35
+          ? ConversionLabel.MEDIUM
+          : ConversionLabel.LOW;
+
+    const result: ConversionScoreType = { score, label };
+
+    await this.prisma.aIInsight.upsert({
+      where: {
+        quotationId_insightType: {
+          quotationId,
+          insightType: InsightType.CONVERSION_SCORE,
+        },
+      },
+      create: {
+        quotationId,
+        insightType: InsightType.CONVERSION_SCORE,
+        content: JSON.stringify(result),
+        expiresAt: new Date(Date.now() + INSIGHT_TTL_MS),
+      },
+      update: {
+        content: JSON.stringify(result),
+        expiresAt: new Date(Date.now() + INSIGHT_TTL_MS),
+      },
+    });
+
+    this.logger.info(
+      `Conversion score: ${score} (${label}) for quotation: ${quotationId}`,
+      AIService.name,
+    );
+    return result;
   }
 }

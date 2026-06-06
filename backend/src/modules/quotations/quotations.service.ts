@@ -68,10 +68,12 @@ export class QuotationsService {
         `Fetching quotations — userId: ${userId} role: ${role}`,
         QuotationsService.name,
       );
-      const ownerWhere =
-        role === Role.SALES_MANAGER || role === Role.ADMIN
-          ? {}
-          : { createdById: userId };
+      const isManager = role === Role.SALES_MANAGER || role === Role.ADMIN;
+      const ownerWhere = isManager
+        ? filter?.repId
+          ? { createdById: filter.repId }
+          : {}
+        : { createdById: userId };
       const statusWhere = filter?.status ? { status: filter.status } : {};
       const rawSearch = filter?.search?.trim().slice(0, 100) ?? '';
       const searchWhere = rawSearch

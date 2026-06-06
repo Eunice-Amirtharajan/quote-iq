@@ -5,6 +5,7 @@ import { Response } from 'express';
 import * as bcrypt from 'bcrypt';
 import { AppLogger } from '../../common/logger/logger.service';
 import type { User } from '@prisma/client';
+import { Role } from '@prisma/client';
 import ms, { StringValue } from 'ms';
 
 @Injectable()
@@ -63,6 +64,13 @@ export class AuthService {
       );
       throw error;
     }
+  }
+
+  async salesReps(): Promise<User[]> {
+    return this.prisma.user.findMany({
+      where: { role: Role.SALES_REP },
+      orderBy: { name: 'asc' },
+    });
   }
 
   logout(res: Response): boolean {

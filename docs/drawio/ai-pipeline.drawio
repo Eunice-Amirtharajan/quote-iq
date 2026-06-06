@@ -89,6 +89,64 @@
           <mxGeometry x="740" y="1040" width="160" height="60" as="geometry" />
         </mxCell>
 
+        <!-- CONVERSION SCORE PATH (separate deterministic flow, no LLM) -->
+        <mxCell id="cs-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;opacity=20;" vertex="1" parent="1">
+          <mxGeometry x="980" y="100" width="360" height="420" as="geometry" />
+        </mxCell>
+        <mxCell id="cs-zone-label" value="Conversion Score Path (no LLM — deterministic)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="108" width="360" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-start" value="Manager requests&#xa;Conversion Score" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-cache" value="Check AIInsight cache&#xa;(insightType=CONVERSION_SCORE&#xa;expiresAt &gt; now)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="240" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-history" value="Fetch client history&#xa;(same clientName,&#xa;last 5, by createdAt)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="370" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-compute" value="Compute score (0–100)&#xa;• approvalRate × 70 pts&#xa;• dealSize deviation ± 30 pts&#xa;• rejectionRate &gt; 60% → cap 30" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="460" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-persist" value="Upsert AIInsight&#xa;CONVERSION_SCORE&#xa;(expiresAt = now + 24h)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="570" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-return" value="Return { score, label }&#xa;HIGH / MEDIUM / LOW" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1055" y="660" width="160" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs-cache-hit" value="Return cached score" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="265" width="130" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Conversion score edges -->
+        <mxCell id="ce1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="cs-start" target="cs-cache" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="cs-cache" target="cs-cache-hit" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce2-label" value="HIT" style="edgeLabel;html=1;fontSize=10;fontStyle=1;fillColor=#d5e8d4;" vertex="1" connectable="0" parent="ce2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ce3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="cs-cache" target="cs-history" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce3-label" value="MISS" style="edgeLabel;html=1;fontSize=10;fontStyle=1;fillColor=#f8cecc;" vertex="1" connectable="0" parent="ce3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ce4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;" edge="1" source="cs-history" target="cs-compute" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="cs-compute" target="cs-persist" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="cs-persist" target="cs-return" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
         <!-- EDGES -->
         <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="start" target="cache-check" parent="1">
           <mxGeometry relative="1" as="geometry" />

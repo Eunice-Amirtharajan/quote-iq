@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import QuotationsPage from './QuotationsPage';
-import { QUOTATIONS_QUERY } from '../graphql/queries';
+import { QUOTATIONS_QUERY, SALES_REPS_QUERY, CONVERSION_SCORE_QUERY } from '../graphql/queries';
 import { CREATE_QUOTATION_MUTATION } from '../graphql/mutations';
 import { AuthContext } from '../context/auth-context';
 import type { MockLink } from '@apollo/client/testing';
@@ -50,6 +50,27 @@ const successMock: MockLink.MockedResponse[] = [
   {
     request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
     result:  { data: { quotations: mockQuotations } },
+  },
+];
+
+const mockReps = [
+  { id: 'u-rep', name: 'Anna Schmidt' },
+  { id: 'u-rep2', name: 'Ben Müller' },
+];
+
+const managerSuccessMock: MockLink.MockedResponse[] = [
+  {
+    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+    result:  { data: { quotations: mockQuotations } },
+  },
+  {
+    request: { query: SALES_REPS_QUERY, variables: {} },
+    result:  { data: { salesReps: mockReps } },
+  },
+  // ConversionBadge fires for the SENT quotation (q-2)
+  {
+    request: { query: CONVERSION_SCORE_QUERY, variables: { quotationId: 'q-2' } },
+    result:  { data: { conversionScore: { score: 72, label: 'HIGH' } } },
   },
 ];
 
@@ -278,6 +299,74 @@ describe('QuotationsPage', () => {
     expect(input).toHaveValue('Enterprise');
     // full list still visible — debounce not yet fired, query unchanged
     expect(screen.getByText('Enterprise License')).toBeInTheDocument();
+  });
+
+  describe('rep filter (manager only)', () => {
+    function renderAsManager(mocks: MockLink.MockedResponse[]) {
+      return render(
+        <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+          <MockedProvider mocks={mocks}>
+            <QuotationsPage onSelect={mockOnSelect} />
+          </MockedProvider>
+        </AuthContext.Provider>,
+      );
+    }
+
+    it('shows rep dropdown for SALES_MANAGER after reps load', async () => {
+      renderAsManager(managerSuccessMock);
+      await screen.findByText('Enterprise License');
+      expect(await screen.findByRole('option', { name: 'Anna Schmidt' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Ben Müller' })).toBeInTheDocument();
+    });
+
+    it('does not show rep dropdown for SALES_REP', async () => {
+      renderAs(mockRep, successMock);
+      await screen.findByText('Enterprise License');
+      expect(screen.queryByRole('option', { name: 'Anna Schmidt' })).not.toBeInTheDocument();
+    });
+
+    it('includes repId in filter when manager selects a rep', async () => {
+      const repFilterMock: MockLink.MockedResponse[] = [
+        ...managerSuccessMock,
+        {
+          request: { query: QUOTATIONS_QUERY, variables: { filter: { repId: 'u-rep' } } },
+          result: { data: { quotations: [mockQuotations[0]] } },
+        },
+      ];
+      renderAsManager(repFilterMock);
+      await screen.findByText('Anna Schmidt');
+
+      const allSelects = screen.getAllByRole('combobox');
+      const repCombobox = allSelects[allSelects.length - 1];
+      fireEvent.change(repCombobox, { target: { value: 'u-rep' } });
+
+      expect(await screen.findByText('Enterprise License')).toBeInTheDocument();
+    });
+  });
+
+  describe('conversion score badge (manager only)', () => {
+    function renderAsManager(mocks: MockLink.MockedResponse[]) {
+      return render(
+        <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+          <MockedProvider mocks={mocks}>
+            <QuotationsPage onSelect={mockOnSelect} />
+          </MockedProvider>
+        </AuthContext.Provider>,
+      );
+    }
+
+    it('shows conversion score badge on SENT rows for manager', async () => {
+      renderAsManager(managerSuccessMock);
+      await screen.findByText('Enterprise License');
+      // Badge for q-2 (SENT) should appear with score 72
+      expect(await screen.findByText('72%')).toBeInTheDocument();
+    });
+
+    it('does not show conversion score badge for SALES_REP', async () => {
+      renderAs(mockRep, successMock);
+      await screen.findByText('Enterprise License');
+      expect(screen.queryByText('72%')).not.toBeInTheDocument();
+    });
   });
 
   it('closes modal and calls onSelect after successful quotation creation', async () => {

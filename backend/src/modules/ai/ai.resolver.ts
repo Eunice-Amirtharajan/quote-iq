@@ -1,7 +1,7 @@
-import { Resolver, Mutation, Args, ID } from '@nestjs/graphql';
+import { Resolver, Mutation, Query, Args, ID } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AIService } from './ai.service';
-import { QuotationSummaryType } from './ai-insight.entity';
+import { ConversionScoreType, QuotationSummaryType } from './ai-insight.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,5 +22,17 @@ export class AIResolver {
     quotationId: string,
   ): Promise<QuotationSummaryType> {
     return this.aiService.generateQuotationSummary(quotationId);
+  }
+
+  @Query(/* istanbul ignore next */ () => ConversionScoreType, {
+    description: 'Deterministic conversion likelihood score for a quotation',
+  })
+  @UseGuards(RolesGuard)
+  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  async conversionScore(
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
+    quotationId: string,
+  ): Promise<ConversionScoreType> {
+    return this.aiService.getConversionScore(quotationId);
   }
 }

@@ -8,6 +8,9 @@ export class QuotationFilterInput {
 
   @Field(() => String, { nullable: true })
   search?: string;
+
+  @Field(() => String, { nullable: true })
+  repId?: string;
 }
 
 @InputType()

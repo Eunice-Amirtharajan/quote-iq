@@ -2,6 +2,21 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+enum ConversionLabel {
+  HIGH
+  LOW
+  MEDIUM
+}
+
+"""Deterministic conversion likelihood score for a SENT quotation"""
+type ConversionScoreType {
+  """HIGH ≥ 65, MEDIUM ≥ 35, LOW < 35"""
+  label: ConversionLabel!
+
+  """Score 0–100"""
+  score: Int!
+}
+
 input CreateQuotationInput {
   clientName: String!
   items: [QuotationItemInput!]!
@@ -51,13 +66,17 @@ type Mutation {
 }
 
 type Query {
+  """Deterministic conversion likelihood score for a quotation"""
+  conversionScore(quotationId: ID!): ConversionScoreType!
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
   quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
+  salesReps: [UserType!]!
 }
 
 input QuotationFilterInput {
+  repId: String
   search: String
   status: QuotationStatus
 }

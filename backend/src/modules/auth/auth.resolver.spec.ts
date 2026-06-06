@@ -8,6 +8,7 @@ import { UserType } from '../users/user.entity';
 const mockAuthService = {
   login: jest.fn(),
   logout: jest.fn(),
+  salesReps: jest.fn(),
 };
 
 const mockUser: User = {
@@ -81,6 +82,21 @@ describe('AuthResolver', () => {
     it('returns the current user', () => {
       const result = resolver.me(mockUser as UserType);
       expect(result).toEqual(mockUser);
+    });
+  });
+
+  describe('salesReps', () => {
+    it('delegates to authService.salesReps and returns the result', async () => {
+      const mockReps = [
+        { id: 'u-1', name: 'Anna Schmidt', role: 'SALES_REP' },
+        { id: 'u-2', name: 'Ben Müller', role: 'SALES_REP' },
+      ];
+      mockAuthService.salesReps.mockResolvedValue(mockReps);
+
+      const result = await resolver.salesReps();
+
+      expect(mockAuthService.salesReps).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockReps);
     });
   });
 });

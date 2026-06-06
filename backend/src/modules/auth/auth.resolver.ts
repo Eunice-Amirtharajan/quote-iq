@@ -2,9 +2,12 @@ import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Response } from 'express';
 import { UserType } from '../users/user.entity';
+import { Role } from '@prisma/client';
 import type { User as PrismaUser } from '@prisma/client';
 
 @Resolver()
@@ -33,5 +36,12 @@ export class AuthResolver {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: UserType): UserType {
     return user;
+  }
+
+  @Query(/* istanbul ignore next */ () => [UserType])
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  async salesReps(): Promise<PrismaUser[]> {
+    return this.authService.salesReps();
   }
 }

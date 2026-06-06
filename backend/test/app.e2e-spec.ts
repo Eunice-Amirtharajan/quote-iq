@@ -533,6 +533,117 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
+  describe('salesReps query', () => {
+    it('returns list of sales reps for manager', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query {
+              salesReps {
+                id name
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      const reps = response.body.data.salesReps as { id: string; name: string }[];
+      expect(Array.isArray(reps)).toBe(true);
+      expect(reps.length).toBeGreaterThan(0);
+      expect(reps[0]).toHaveProperty('id');
+      expect(reps[0]).toHaveProperty('name');
+    });
+
+    it('rejects salesReps query for SALES_REP', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `query { salesReps { id name } }`,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
+  describe('Quotations — repId filter', () => {
+    it('manager can filter quotations by repId', async () => {
+      // Fetch the rep's id from salesReps, then filter by it
+      const repsRes = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query: `query { salesReps { id name } }` })
+        .expect(200);
+
+      const reps = repsRes.body.data.salesReps as { id: string; name: string }[];
+      const repId = reps[0].id;
+
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query {
+              quotations(filter: { repId: "${repId}" }) {
+                id
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      expect(Array.isArray(response.body.data.quotations)).toBe(true);
+    });
+  });
+
+  describe('conversionScore query', () => {
+    it('manager can fetch conversion score for a SENT quotation', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query {
+              conversionScore(quotationId: "${quotationId}") {
+                score
+                label
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      const score = response.body.data.conversionScore;
+      expect(score.score).toBeGreaterThanOrEqual(0);
+      expect(score.score).toBeLessThanOrEqual(100);
+      expect(['HIGH', 'MEDIUM', 'LOW']).toContain(score.label);
+    });
+
+    it('SALES_REP cannot access conversionScore', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `
+            query {
+              conversionScore(quotationId: "${quotationId}") {
+                score label
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
   describe('Dashboard', () => {
     it('returns stats for manager', async () => {
       const response = await request(app.getHttpServer())

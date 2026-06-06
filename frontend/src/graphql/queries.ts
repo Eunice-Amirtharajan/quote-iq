@@ -71,3 +71,21 @@ export const ME_QUERY = gql`
     }
   }
 `;
+
+export const SALES_REPS_QUERY = gql`
+  query SalesReps {
+    salesReps {
+      id
+      name
+    }
+  }
+`;
+
+export const CONVERSION_SCORE_QUERY = gql`
+  query ConversionScore($quotationId: ID!) {
+    conversionScore(quotationId: $quotationId) {
+      score
+      label
+    }
+  }
+`;

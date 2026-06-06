@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
-import { QUOTATION_QUERY, QUOTATIONS_QUERY } from "../graphql/queries";
+import { QUOTATION_QUERY, QUOTATIONS_QUERY, CONVERSION_SCORE_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import AIInsightCard from "../components/AIInsightCard";
@@ -31,6 +31,31 @@ interface QuotationDetail {
     name: string;
   };
   items: QuotationItem[];
+}
+
+function ConversionScoreCard({ quotationId }: Readonly<{ quotationId: string }>) {
+  const { data, loading } = useQuery<{ conversionScore: { score: number } }>(
+    CONVERSION_SCORE_QUERY,
+    { variables: { quotationId } },
+  );
+
+  if (loading) return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <div className="h-4 bg-gray-100 rounded animate-pulse w-32 mb-3" />
+      <div className="h-8 bg-gray-100 rounded animate-pulse w-16" />
+    </div>
+  );
+
+  const s = data?.conversionScore;
+  if (!s) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <h3 className="text-sm font-medium text-gray-900 mb-1">Win Chance</h3>
+      <p className="text-xs text-gray-400 mb-3">Based on client approval history and deal size</p>
+      <p className="text-3xl font-semibold text-gray-900">{s.score}<span className="text-lg text-gray-400 font-normal">%</span></p>
+    </div>
+  );
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -170,6 +195,8 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted }:
 }
 
 export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
+  const { user } = useAuth();
+  const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
   const { data, loading, error, refetch } = useQuery<{ quotation: QuotationDetail }>(
     QUOTATION_QUERY,
     { variables: { id } },
@@ -340,6 +367,9 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
           </div>
 
           <AIInsightCard quotationId={id} />
+          {q.status === "SENT" && isManager && (
+            <ConversionScoreCard quotationId={id} />
+          )}
         </div>
       </div>
     </div>
