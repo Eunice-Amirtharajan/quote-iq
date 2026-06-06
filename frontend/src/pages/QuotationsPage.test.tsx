@@ -83,10 +83,12 @@ function renderAs(
 describe('QuotationsPage', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('shows loading state initially with skeleton rows', () => {
+  it('shows loading state initially with skeleton rows', async () => {
     renderAs(mockRep, successMock);
     expect(screen.getByText('Loading...')).toBeInTheDocument();
     expect(screen.getByRole('table')).toBeInTheDocument();
+    // drain pending Apollo query so React state updates run inside act
+    await screen.findByText('Enterprise License');
   });
 
   it('renders quotation list after loading', async () => {

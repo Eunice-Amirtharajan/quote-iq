@@ -32,7 +32,7 @@ export default function CreateQuotationModal({ onClose, onCreated }: Readonly<Pr
   const [formError, setFormError] = useState<string | null>(null);
 
   const [createQuotation, { loading }] = useMutation<{ createQuotation: { id: string } }>(CREATE_QUOTATION_MUTATION, {
-    refetchQueries: [{ query: QUOTATIONS_QUERY }],
+    refetchQueries: [{ query: QUOTATIONS_QUERY, variables: { filter: undefined } }],
     onCompleted: (data) => {
       onCreated(data.createQuotation.id);
     },
