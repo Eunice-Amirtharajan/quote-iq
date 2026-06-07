@@ -1,6 +1,12 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaNeon } from '@prisma/adapter-neon';
+import { neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
+
+// Required for Node.js — the serverless package uses native WebSocket in browsers
+// but needs ws in Node.js environments (Railway, local dev).
+neonConfig.webSocketConstructor = ws;
 
 interface SimpleLogger {
   warn(message: string, context?: string): void;

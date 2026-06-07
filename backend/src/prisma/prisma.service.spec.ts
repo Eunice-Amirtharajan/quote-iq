@@ -5,6 +5,8 @@ import {
   withDbRetry,
 } from './prisma.service';
 import { PrismaNeon } from '@prisma/adapter-neon';
+import { neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 
 jest.mock('@prisma/adapter-neon', () => ({
   PrismaNeon: jest.fn().mockImplementation(() => ({
@@ -33,6 +35,10 @@ describe('PrismaService — Neon URL', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  it('sets neonConfig.webSocketConstructor to ws at module load', () => {
+    expect(neonConfig.webSocketConstructor).toBe(ws);
+  });
 
   it('is defined', () => {
     expect(service).toBeDefined();
