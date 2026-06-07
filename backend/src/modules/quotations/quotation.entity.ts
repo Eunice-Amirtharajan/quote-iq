@@ -57,9 +57,6 @@ export class QuotationType {
   @Field(() => Date, { description: 'Creation timestamp' })
   createdAt!: Date;
 
-  @Field(() => Date, { description: 'Last update timestamp' })
-  updatedAt!: Date;
-
   @Field(() => [QuotationItemType])
   items!: QuotationItemType[];
 
@@ -83,7 +80,6 @@ type _ScalarFieldsMatch =
     | 'taxAmount'
     | 'total'
     | 'createdAt'
-    | 'updatedAt'
     | 'createdById'
   >
     ? true

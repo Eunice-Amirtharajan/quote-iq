@@ -50,7 +50,7 @@ export class AIResolver {
     return this.aiService.getWinLossAnalysis();
   }
 
-  @Query(/* istanbul ignore next */ () => QuotationAnswerType, {
+  @Mutation(/* istanbul ignore next */ () => QuotationAnswerType, {
     description: 'Answer a free-text question about a specific quotation',
   })
   @UseGuards(RolesGuard)

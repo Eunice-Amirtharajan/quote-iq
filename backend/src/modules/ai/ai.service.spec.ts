@@ -36,6 +36,10 @@ const mockPrismaService = {
   quotation: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    groupBy: jest.fn(),
+  },
+  user: {
+    findMany: jest.fn().mockResolvedValue([]),
   },
   aIInsight: {
     findFirst: jest.fn().mockResolvedValue(null),
@@ -44,6 +48,7 @@ const mockPrismaService = {
     update: jest.fn().mockResolvedValue({}),
     delete: jest.fn().mockResolvedValue({}),
   },
+  $queryRaw: jest.fn(),
 };
 
 const mockLogger = {
@@ -401,42 +406,28 @@ describe('AIService', () => {
   });
 
   describe('getWinLossAnalysis', () => {
-    const approved1 = {
-      id: 'q-a1',
-      status: 'APPROVED',
-      total: 10000,
-      createdById: 'user-alice',
-      createdBy: { name: 'Alice' },
-    };
-    const approved2 = {
-      id: 'q-a2',
-      status: 'APPROVED',
-      total: 20000,
-      createdById: 'user-bob',
-      createdBy: { name: 'Bob' },
-    };
-    const rejected1 = {
-      id: 'q-r1',
-      status: 'REJECTED',
-      total: 8000,
-      createdById: 'user-alice',
-      createdBy: { name: 'Alice' },
-    };
-    const sent1 = {
-      id: 'q-s1',
-      status: 'SENT',
-      total: 3000,
-      createdById: 'user-alice',
-      createdBy: { name: 'Alice' },
-    };
+    // Helpers to set up the three SQL calls the new implementation makes
+    function mockWinLossSQL({
+      statusRows = [] as { status: string; _count: { _all: number }; _avg: { total: number | null } }[],
+      repRows = [] as { createdById: string; status: string; _count: { _all: number } }[],
+      repUsers = [] as { id: string; name: string }[],
+      bucketRows = [] as { bucket: string; total: bigint; approved: bigint; decided: bigint }[],
+    } = {}) {
+      mockPrismaService.quotation.groupBy
+        .mockResolvedValueOnce(statusRows)   // by status
+        .mockResolvedValueOnce(repRows);     // by (createdById, status)
+      mockPrismaService.user.findMany.mockResolvedValue(repUsers);
+      mockPrismaService.$queryRaw.mockResolvedValue(bucketRows);
+    }
 
     it('computes overall approval rate correctly', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
-      mockPrismaService.quotation.findMany.mockResolvedValue([
-        approved1,
-        approved2,
-        rejected1,
-      ]);
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'APPROVED', _count: { _all: 2 }, _avg: { total: 15000 } },
+          { status: 'REJECTED', _count: { _all: 1 }, _avg: { total: 8000 } },
+        ],
+      });
 
       const result = await service.getWinLossAnalysis();
 
@@ -446,28 +437,37 @@ describe('AIService', () => {
 
     it('computes avg deal sizes for approved and rejected quotations', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
-      mockPrismaService.quotation.findMany.mockResolvedValue([
-        approved1,
-        approved2,
-        rejected1,
-      ]);
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'APPROVED', _count: { _all: 2 }, _avg: { total: 15000 } },
+          { status: 'REJECTED', _count: { _all: 1 }, _avg: { total: 8000 } },
+        ],
+      });
 
       const result = await service.getWinLossAnalysis();
 
-      expect(result.avgApprovedDeal).toBe(15000); // (10000+20000)/2
+      expect(result.avgApprovedDeal).toBe(15000);
       expect(result.avgRejectedDeal).toBe(8000);
     });
 
     it('builds byRep stats sorted by approvalRate descending', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
-      // Alice: 1 approved, 1 rejected, 1 sent → approvalRate 50%
-      // Bob: 1 approved → approvalRate 100%
-      mockPrismaService.quotation.findMany.mockResolvedValue([
-        approved1,
-        approved2,
-        rejected1,
-        sent1,
-      ]);
+      // Alice: 1 approved, 1 rejected → 50%. Bob: 1 approved → 100%
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'APPROVED', _count: { _all: 2 }, _avg: { total: 15000 } },
+          { status: 'REJECTED', _count: { _all: 1 }, _avg: { total: 8000 } },
+        ],
+        repRows: [
+          { createdById: 'user-alice', status: 'APPROVED', _count: { _all: 1 } },
+          { createdById: 'user-alice', status: 'REJECTED', _count: { _all: 1 } },
+          { createdById: 'user-bob', status: 'APPROVED', _count: { _all: 1 } },
+        ],
+        repUsers: [
+          { id: 'user-alice', name: 'Alice' },
+          { id: 'user-bob', name: 'Bob' },
+        ],
+      });
 
       const result = await service.getWinLossAnalysis();
 
@@ -492,12 +492,16 @@ describe('AIService', () => {
       const result = await service.getWinLossAnalysis();
 
       expect(result).toEqual(cached);
-      expect(mockPrismaService.quotation.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.quotation.groupBy).not.toHaveBeenCalled();
     });
 
     it('returns zero rates when no approved or rejected quotations exist', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
-      mockPrismaService.quotation.findMany.mockResolvedValue([sent1]);
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'SENT', _count: { _all: 1 }, _avg: { total: 3000 } },
+        ],
+      });
 
       const result = await service.getWinLossAnalysis();
 
@@ -508,11 +512,17 @@ describe('AIService', () => {
 
     it('assigns quotations to correct deal-size buckets', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
-      // <5k bucket: rejected1 (8000 — actually >5k, let's use a 3000 deal)
-      const small = { id: 'q-sm', status: 'APPROVED', total: 3000, createdById: 'user-alice', createdBy: { name: 'Alice' } };
-      const mid = { id: 'q-md', status: 'APPROVED', total: 10000, createdById: 'user-alice', createdBy: { name: 'Alice' } };
-      const large = { id: 'q-lg', status: 'REJECTED', total: 25000, createdById: 'user-bob', createdBy: { name: 'Bob' } };
-      mockPrismaService.quotation.findMany.mockResolvedValue([small, mid, large]);
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'APPROVED', _count: { _all: 2 }, _avg: { total: 6500 } },
+          { status: 'REJECTED', _count: { _all: 1 }, _avg: { total: 25000 } },
+        ],
+        bucketRows: [
+          { bucket: '<5k', total: 1n, approved: 1n, decided: 1n },
+          { bucket: '5k–20k', total: 1n, approved: 1n, decided: 1n },
+          { bucket: '>20k', total: 1n, approved: 0n, decided: 1n },
+        ],
+      });
 
       const result = await service.getWinLossAnalysis();
 
@@ -524,7 +534,11 @@ describe('AIService', () => {
 
     it('persists result to AIInsight with WIN_LOSS_ANALYSIS insightType', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
-      mockPrismaService.quotation.findMany.mockResolvedValue([approved1]);
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'APPROVED', _count: { _all: 1 }, _avg: { total: 10000 } },
+        ],
+      });
 
       await service.getWinLossAnalysis();
 
@@ -539,12 +553,15 @@ describe('AIService', () => {
     });
 
     it('updates existing cache entry instead of creating a new one', async () => {
-      // First findFirst (cache check) returns null (expired/missing),
-      // second findFirst (before persist) returns existing stale row.
+      // First findFirst (cache check) returns null; second (before persist) returns stale row.
       mockPrismaService.aIInsight.findFirst
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 'wl-cache-1', content: '{}' });
-      mockPrismaService.quotation.findMany.mockResolvedValue([approved1]);
+      mockWinLossSQL({
+        statusRows: [
+          { status: 'APPROVED', _count: { _all: 1 }, _avg: { total: 10000 } },
+        ],
+      });
 
       await service.getWinLossAnalysis();
 

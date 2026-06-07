@@ -417,6 +417,70 @@ describe("QuotationDetailPage", () => {
       expect(screen.getByText("Ready for review")).toBeInTheDocument();
     });
 
+    it("renders 'Created' label for DRAFT→DRAFT entry with no note", async () => {
+      const historyMock: MockLink.MockedResponse = {
+        request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } },
+        result: {
+          data: {
+            statusHistory: [
+              {
+                id: "sh-1",
+                fromStatus: "DRAFT",
+                toStatus: "DRAFT",
+                note: null,
+                changedAt: "2026-04-10T00:00:00.000Z",
+                changedBy: { name: "Anna Schmidt" },
+              },
+            ],
+          },
+        },
+      };
+      const mocks: MockLink.MockedResponse[] = [
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: baseQuotation } } },
+        historyMock,
+      ];
+      renderAs(mockRep, mocks);
+      await screen.findByText("Enterprise License");
+      expect(await screen.findByText("Created")).toBeInTheDocument();
+      expect(screen.queryByText("Draft")).not.toBeInTheDocument();
+    });
+
+    it("renders 'Edited' label with note for DRAFT→DRAFT entry with a note", async () => {
+      const historyMock: MockLink.MockedResponse = {
+        request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } },
+        result: {
+          data: {
+            statusHistory: [
+              {
+                id: "sh-1",
+                fromStatus: "DRAFT",
+                toStatus: "DRAFT",
+                note: null,
+                changedAt: "2026-04-10T00:00:00.000Z",
+                changedBy: { name: "Anna Schmidt" },
+              },
+              {
+                id: "sh-2",
+                fromStatus: "DRAFT",
+                toStatus: "DRAFT",
+                note: "Edited: title, line items",
+                changedAt: "2026-04-10T01:00:00.000Z",
+                changedBy: { name: "Anna Schmidt" },
+              },
+            ],
+          },
+        },
+      };
+      const mocks: MockLink.MockedResponse[] = [
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: baseQuotation } } },
+        historyMock,
+      ];
+      renderAs(mockRep, mocks);
+      await screen.findByText("Enterprise License");
+      expect(await screen.findByText("Edited")).toBeInTheDocument();
+      expect(screen.getByText("Edited: title, line items")).toBeInTheDocument();
+    });
+
     it("hides the timeline when history is empty", async () => {
       renderAs(mockRep, makeMock(baseQuotation));
       await screen.findByText("Enterprise License");

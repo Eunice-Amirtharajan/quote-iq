@@ -177,21 +177,31 @@ describe('QuotationsService', () => {
     });
 
     it('applies repId filter when manager specifies a rep', async () => {
+      const repUuid = '11111111-1111-1111-1111-111111111111';
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
-        repId: 'user-rep-1',
+        repId: repUuid,
       });
       expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ createdById: 'user-rep-1' }),
+          where: expect.objectContaining({ createdById: repUuid }),
         }),
       );
     });
 
+    it('throws BadRequestException when repId is not a valid UUID', async () => {
+      await expect(
+        service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
+          repId: 'not-a-uuid',
+        }),
+      ).rejects.toThrow('repId must be a valid UUID');
+    });
+
     it('ignores repId filter for SALES_REP — always scoped to own quotations', async () => {
+      const otherUuid = '22222222-2222-2222-2222-222222222222';
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_REP), 20, 0, {
-        repId: 'user-other',
+        repId: otherUuid,
       });
       expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -356,6 +366,7 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.create.mockResolvedValue(
         mockCreatedQuotation,
       );
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
     });
 
     it('generates correct quotation number', async () => {
@@ -420,6 +431,23 @@ describe('QuotationsService', () => {
     it('returns the quotation returned by prisma create', async () => {
       const result = await service.create(mockInput, mockUser);
       expect(result).toEqual(mockCreatedQuotation);
+    });
+
+    it('writes a DRAFT→DRAFT status history entry nested in create', async () => {
+      await service.create(mockInput, mockUser);
+      expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            statusHistory: {
+              create: expect.objectContaining({
+                fromStatus: 'DRAFT',
+                toStatus: 'DRAFT',
+                changedById: mockUser.id,
+              }),
+            },
+          }),
+        }),
+      );
     });
 
     it('throws and logs error when prisma create fails', async () => {
@@ -901,6 +929,28 @@ describe('QuotationsService', () => {
 
       expect(mockPrismaService.aIInsight.deleteMany).toHaveBeenCalledWith({
         where: { quotationId: 'q-1' },
+      });
+    });
+
+    it('writes a DRAFT→DRAFT history entry with changed fields note on update', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+
+      await service.update(
+        'q-1',
+        { title: 'Updated Title', clientName: 'Updated Corp' },
+        'user-1',
+      );
+
+      expect(mockPrismaService.statusHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          quotationId: 'q-1',
+          fromStatus: 'DRAFT',
+          toStatus: 'DRAFT',
+          changedById: 'user-1',
+          note: expect.stringContaining('title'),
+        }),
       });
     });
   });

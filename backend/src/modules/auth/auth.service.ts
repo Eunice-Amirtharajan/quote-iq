@@ -66,10 +66,11 @@ export class AuthService {
     }
   }
 
-  async salesReps(): Promise<User[]> {
+  async salesReps(): Promise<Pick<User, 'id' | 'name'>[]> {
     return this.prisma.user.findMany({
       where: { role: Role.SALES_REP },
       orderBy: { name: 'asc' },
+      select: { id: true, name: true },
     });
   }
 

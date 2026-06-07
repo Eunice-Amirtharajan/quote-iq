@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LOGIN_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import { useMutation } from "@apollo/client/react";
+import { client } from "../lib/apollo";
 import type { Role } from "../context/auth-context";
 
 interface LoginData {
@@ -22,7 +23,9 @@ export default function LoginPage() {
 
   const [login, { loading }] = useMutation<LoginData>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      setUser(data.login);
+      // Clear previous user's cached data before setting new user so
+      // components never flash stale data from the prior session.
+      void client.resetStore().finally(() => setUser(data.login));
     },
     onError: (err) => {
       const isCredentials = err.message.toLowerCase().includes('invalid credentials');

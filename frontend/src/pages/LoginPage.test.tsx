@@ -5,6 +5,11 @@ import LoginPage from "./LoginPage";
 import { LOGIN_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
+import { client } from "../lib/apollo";
+
+vi.mock("../lib/apollo", () => ({
+  client: { resetStore: vi.fn().mockResolvedValue(null) },
+}));
 
 const mockSetUser = vi.fn();
 
@@ -127,5 +132,39 @@ describe("LoginPage", () => {
     renderLoginPage();
     expect(screen.queryByText("Demo credentials")).not.toBeInTheDocument();
     vi.unstubAllEnvs();
+  });
+
+  it("calls client.resetStore() before setUser on successful login", async () => {
+    const mockUser = {
+      id: "u-1",
+      name: "Marcus",
+      email: "marcus@quoteiq.com",
+      role: "SALES_MANAGER",
+    };
+    const mocks: MockLink.MockedResponse[] = [
+      {
+        request: {
+          query: LOGIN_MUTATION,
+          variables: { email: "marcus@quoteiq.com", password: "password123" },
+        },
+        result: { data: { login: mockUser } },
+      },
+    ];
+
+    renderLoginPage(mocks);
+    fireEvent.change(screen.getByPlaceholderText("you@company.com"), {
+      target: { value: "marcus@quoteiq.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(mockUser));
+    expect(client.resetStore).toHaveBeenCalled();
+    // resetStore must resolve before setUser is called
+    const resetOrder = (client.resetStore as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    const setUserOrder = mockSetUser.mock.invocationCallOrder[0];
+    expect(resetOrder).toBeLessThan(setUserOrder);
   });
 });

@@ -449,7 +449,9 @@ strong contradicting signals. Justify your reasoning.
       return JSON.parse(cached.content) as WinLossStatsType;
     }
 
-    const quotations = await this.prisma.quotation.findMany({
+    // Aggregate entirely in SQL — no full table scan into application memory
+    const byStatusRaw = await this.prisma.quotation.groupBy({
+      by: ['status'],
       where: {
         status: {
           in: [
@@ -459,42 +461,79 @@ strong contradicting signals. Justify your reasoning.
           ],
         },
       },
-      include: { createdBy: true },
+      _count: { _all: true },
+      _avg: { total: true },
     });
+    type StatusRow = {
+      status: string;
+      _count: { _all: number };
+      _avg: { total: number | null };
+    };
+    const byStatus = byStatusRaw as unknown as StatusRow[];
 
-    const approved = quotations.filter(
-      (q) => q.status === QuotationStatus.APPROVED,
-    );
-    const rejected = quotations.filter(
-      (q) => q.status === QuotationStatus.REJECTED,
-    );
-    const decided = approved.length + rejected.length;
-
+    const statusMap = Object.fromEntries(byStatus.map((r) => [r.status, r]));
+    const approvedCount = statusMap[QuotationStatus.APPROVED]?._count._all ?? 0;
+    const rejectedCount = statusMap[QuotationStatus.REJECTED]?._count._all ?? 0;
+    const decided = approvedCount + rejectedCount;
     const approvalRate =
-      decided > 0 ? Math.round((approved.length / decided) * 1000) / 10 : 0;
+      decided > 0 ? Math.round((approvedCount / decided) * 1000) / 10 : 0;
+    const avgApprovedDeal = Math.round(
+      statusMap[QuotationStatus.APPROVED]?._avg.total ?? 0,
+    );
+    const avgRejectedDeal = Math.round(
+      statusMap[QuotationStatus.REJECTED]?._avg.total ?? 0,
+    );
 
-    const avg = (arr: typeof quotations) =>
-      arr.length > 0
-        ? Math.round(arr.reduce((s, q) => s + q.total, 0) / arr.length)
-        : 0;
+    // By rep — grouped in SQL, one row per (createdById, status)
+    const repRowsRaw = await this.prisma.quotation.groupBy({
+      by: ['createdById', 'status'],
+      where: {
+        status: {
+          in: [
+            QuotationStatus.APPROVED,
+            QuotationStatus.REJECTED,
+            QuotationStatus.SENT,
+          ],
+        },
+      },
+      _count: { _all: true },
+    });
+    type RepRow = {
+      createdById: string;
+      status: string;
+      _count: { _all: number };
+    };
+    const repRows = repRowsRaw as unknown as RepRow[];
 
-    // By rep
-    const repMap = new Map<
-      string,
-      { repName: string; sent: number; approved: number; rejected: number }
-    >();
-    for (const q of quotations) {
-      const name = q.createdBy?.name ?? 'Unknown';
-      const key = q.createdById;
-      if (!repMap.has(key)) {
-        repMap.set(key, { repName: name, sent: 0, approved: 0, rejected: 0 });
+    const repIds = [...new Set(repRows.map((r) => r.createdById))];
+    const repUsers = await this.prisma.user.findMany({
+      where: { id: { in: repIds } },
+      select: { id: true, name: true },
+    });
+    const repNameMap = Object.fromEntries(repUsers.map((u) => [u.id, u.name]));
+
+    type RepAggEntry = {
+      repName: string;
+      sent: number;
+      approved: number;
+      rejected: number;
+    };
+    const repAgg = new Map<string, RepAggEntry>();
+    for (const row of repRows) {
+      if (!repAgg.has(row.createdById)) {
+        repAgg.set(row.createdById, {
+          repName: repNameMap[row.createdById] ?? 'Unknown',
+          sent: 0,
+          approved: 0,
+          rejected: 0,
+        });
       }
-      const entry = repMap.get(key)!;
-      entry.sent++;
-      if (q.status === QuotationStatus.APPROVED) entry.approved++;
-      if (q.status === QuotationStatus.REJECTED) entry.rejected++;
+      const entry = repAgg.get(row.createdById)!;
+      entry.sent += row._count._all;
+      if (row.status === QuotationStatus.APPROVED) entry.approved += row._count._all;
+      if (row.status === QuotationStatus.REJECTED) entry.rejected += row._count._all;
     }
-    const byRep: RepStatType[] = [...repMap.values()]
+    const byRep: RepStatType[] = [...repAgg.values()]
       .map((r) => ({
         ...r,
         approvalRate:
@@ -504,37 +543,50 @@ strong contradicting signals. Justify your reasoning.
       }))
       .sort((a, b) => b.approvalRate - a.approvalRate);
 
-    // By deal-size bucket
-    const BUCKETS = [
-      { label: '<5k', test: (t: number) => t < 5_000 },
-      { label: '5k–20k', test: (t: number) => t >= 5_000 && t <= 20_000 },
-      { label: '>20k', test: (t: number) => t > 20_000 },
-    ];
-    const byDealSize: BucketStatType[] = BUCKETS.map(({ label, test }) => {
-      const inBucket = quotations.filter((q) => test(q.total));
-      const approvedInBucket = inBucket.filter(
-        (q) => q.status === QuotationStatus.APPROVED,
-      ).length;
-      const decidedInBucket = inBucket.filter(
-        (q) =>
-          q.status === QuotationStatus.APPROVED ||
-          q.status === QuotationStatus.REJECTED,
-      ).length;
+    // By deal-size bucket — computed with conditional aggregation in SQL
+    type BucketRow = {
+      bucket: string;
+      total: bigint;
+      approved: bigint;
+      decided: bigint;
+    };
+    const bucketRows = await this.prisma.$queryRaw<BucketRow[]>`
+      SELECT
+        CASE
+          WHEN total < 5000 THEN '<5k'
+          WHEN total <= 20000 THEN '5k–20k'
+          ELSE '>20k'
+        END AS bucket,
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE status = 'APPROVED') AS approved,
+        COUNT(*) FILTER (WHERE status IN ('APPROVED','REJECTED')) AS decided
+      FROM "Quotation"
+      WHERE status IN ('APPROVED','REJECTED','SENT')
+      GROUP BY bucket
+    `;
+
+    const BUCKET_ORDER = ['<5k', '5k–20k', '>20k'];
+    const bucketIndex: Record<string, BucketRow> = Object.fromEntries(
+      bucketRows.map((r) => [r.bucket, r]),
+    );
+    const byDealSize: BucketStatType[] = BUCKET_ORDER.map((label) => {
+      const r = bucketIndex[label];
+      if (!r) return { bucket: label, total: 0, approved: 0, approvalRate: 0 };
+      const tot = Number(r.total);
+      const app = Number(r.approved);
+      const dec = Number(r.decided);
       return {
         bucket: label,
-        total: inBucket.length,
-        approved: approvedInBucket,
-        approvalRate:
-          decidedInBucket > 0
-            ? Math.round((approvedInBucket / decidedInBucket) * 1000) / 10
-            : 0,
+        total: tot,
+        approved: app,
+        approvalRate: dec > 0 ? Math.round((app / dec) * 1000) / 10 : 0,
       };
     });
 
     const result: WinLossStatsType = {
       approvalRate,
-      avgApprovedDeal: avg(approved),
-      avgRejectedDeal: avg(rejected),
+      avgApprovedDeal,
+      avgRejectedDeal,
       byRep,
       byDealSize,
     };

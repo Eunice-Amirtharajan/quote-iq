@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@apollo/client/react";
 import { QUOTATIONS_QUERY, SALES_REPS_QUERY, CONVERSION_SCORE_QUERY } from "../graphql/queries";
+
+const PAGE_SIZE = 20;
 import { useAuth } from "../hooks/useAuth";
 import CreateQuotationModal from "../components/CreateQuotationModal";
 
@@ -53,10 +55,12 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const [repFilter, setRepFilter] = useState<string>("");
   const [searchText, setSearchText] = useState<string>("");
   const [committedSearch, setCommittedSearch] = useState<string>("");
+  const [page, setPage] = useState(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = (value: string) => {
     setSearchText(value);
+    setPage(0);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => setCommittedSearch(value), 400);
   };
@@ -64,6 +68,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const clearSearch = () => {
     setSearchText("");
     setCommittedSearch("");
+    setPage(0);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
   };
 
@@ -76,9 +81,9 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
         }
       : undefined;
 
-  const { data, loading, error } = useQuery<{ quotations: Quotation[] }>(
+  const { data, loading, error, fetchMore } = useQuery<{ quotations: Quotation[] }>(
     QUOTATIONS_QUERY,
-    { variables: { filter } },
+    { variables: { take: PAGE_SIZE, skip: 0, filter } },
   );
 
   const { data: repsData } = useQuery<{ salesReps: SalesRep[] }>(
@@ -89,6 +94,15 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const quotations = data?.quotations ?? [];
   const salesReps = repsData?.salesReps ?? [];
   const canCreate = user?.role === "SALES_REP" || isManager;
+  const hasMore = quotations.length === PAGE_SIZE * (page + 1);
+
+  const loadMore = () => {
+    const nextPage = page + 1;
+    void fetchMore({
+      variables: { take: PAGE_SIZE, skip: nextPage * PAGE_SIZE, filter },
+    });
+    setPage(nextPage);
+  };
 
   return (
     <>
@@ -142,7 +156,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
           >
             <option value="">All statuses</option>
@@ -155,7 +169,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
           {isManager && salesReps.length > 0 && (
             <select
               value={repFilter}
-              onChange={(e) => setRepFilter(e.target.value)}
+              onChange={(e) => { setRepFilter(e.target.value); setPage(0); }}
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
             >
               <option value="">All reps</option>
@@ -212,6 +226,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
             )}
           </div>
         ) : (
+          <>
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <table className="w-full">
               <thead>
@@ -266,6 +281,18 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
               </tbody>
             </table>
           </div>
+          {hasMore && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={loadMore}
+                disabled={loading}
+                className="px-4 py-2 text-sm font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40"
+              >
+                {loading ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
     </>

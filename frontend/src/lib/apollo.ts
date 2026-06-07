@@ -14,6 +14,20 @@ export const client = new ApolloClient({
     typePolicies: {
       // DashboardStatsType has no id field — store as a root singleton
       DashboardStatsType: { keyFields: false },
+      Query: {
+        fields: {
+          // Merge paginated quotation pages so fetchMore appends instead of
+          // replacing. keyArgs lists the variables that identify a distinct
+          // list — filter changes reset the list; take/skip are pagination
+          // cursors and must NOT be key args.
+          quotations: {
+            keyArgs: ["filter"],
+            merge(existing: unknown[] = [], incoming: unknown[]) {
+              return [...existing, ...incoming];
+            },
+          },
+        },
+      },
     },
   }),
 });

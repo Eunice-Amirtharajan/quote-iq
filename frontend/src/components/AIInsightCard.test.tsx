@@ -3,8 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import AIInsightCard from "./AIInsightCard";
-import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
-import { ASK_ABOUT_QUOTATION_QUERY } from "../graphql/queries";
+import { QUOTATION_SUMMARY_MUTATION, ASK_ABOUT_QUOTATION_MUTATION } from "../graphql/mutations";
 import { AuthContext, type User } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
@@ -183,7 +182,7 @@ describe("AIInsightCard", () => {
       ...successMock,
       {
         request: {
-          query: ASK_ABOUT_QUOTATION_QUERY,
+          query: ASK_ABOUT_QUOTATION_MUTATION,
           variables: {
             quotationId: "q-1",
             question: "Is the margin reasonable?",

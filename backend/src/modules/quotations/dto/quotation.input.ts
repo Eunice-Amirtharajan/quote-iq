@@ -1,5 +1,9 @@
 import { InputType, Field, Float } from '@nestjs/graphql';
 import { QuotationStatus } from '@prisma/client';
+import { BadRequestException } from '@nestjs/common';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @InputType()
 export class QuotationFilterInput {
@@ -11,6 +15,13 @@ export class QuotationFilterInput {
 
   @Field(() => String, { nullable: true })
   repId?: string;
+
+  /** Called by the quotations service before passing repId to Prisma */
+  static validateRepId(repId: string | undefined): void {
+    if (repId !== undefined && !UUID_RE.test(repId)) {
+      throw new BadRequestException('repId must be a valid UUID');
+    }
+  }
 }
 
 @InputType()

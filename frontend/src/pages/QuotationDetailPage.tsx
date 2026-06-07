@@ -73,21 +73,34 @@ function StatusTimeline({ quotationId }: Readonly<{ quotationId: string }>) {
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <h3 className="text-sm font-medium text-gray-900 mb-4">Status History</h3>
       <ol className="relative border-l border-gray-100 space-y-4 ml-2">
-        {entries.map((e) => (
-          <li key={e.id} className="ml-4">
-            <span className="absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white bg-gray-300" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400">{STATUS_LABELS[e.fromStatus] ?? e.fromStatus}</span>
-              <span className="text-xs text-gray-300">→</span>
-              <span className="text-xs font-medium text-gray-700">{STATUS_LABELS[e.toStatus] ?? e.toStatus}</span>
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {new Date(e.changedAt).toLocaleDateString("en-DE", { day: "2-digit", month: "short", year: "numeric" })}
-              {e.changedBy ? ` · ${e.changedBy.name}` : ""}
-            </p>
-            {e.note && <p className="text-xs text-gray-500 mt-0.5 italic">{e.note}</p>}
-          </li>
-        ))}
+        {entries.map((e) => {
+          const isDraftDraft = e.fromStatus === "DRAFT" && e.toStatus === "DRAFT";
+          const isCreated = isDraftDraft && !e.note;
+          const isEdited = isDraftDraft && !!e.note;
+          return (
+            <li key={e.id} className="ml-4">
+              <span className="absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white bg-gray-300" />
+              {isCreated && (
+                <span className="text-xs font-medium text-gray-700">Created</span>
+              )}
+              {isEdited && (
+                <span className="text-xs font-medium text-gray-700">Edited</span>
+              )}
+              {!isDraftDraft && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-gray-400">{STATUS_LABELS[e.fromStatus] ?? e.fromStatus}</span>
+                  <span className="text-xs text-gray-300">→</span>
+                  <span className="text-xs font-medium text-gray-700">{STATUS_LABELS[e.toStatus] ?? e.toStatus}</span>
+                </div>
+              )}
+              <p className="text-xs text-gray-400 mt-0.5">
+                {new Date(e.changedAt).toLocaleDateString("en-DE", { day: "2-digit", month: "short", year: "numeric" })}
+                {e.changedBy ? ` · ${e.changedBy.name}` : ""}
+              </p>
+              {e.note && <p className="text-xs text-gray-500 mt-0.5 italic">{e.note}</p>}
+            </li>
+          );
+        })}
       </ol>
     </div>
   );

@@ -3,7 +3,7 @@
 A B2B quotation management platform with AI-powered insights for sales teams.
 
 **Live demo:** https://quoteiq.cc  
-Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` — password `password123`
+Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` — password `password123` (intentionally weak demo-only seed, controlled by `SEED_PASSWORD` in `.env`)
 
 ---
 
@@ -38,6 +38,26 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 ---
 
+## Known Limitations
+
+These are deliberate scope decisions for a portfolio build, not oversights.
+
+**No Client entity** — `clientName` is a free-text field rather than a relational `Client` model. The differentiator here is the quoting intelligence (rules engine, LLM validation, Zod safety, prompt injection guards), not CRM breadth. Adding a `Client` table would double the scope with forms, deduplication, fuzzy matching, and audit trails that don't demonstrate anything new architecturally. In production: UUID primary key with FK on `Quotation`, fuzzy-match normalisation, client-level analytics rollup, and a foundation for email notifications on status transitions.
+
+**No email notifications** — Status transitions (SENT, APPROVED, REJECTED) are silent. In production this would be a transactional email step (e.g. SendGrid/Resend) triggered after each `statusHistory` write.
+
+**No multi-language support** — The UI is English-only. i18n (e.g. `react-i18next`) would be the next step for a German-market deployment.
+
+**No GDPR data subject flows** — There are no "export my data" or "delete my account" self-service endpoints. Data deletion is covered structurally (cascade deletes on all related records, EU-region hosting on Railway), but a full Article 17/20 implementation is out of scope for this project.
+
+**No user management audit log** — `StatusHistory` tracks every quotation status transition with actor and timestamp. General CRUD audit logging (who created/edited/deleted a quotation or user record) is not implemented; that would be an append-only audit table or event log in production.
+
+**Login password as GraphQL argument** — The `login` mutation accepts `password` as a plain GraphQL variable. GraphQL variables are not in the URL (no server logs), but API gateways and tracing tools (e.g. Apollo Studio) can log operation variables. In production this would move to a dedicated REST `POST /auth/login` endpoint with a JSON body, which sits outside GraphQL variable logging by default.
+
+**DataLoader not implemented** — The quotation list always eager-loads `createdBy` and `items` via Prisma `include`. Prisma batches these into two JOINs (not N+1 at the SQL level), but a GraphQL DataLoader would allow field-level lazy resolution. Acceptable trade-off for portfolio scope — the per-page limit of 20 keeps result sets small.
+
+---
+
 ## Features
 
 ### Implemented
@@ -45,7 +65,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 - Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
 - Status workflow: DRAFT → SENT (rep submits for approval) → APPROVED / REJECTED (manager)
 - Role-based transition enforcement — SALES_REP cannot approve or reject (blocked at service layer)
-- Full status history tracked on every transition
+- Full audit trail via `StatusHistory` — creation, every edit (fields changed listed in note), and every status transition logged with actor and timestamp; timeline visible on quotation detail
 - Quotation list filtering — status dropdown + debounced search (title, number, client name) with input sanitization (trim + 100-char cap at both frontend and backend)
 - Manager dashboard with pipeline stats, conversion rate, and approved value
 - AI-generated quotation summary with PROCEED / FOLLOW_UP / RECONSIDER recommendation
@@ -57,6 +77,10 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 - Edit quotation (DRAFT only) — reuses create modal with pre-populated fields, rep ownership enforced
 - Status history timeline on quotation detail — every status transition logged with actor, timestamp, and optional note
 - Demo credentials gate via `VITE_SHOW_DEMO_CREDENTIALS` env var
+- Quotation list pagination — "Load more" appends the next page (20 per page, `take`/`skip` at API level)
+- Win/Loss aggregation fully in SQL — `GROUP BY` status and rep, conditional aggregation for deal-size buckets; no full table scan into application memory
+- Rate limiting — 120 requests/minute per IP via `@nestjs/throttler`; custom `GqlThrottlerGuard` extracts the request from the GraphQL execution context (the default `ThrottlerGuard` only handles HTTP context)
+- URL-based routing via `react-router-dom` v7 — bookmarkable URLs, working browser back button, deep-linking to quotation detail pages
 
 ---
 
@@ -152,7 +176,7 @@ quote-iq/
 │   └── src/
 │       ├── common/
 │       │   ├── decorators/  # @CurrentUser, @Roles
-│       │   ├── guards/      # JwtAuthGuard, RolesGuard
+│       │   ├── guards/      # JwtAuthGuard, RolesGuard, GqlThrottlerGuard
 │       │   └── logger/      # Winston logger
 │       ├── modules/
 │       │   ├── ai/          # Groq integration, hybrid recommendation model
@@ -206,6 +230,8 @@ Git hooks (via Husky) block commits and pushes that don't meet quality standards
 | `pre-push` | Backend: ≥90% statements, ≥75% branches, ≥70% functions, ≥90% lines · Frontend: ≥95% statements, ≥90% branches, ≥90% functions, ≥95% lines | Every `git push` (~45s) |
 
 E2E tests are excluded from hooks — they require Docker and run in CI instead.
+
+**Backend deploys** — Railway is configured to auto-deploy on every push to `main` via its GitHub integration. The CI workflow gates the Vercel (frontend) deploy explicitly with an `if: success()` condition. The backend deploy fires from Railway's webhook on the same push and runs in parallel with CI — in production this would be tightened with GitHub branch protection rules requiring CI to pass before any push reaches `main`, so Railway's webhook only fires on a green build.
 
 ---
 

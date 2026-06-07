@@ -1,6 +1,10 @@
 import { RolesGuard } from './roles.guard';
 import { Reflector } from '@nestjs/core';
-import { ExecutionContext } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { Role } from '@prisma/client';
 
@@ -32,10 +36,11 @@ describe('RolesGuard', () => {
     } as unknown as ExecutionContext;
   };
 
-  it('denies access when no roles required (misconfiguration guard)', () => {
+  it('throws ForbiddenException when no roles configured (misconfiguration guard)', () => {
     reflector.getAllAndOverride.mockReturnValue(null);
-    const result = guard.canActivate(mockContext('SALES_REP'));
-    expect(result).toBe(false);
+    expect(() => guard.canActivate(mockContext('SALES_REP'))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('allows access when user has required role', () => {
@@ -44,10 +49,11 @@ describe('RolesGuard', () => {
     expect(result).toBe(true);
   });
 
-  it('denies access when user does not have required role', () => {
+  it('throws ForbiddenException when user does not have required role', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.SALES_MANAGER]);
-    const result = guard.canActivate(mockContext('SALES_REP'));
-    expect(result).toBe(false);
+    expect(() => guard.canActivate(mockContext('SALES_REP'))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('allows access for ADMIN when SALES_MANAGER required', () => {
@@ -59,13 +65,15 @@ describe('RolesGuard', () => {
     expect(result).toBe(true);
   });
 
-  it('denies access when user has no role (undefined)', () => {
+  it('throws UnauthorizedException when user is undefined', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.SALES_MANAGER]);
     (GqlExecutionContext.create as jest.Mock).mockReturnValue({
       getContext: () => ({ req: { user: undefined } }),
     });
-    const ctx = { getHandler: jest.fn(), getClass: jest.fn() } as unknown as ExecutionContext;
-    const result = guard.canActivate(ctx);
-    expect(result).toBe(false);
+    const ctx = {
+      getHandler: jest.fn(),
+      getClass: jest.fn(),
+    } as unknown as ExecutionContext;
+    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });
 });

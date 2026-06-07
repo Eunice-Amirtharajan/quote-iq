@@ -6,7 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Response } from 'express';
-import { UserType } from '../users/user.entity';
+import { UserType, SalesRepSummaryType } from '../users/user.entity';
 import { Role } from '@prisma/client';
 import type { User as PrismaUser } from '@prisma/client';
 
@@ -38,10 +38,10 @@ export class AuthResolver {
     return user;
   }
 
-  @Query(/* istanbul ignore next */ () => [UserType])
+  @Query(/* istanbul ignore next */ () => [SalesRepSummaryType])
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SALES_MANAGER, Role.ADMIN)
-  async salesReps(): Promise<PrismaUser[]> {
+  salesReps(): Promise<Pick<PrismaUser, 'id' | 'name'>[]> {
     return this.authService.salesReps();
   }
 }

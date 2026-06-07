@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useMutation, useLazyQuery } from "@apollo/client/react";
-import { QUOTATION_SUMMARY_MUTATION } from "../graphql/mutations";
-import { ASK_ABOUT_QUOTATION_QUERY } from "../graphql/queries";
+import { useMutation } from "@apollo/client/react";
+import { QUOTATION_SUMMARY_MUTATION, ASK_ABOUT_QUOTATION_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 
 interface QuotationSummary {
@@ -30,9 +29,8 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
   }>(QUOTATION_SUMMARY_MUTATION);
 
   const [askQuestion, { data: answerData, loading: askLoading }] =
-    useLazyQuery<{ askAboutQuotation: { answer: string } }>(
-      ASK_ABOUT_QUOTATION_QUERY,
-      { fetchPolicy: "no-cache" },
+    useMutation<{ askAboutQuotation: { answer: string } }>(
+      ASK_ABOUT_QUOTATION_MUTATION,
     );
 
   // Only managers see AI insights

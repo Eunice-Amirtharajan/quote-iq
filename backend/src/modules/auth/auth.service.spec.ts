@@ -229,6 +229,7 @@ describe('AuthService', () => {
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
         where: { role: 'SALES_REP' },
         orderBy: { name: 'asc' },
+        select: { id: true, name: true },
       });
       expect(result).toEqual(mockReps);
     });

@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { Role } from '@prisma/client';
@@ -15,11 +21,24 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    // No @Roles() decorator means the endpoint was not intended to be protected
+    // by this guard — treat as a resolver misconfiguration rather than silently
+    // denying (which would mask bugs in guard setup).
+    if (!required) {
+      throw new ForbiddenException('No roles configured for this endpoint');
+    }
+
     const ctx = GqlExecutionContext.create(context);
     const user = ctx.getContext<{ req: { user: UserType } }>().req.user;
-    if (!required) {
-      return false;
+
+    if (!user) {
+      throw new UnauthorizedException();
     }
-    return required.includes(user?.role);
+
+    if (!required.includes(user.role)) {
+      throw new ForbiddenException();
+    }
+
+    return true;
   }
 }

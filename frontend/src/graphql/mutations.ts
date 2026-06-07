@@ -76,3 +76,11 @@ export const QUOTATION_SUMMARY_MUTATION = gql`
     }
   }
 `;
+
+export const ASK_ABOUT_QUOTATION_MUTATION = gql`
+  mutation AskAboutQuotation($quotationId: ID!, $question: String!) {
+    askAboutQuotation(quotationId: $quotationId, question: $question) {
+      answer
+    }
+  }
+`;

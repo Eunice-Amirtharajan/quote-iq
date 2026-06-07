@@ -1,38 +1,26 @@
+import { NavLink } from "react-router-dom";
 import { useMutation } from "@apollo/client/react";
 import { LOGOUT_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import { client } from "../lib/apollo";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", href: "dashboard", roles: ["SALES_MANAGER", "ADMIN"] },
-  {
-    label: "Quotations",
-    href: "quotations",
-    roles: ["SALES_REP", "SALES_MANAGER", "ADMIN"],
-  },
-  {
-    label: "Win/Loss",
-    href: "winloss",
-    roles: ["SALES_MANAGER", "ADMIN"],
-  },
+  { label: "Dashboard", to: "/dashboard", roles: ["SALES_MANAGER", "ADMIN"] },
+  { label: "Quotations", to: "/quotations", roles: ["SALES_REP", "SALES_MANAGER", "ADMIN"] },
+  { label: "Win/Loss", to: "/winloss", roles: ["SALES_MANAGER", "ADMIN"] },
 ];
 
 interface LayoutProps {
   children: React.ReactNode;
-  currentPage: string;
-  onNavigate: (page: string) => void;
 }
 
-export default function Layout({
-  children,
-  currentPage,
-  onNavigate,
-}: Readonly<LayoutProps>) {
+export default function Layout({ children }: Readonly<LayoutProps>) {
   const { user, setUser } = useAuth();
   const [logout] = useMutation(LOGOUT_MUTATION, {
     onCompleted: () => {
-      setUser(null);
-      void client.clearStore();
+      // Reset before clearing auth state so components never render with a
+      // mismatched cache (old user's data) after the user changes.
+      void client.resetStore().finally(() => setUser(null));
     },
   });
   const visibleNav = NAV_ITEMS.filter((item) =>
@@ -49,17 +37,19 @@ export default function Layout({
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           {visibleNav.map((item) => (
-            <button
-              key={item.href}
-              onClick={() => onNavigate(item.href)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                currentPage === item.href
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `block px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isActive
+                    ? "bg-gray-900 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`
+              }
             >
               {item.label}
-            </button>
+            </NavLink>
           ))}
         </nav>
 

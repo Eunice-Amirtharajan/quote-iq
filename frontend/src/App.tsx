@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import { useAuth } from "./hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
@@ -8,62 +9,59 @@ import QuotationsPage from "./pages/QuotationsPage";
 import QuotationDetailPage from "./pages/QuotationDetailPage";
 import WinLossPage from "./pages/WinLossPage";
 
-function AppContent() {
+function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
-  const [currentPage, setCurrentPage] = useState("dashboard");
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
-  const lastUserIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (user && user.id !== lastUserIdRef.current) {
-      lastUserIdRef.current = user.id;
-      setCurrentPage(user.role === "SALES_REP" ? "quotations" : "dashboard");
-    }
-    if (!user) lastUserIdRef.current = null;
-  }, [user]);
-
   if (!user) return <LoginPage />;
+  return <>{children}</>;
+}
 
-  const renderPage = () => {
-    if (selectedQuoteId) {
-      return (
-        <QuotationDetailPage
-          id={selectedQuoteId}
-          onBack={() => setSelectedQuoteId(null)}
-        />
-      );
-    }
-
-    switch (currentPage) {
-      case "dashboard":
-        if (user.role === "SALES_REP") return <QuotationsPage onSelect={setSelectedQuoteId} />;
-        return <DashboardPage />;
-      case "quotations":
-        return <QuotationsPage onSelect={setSelectedQuoteId} />;
-      case "winloss":
-        return <WinLossPage />;
-      default:
-        return <p className="text-gray-400">Coming soon</p>;
-    }
-  };
-
+function QuotationDetailRoute() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  if (!id) return <Navigate to="/quotations" replace />;
   return (
-    <Layout
-      currentPage={selectedQuoteId ? "quotations" : currentPage}
-      onNavigate={(page) => {
-        setSelectedQuoteId(null);
-        setCurrentPage(page);
-      }}
-    >
-      {renderPage()}
-    </Layout>
+    <QuotationDetailPage
+      id={id}
+      onBack={() => navigate("/quotations")}
+    />
+  );
+}
+
+function QuotationsRoute() {
+  const navigate = useNavigate();
+  return <QuotationsPage onSelect={(id) => navigate(`/quotations/${id}`)} />;
+}
+
+function DefaultRedirect() {
+  const { user } = useAuth();
+  useEffect(() => {}, [user]);
+  if (!user) return null;
+  return <Navigate to={user.role === "SALES_REP" ? "/quotations" : "/dashboard"} replace />;
+}
+
+function AppRoutes() {
+  return (
+    <RequireAuth>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<DefaultRedirect />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/quotations" element={<QuotationsRoute />} />
+          <Route path="/quotations/:id" element={<QuotationDetailRoute />} />
+          <Route path="/winloss" element={<WinLossPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </RequireAuth>
   );
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </AuthProvider>
   );
 }

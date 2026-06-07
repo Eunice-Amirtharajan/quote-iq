@@ -33,3 +33,13 @@ type _ScalarFieldsMatch =
     ? true
     : never;
 void (true as _ScalarFieldsMatch);
+
+/** Minimal projection for salesReps — exposes only id and name, not email or role */
+@ObjectType({ description: 'Sales rep summary — id and name only' })
+export class SalesRepSummaryType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => String)
+  name!: string;
+}

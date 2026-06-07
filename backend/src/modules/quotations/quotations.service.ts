@@ -64,6 +64,7 @@ export class QuotationsService {
     filter?: QuotationFilterInput,
   ): Promise<QuotationType[]> {
     try {
+      QuotationFilterInput.validateRepId(filter?.repId);
       const userId = user.id;
       const role = user.role;
       this.logger.info(
@@ -102,6 +103,9 @@ export class QuotationsService {
             ],
           }
         : {};
+      // createdBy is always eager-loaded because every list row shows the rep's
+      // name. A DataLoader would eliminate the per-row join at the cost of
+      // added complexity; acceptable trade-off for this portfolio scope.
       return await this.prisma.quotation.findMany({
         where: { ...ownerWhere, ...statusWhere, ...searchWhere },
         include: { items: true, createdBy: true },
@@ -234,6 +238,13 @@ export class QuotationsService {
               ...item,
               sortOrder: i,
             })),
+          },
+          statusHistory: {
+            create: {
+              fromStatus: QuotationStatus.DRAFT,
+              toStatus: QuotationStatus.DRAFT,
+              changedById: user.id,
+            },
           },
         },
         include: { items: true, createdBy: true },
@@ -467,6 +478,22 @@ export class QuotationsService {
     // Invalidate stale AI insight cache — quotation content changed
     await this.prisma.aIInsight.deleteMany({
       where: { quotationId: id },
+    });
+
+    const changed: string[] = [];
+    if (title !== undefined) changed.push('title');
+    if (clientName !== undefined) changed.push('client name');
+    if (notes !== undefined) changed.push('notes');
+    if (taxRate !== undefined) changed.push('tax rate');
+    if (sanitizedItems !== undefined) changed.push('line items');
+    await this.prisma.statusHistory.create({
+      data: {
+        quotationId: id,
+        fromStatus: QuotationStatus.DRAFT,
+        toStatus: QuotationStatus.DRAFT,
+        note: `Edited: ${changed.join(', ')}`,
+        changedById: userId,
+      },
     });
 
     return updated;

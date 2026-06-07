@@ -48,7 +48,7 @@ const mockOnSelect = vi.fn();
 
 const successMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
     result:  { data: { quotations: mockQuotations } },
   },
 ];
@@ -60,7 +60,7 @@ const mockReps = [
 
 const managerSuccessMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
     result:  { data: { quotations: mockQuotations } },
   },
   {
@@ -76,14 +76,14 @@ const managerSuccessMock: MockLink.MockedResponse[] = [
 
 const emptyMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
     result:  { data: { quotations: [] } },
   },
 ];
 
 const errorMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
     error:   new Error('Failed to fetch'),
   },
 ];
@@ -154,11 +154,11 @@ describe('QuotationsPage', () => {
   it('shows filter-specific empty message when filter active and no results', async () => {
     const statusMock: MockLink.MockedResponse[] = [
       {
-        request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
         result: { data: { quotations: mockQuotations } },
       },
       {
-        request: { query: QUOTATIONS_QUERY, variables: { filter: { status: 'REJECTED' } } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: { status: 'REJECTED' } } },
         result: { data: { quotations: [] } },
       },
     ];
@@ -243,13 +243,13 @@ describe('QuotationsPage', () => {
   it('refetches with status filter and shows empty state', async () => {
     const statusMock: MockLink.MockedResponse[] = [
       {
-        request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
         result: { data: { quotations: mockQuotations } },
       },
       {
         request: {
           query: QUOTATIONS_QUERY,
-          variables: { filter: { status: 'DRAFT' } },
+          variables: { take: 20, skip: 0, filter: { status: 'DRAFT' } },
         },
         result: { data: { quotations: [] } },
       },
@@ -329,7 +329,7 @@ describe('QuotationsPage', () => {
       const repFilterMock: MockLink.MockedResponse[] = [
         ...managerSuccessMock,
         {
-          request: { query: QUOTATIONS_QUERY, variables: { filter: { repId: 'u-rep' } } },
+          request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: { repId: 'u-rep' } } },
           result: { data: { quotations: [mockQuotations[0]] } },
         },
       ];
@@ -381,7 +381,7 @@ describe('QuotationsPage', () => {
       createdAt: new Date().toISOString(),
     };
     const mocks: MockLink.MockedResponse[] = [
-      { request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } }, result: { data: { quotations: mockQuotations } } },
+      { request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } }, result: { data: { quotations: mockQuotations } } },
       {
         request: {
           query: CREATE_QUOTATION_MUTATION,
@@ -389,7 +389,7 @@ describe('QuotationsPage', () => {
         },
         result: { data: { createQuotation: newQuotation } },
       },
-      { request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } }, result: { data: { quotations: [...mockQuotations, newQuotation] } } },
+      { request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } }, result: { data: { quotations: [...mockQuotations, newQuotation] } } },
     ];
 
     renderAs(mockRep, mocks);

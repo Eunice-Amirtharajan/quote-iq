@@ -67,6 +67,8 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 type Mutation {
+  """Answer a free-text question about a specific quotation"""
+  askAboutQuotation(question: String!, quotationId: ID!): QuotationAnswerType!
   createQuotation(input: CreateQuotationInput!): QuotationType!
   deleteQuotation(id: ID!): Boolean!
   login(email: String!, password: String!): UserType!
@@ -79,16 +81,13 @@ type Mutation {
 }
 
 type Query {
-  """Answer a free-text question about a specific quotation"""
-  askAboutQuotation(question: String!, quotationId: ID!): QuotationAnswerType!
-
   """Deterministic conversion likelihood score for a quotation"""
   conversionScore(quotationId: ID!): ConversionScoreType!
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
   quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
-  salesReps: [UserType!]!
+  salesReps: [SalesRepSummaryType!]!
   statusHistory(quotationId: ID!): [StatusHistoryType!]!
 
   """Aggregated win/loss analysis across all quotations"""
@@ -180,9 +179,6 @@ type QuotationType {
 
   """Final total including tax"""
   total: Float!
-
-  """Last update timestamp"""
-  updatedAt: DateTime!
 }
 
 enum Recommendation {
@@ -204,6 +200,12 @@ enum Role {
   ADMIN
   SALES_MANAGER
   SALES_REP
+}
+
+"""Sales rep summary — id and name only"""
+type SalesRepSummaryType {
+  id: ID!
+  name: String!
 }
 
 """A recorded status transition on a quotation"""
