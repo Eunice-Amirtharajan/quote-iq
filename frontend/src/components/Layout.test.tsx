@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { MemoryRouter } from "react-router-dom";
 import Layout from "./Layout";
+import type { MemoryRouterProps } from "react-router-dom";
 import { LOGOUT_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/auth-context";
 import { client } from "../lib/apollo";
@@ -32,11 +33,12 @@ const mockRep = {
 function renderLayout(
   user: typeof mockManager | typeof mockRep,
   mocks: MockLink.MockedResponse[] = [],
+  routerProps: MemoryRouterProps = {},
 ) {
   return render(
     <AuthContext.Provider value={{ user, setUser: mockSetUser }}>
       <MockedProvider mocks={mocks}>
-        <MemoryRouter>
+        <MemoryRouter {...routerProps}>
           <Layout>
             <div>Page content</div>
           </Layout>
@@ -77,6 +79,34 @@ describe("Layout", () => {
   it("renders children", () => {
     renderLayout(mockManager);
     expect(screen.getByText("Page content")).toBeInTheDocument();
+  });
+
+  it("renders no nav items when user is null", () => {
+    render(
+      <AuthContext.Provider value={{ user: null, setUser: mockSetUser }}>
+        <MockedProvider mocks={[]}>
+          <MemoryRouter>
+            <Layout><div /></Layout>
+          </MemoryRouter>
+        </MockedProvider>
+      </AuthContext.Provider>,
+    );
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quotations")).not.toBeInTheDocument();
+  });
+
+  it("applies active styles to the current nav link", () => {
+    renderLayout(mockManager, [], { initialEntries: ["/dashboard"] });
+    const dashboardLink = screen.getByText("Dashboard").closest("a");
+    expect(dashboardLink?.className).toContain("bg-gray-900");
+    expect(dashboardLink?.className).toContain("text-white");
+  });
+
+  it("applies inactive styles to non-current nav links", () => {
+    renderLayout(mockManager, [], { initialEntries: ["/dashboard"] });
+    const quotationsLink = screen.getByText("Quotations").closest("a");
+    expect(quotationsLink?.className).toContain("text-gray-600");
+    expect(quotationsLink?.className).not.toContain("bg-gray-900");
   });
 
   it("calls client.resetStore() then setUser(null) on logout", async () => {

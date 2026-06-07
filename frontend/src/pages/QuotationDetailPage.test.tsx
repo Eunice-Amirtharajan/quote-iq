@@ -5,6 +5,7 @@ import { vi } from "vitest";
 import QuotationDetailPage from "./QuotationDetailPage";
 import { QUOTATION_QUERY, STATUS_HISTORY_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
+import { CONVERSION_SCORE_QUERY } from "../graphql/queries";
 import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
@@ -39,6 +40,8 @@ const baseQuotation = {
   createdBy: {
     id: "u-rep",
     name: "Anna Schmidt",
+    email: "anna@quoteiq.com",
+    role: "SALES_REP",
   },
   items: [
     {
@@ -485,6 +488,58 @@ describe("QuotationDetailPage", () => {
       renderAs(mockRep, makeMock(baseQuotation));
       await screen.findByText("Enterprise License");
       expect(screen.queryByText("Status History")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("ConversionScoreCard", () => {
+    function makeSentMock(scoreMock: MockLink.MockedResponse): MockLink.MockedResponse[] {
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      return [
+        {
+          request: { query: QUOTATION_QUERY, variables: { id: "q-1" } },
+          result: { data: { quotation: sentQuotation } },
+        },
+        emptyHistoryMock,
+        scoreMock,
+      ];
+    }
+
+    it("renders Win Chance score for SENT quotation viewed by manager", async () => {
+      const mocks = makeSentMock({
+        request: { query: CONVERSION_SCORE_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { conversionScore: { score: 82, label: "HIGH" } } },
+      });
+      renderAs(mockManager, mocks);
+      expect(await screen.findByText("Win Chance")).toBeInTheDocument();
+      expect(screen.getByText("82")).toBeInTheDocument();
+    });
+
+    it("renders nothing when conversion score query returns no data", async () => {
+      const mocks = makeSentMock({
+        request: { query: CONVERSION_SCORE_QUERY, variables: { quotationId: "q-1" } },
+        error: new Error("No score"),
+      });
+      renderAs(mockManager, mocks);
+      await screen.findByText("Enterprise License");
+      expect(screen.queryByText("Win Chance")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Edit modal", () => {
+    it("opens edit modal when Edit Draft button is clicked", async () => {
+      const user = userEvent.setup();
+      renderAs(mockRep, makeMock(baseQuotation));
+      await user.click(await screen.findByText("Edit Draft"));
+      expect(screen.getByRole("dialog", { name: "Edit quotation" })).toBeInTheDocument();
+    });
+
+    it("closes edit modal when Cancel is clicked", async () => {
+      const user = userEvent.setup();
+      renderAs(mockRep, makeMock(baseQuotation));
+      await user.click(await screen.findByText("Edit Draft"));
+      expect(screen.getByRole("dialog", { name: "Edit quotation" })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /cancel/i }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 });

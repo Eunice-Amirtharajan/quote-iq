@@ -411,4 +411,61 @@ describe('QuotationsPage', () => {
     });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('shows Load more button when a full page is returned', async () => {
+    const fullPage = Array.from({ length: 20 }, (_, i) => ({
+      id: `q-${i}`,
+      quotationNumber: `QT-2026-${String(i).padStart(4, '0')}`,
+      title: `Quote ${i}`,
+      clientName: 'Client',
+      status: 'DRAFT',
+      total: 1000,
+      createdAt: '2026-04-10T00:00:00.000Z',
+    }));
+    const fullPageMock: MockLink.MockedResponse[] = [
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        result: { data: { quotations: fullPage } },
+      },
+    ];
+    renderAs(mockRep, fullPageMock);
+    expect(await screen.findByText('Load more')).toBeInTheDocument();
+  });
+
+  it('does not show Load more button when fewer than a full page is returned', async () => {
+    renderAs(mockRep, successMock);
+    await screen.findByText('Enterprise License');
+    expect(screen.queryByText('Load more')).not.toBeInTheDocument();
+  });
+
+  it('hides Load more button after clicking it (page advances)', async () => {
+    const user = userEvent.setup();
+    const fullPage = Array.from({ length: 20 }, (_, i) => ({
+      id: `q-${i}`,
+      quotationNumber: `QT-2026-${String(i).padStart(4, '0')}`,
+      title: `Quote ${i}`,
+      clientName: 'Client',
+      status: 'DRAFT',
+      total: 1000,
+      createdAt: '2026-04-10T00:00:00.000Z',
+    }));
+    // second page returns fewer than PAGE_SIZE — hasMore becomes false
+    const page2 = [{ id: 'q-20', quotationNumber: 'QT-2026-0020', title: 'Quote 20', clientName: 'Client', status: 'DRAFT', total: 1000, createdAt: '2026-04-10T00:00:00.000Z' }];
+    const mocks: MockLink.MockedResponse[] = [
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        result: { data: { quotations: fullPage } },
+      },
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 20, filter: undefined } },
+        result: { data: { quotations: page2 } },
+      },
+    ];
+    renderAs(mockRep, mocks);
+    const loadMoreBtn = await screen.findByText('Load more');
+    await user.click(loadMoreBtn);
+    // After clicking, page advances to 1; now 21 items returned total which is < 20*2=40,
+    // so hasMore becomes false and the button disappears
+    await waitFor(() => expect(screen.queryByText('Load more')).not.toBeInTheDocument());
+  });
 });

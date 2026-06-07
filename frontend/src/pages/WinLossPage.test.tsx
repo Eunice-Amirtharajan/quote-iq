@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MockedProvider } from "@apollo/client/testing/react";
 import WinLossPage from "./WinLossPage";
 import { WIN_LOSS_ANALYSIS_QUERY } from "../graphql/queries";
@@ -81,6 +81,17 @@ describe("WinLossPage", () => {
     expect(
       await screen.findByText("Failed to load win/loss analysis"),
     ).toBeInTheDocument();
+  });
+
+  it("renders nothing when winLossAnalysis is null", async () => {
+    const nullDataMock = {
+      request: { query: WIN_LOSS_ANALYSIS_QUERY },
+      result: { data: { winLossAnalysis: null } },
+    };
+    renderPage([nullDataMock]);
+    // loading clears, but no stats content renders
+    await waitFor(() => expect(screen.queryByText("Loading…")).not.toBeInTheDocument());
+    expect(screen.queryByText("Overall approval rate")).not.toBeInTheDocument();
   });
 
   it("shows empty state when no reps", async () => {

@@ -134,6 +134,56 @@ describe("LoginPage", () => {
     vi.unstubAllEnvs();
   });
 
+  it("shows 'Invalid email or password' for invalid credentials error", async () => {
+    const mocks: MockLink.MockedResponse[] = [
+      {
+        request: {
+          query: LOGIN_MUTATION,
+          variables: { email: "wrong@test.com", password: "wrong" },
+        },
+        error: new Error("Invalid credentials"),
+      },
+    ];
+
+    renderLoginPage(mocks);
+    fireEvent.change(screen.getByPlaceholderText("you@company.com"), {
+      target: { value: "wrong@test.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), {
+      target: { value: "wrong" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText("Invalid email or password."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows generic error message for non-credentials errors", async () => {
+    const mocks: MockLink.MockedResponse[] = [
+      {
+        request: {
+          query: LOGIN_MUTATION,
+          variables: { email: "marcus@quoteiq.com", password: "password123" },
+        },
+        error: new Error("Network connection failed"),
+      },
+    ];
+
+    renderLoginPage(mocks);
+    fireEvent.change(screen.getByPlaceholderText("you@company.com"), {
+      target: { value: "marcus@quoteiq.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(
+      await screen.findByText("Unable to sign in. Please try again later."),
+    ).toBeInTheDocument();
+  });
+
   it("calls client.resetStore() before setUser on successful login", async () => {
     const mockUser = {
       id: "u-1",
