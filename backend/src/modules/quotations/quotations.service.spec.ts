@@ -130,14 +130,6 @@ describe('QuotationsService', () => {
       );
     });
 
-    it('fetches all quotations for ADMIN', async () => {
-      mockPrismaService.quotation.findMany.mockResolvedValue([]);
-      await service.findAll(mockUser(Role.ADMIN));
-      expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
-      );
-    });
-
     it('fetches only own quotations for SALES_REP', async () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_REP));

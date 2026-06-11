@@ -75,14 +75,6 @@ describe('DashboardService', () => {
       );
     });
 
-    it('uses empty where clause for ADMIN', async () => {
-      await service.getStats(mockUser(Role.ADMIN));
-
-      expect(mockPrismaService.quotation.count).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
-      );
-    });
-
     it('filters by createdById for SALES_REP', async () => {
       await service.getStats(mockUser(Role.SALES_REP));
 
@@ -153,9 +145,9 @@ describe('DashboardService', () => {
     it('logs String(error) when a non-Error is thrown', async () => {
       mockPrismaService.quotation.count.mockRejectedValue('plain string error');
 
-      await expect(
-        service.getStats(mockUser(Role.SALES_MANAGER)),
-      ).rejects.toBe('plain string error');
+      await expect(service.getStats(mockUser(Role.SALES_MANAGER))).rejects.toBe(
+        'plain string error',
+      );
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.any(String),

@@ -49,7 +49,7 @@ const ALL_STATUSES = ["DRAFT", "SENT", "APPROVED", "REJECTED"];
 
 export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const { user } = useAuth();
-  const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
+  const isManager = user?.role === "SALES_MANAGER";
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [repFilter, setRepFilter] = useState<string>("");

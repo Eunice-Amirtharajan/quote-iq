@@ -40,7 +40,7 @@ export class AuthResolver {
 
   @Query(/* istanbul ignore next */ () => [SalesRepSummaryType])
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  @Roles(Role.SALES_MANAGER)
   salesReps(): Promise<Pick<PrismaUser, 'id' | 'name'>[]> {
     return this.authService.salesReps();
   }

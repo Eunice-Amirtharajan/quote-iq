@@ -14,7 +14,7 @@
         <mxCell id="user-header" value="User" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="60" y="80" width="200" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="user-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;email: String (unique)&#xa;password: String (bcrypt)&#xa;role: ADMIN | SALES_MANAGER | SALES_REP&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+        <mxCell id="user-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;email: String (unique)&#xa;password: String (bcrypt)&#xa;role: SALES_MANAGER | SALES_REP&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
           <mxGeometry x="60" y="115" width="200" height="130" as="geometry" />
         </mxCell>
 
@@ -22,7 +22,7 @@
         <mxCell id="quotation-header" value="Quotation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="420" y="80" width="220" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;quotationNumber: String (unique)&#xa;title: String&#xa;clientName: String&#xa;status: DRAFT|SENT|APPROVED|REJECTED|EXPIRED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;validUntil: DateTime?&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;quotationNumber: String (unique)&#xa;title: String&#xa;clientName: String&#xa;status: DRAFT|SENT|APPROVED|REJECTED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;validUntil: DateTime?&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
           <mxGeometry x="420" y="115" width="220" height="250" as="geometry" />
         </mxCell>
 

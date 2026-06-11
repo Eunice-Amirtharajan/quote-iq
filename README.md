@@ -72,8 +72,8 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 - Hybrid recommendation model — rules-based scoring anchors the Groq prompt, hard override prevents AI from reversing a RECONSIDER verdict
 - 24-hour insight cache — avoids redundant API calls on repeated views
 - Conversion likelihood score badge on SENT quotations (0–100, HIGH/MEDIUM/LOW) — deterministic, cached 24h
-- Win/loss analysis page (managers/admins only) — overall approval rate, avg deal sizes, breakdown by rep and deal-size bucket (`<5k`, `5k–20k`, `>20k`), cached 1h
-- Natural language Q&A on quotation detail (managers/admins only) — ask free-text questions about a specific quotation; Groq answers in 2–4 sentences scoped strictly to that quotation's data via system/user message split
+- Win/loss analysis page (managers only) — overall approval rate, avg deal sizes, breakdown by rep and deal-size bucket (`<5k`, `5k–20k`, `>20k`), cached 1h
+- Natural language Q&A on quotation detail (managers only) — ask free-text questions about a specific quotation; Groq answers in 2–4 sentences scoped strictly to that quotation's data via system/user message split
 - Edit quotation (DRAFT only) — reuses create modal with pre-populated fields, rep ownership enforced
 - Status history timeline on quotation detail — every status transition logged with actor, timestamp, and optional note
 - Demo credentials gate via `VITE_SHOW_DEMO_CREDENTIALS` env var
@@ -149,7 +149,6 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 |---|---|
 | SALES_REP | Own quotations only. Can create (with free-text client name) and submit DRAFT → SENT for manager approval |
 | SALES_MANAGER | Full team visibility. Can approve/reject SENT quotations. Access to AI features and dashboard |
-| ADMIN | Everything SALES_MANAGER can do plus user management and delete access |
 
 ---
 
@@ -159,7 +158,7 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 npx prisma db seed
 ```
 
-Creates three users (one manager, two sales reps) and sample quotations with varied client names, statuses, and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
+Creates two roles (SALES_MANAGER and SALES_REP), three demo users (one manager, two sales reps), and sample quotations with varied client names, statuses, and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
 
 ---
 

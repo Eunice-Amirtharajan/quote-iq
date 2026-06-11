@@ -17,8 +17,7 @@ export class DashboardService {
       DashboardService.name,
     );
     try {
-      const isManager =
-        user.role === Role.SALES_MANAGER || user.role === Role.ADMIN;
+      const isManager = user.role === Role.SALES_MANAGER;
       const where = isManager ? {} : { createdById: user.id };
       const [
         totalQuotations,

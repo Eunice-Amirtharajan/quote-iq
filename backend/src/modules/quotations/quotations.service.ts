@@ -22,7 +22,6 @@ const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.SENT]: [QuotationStatus.APPROVED, QuotationStatus.REJECTED],
   [QuotationStatus.APPROVED]: [],
   [QuotationStatus.REJECTED]: [],
-  [QuotationStatus.EXPIRED]: [],
 };
 
 @Injectable()
@@ -71,7 +70,7 @@ export class QuotationsService {
         `Fetching quotations — userId: ${userId} role: ${role}`,
         QuotationsService.name,
       );
-      const isManager = role === Role.SALES_MANAGER || role === Role.ADMIN;
+      const isManager = role === Role.SALES_MANAGER;
       const ownerWhere = isManager
         ? filter?.repId
           ? { createdById: filter.repId }
@@ -508,7 +507,7 @@ export class QuotationsService {
       `Fetching status history for quotation: ${quotationId}`,
       QuotationsService.name,
     );
-    const isManager = role === Role.SALES_MANAGER || role === Role.ADMIN;
+    const isManager = role === Role.SALES_MANAGER;
     if (!isManager) {
       const owner = await this.prisma.quotation.findFirst({
         where: { id: quotationId },

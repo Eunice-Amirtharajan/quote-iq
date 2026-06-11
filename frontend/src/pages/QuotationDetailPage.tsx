@@ -48,7 +48,6 @@ const STATUS_LABELS: Record<string, string> = {
   SENT: "Sent",
   APPROVED: "Approved",
   REJECTED: "Rejected",
-  EXPIRED: "Expired",
 };
 
 function StatusTimeline({ quotationId }: Readonly<{ quotationId: string }>) {
@@ -188,7 +187,7 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted, o
     void updateStatus({ variables: { id: quotationId, input: { status: newStatus } } });
   };
 
-  const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
+  const isManager = user?.role === "SALES_MANAGER";
   const isOwner = user?.id === createdById;
 
   const showSend = status === "DRAFT" && isOwner;
@@ -280,7 +279,7 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted, o
 
 export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { user } = useAuth();
-  const isManager = user?.role === "SALES_MANAGER" || user?.role === "ADMIN";
+  const isManager = user?.role === "SALES_MANAGER";
   const [showEdit, setShowEdit] = useState(false);
   const { data, loading, error, refetch } = useQuery<{ quotation: QuotationDetail }>(
     QUOTATION_QUERY,

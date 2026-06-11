@@ -21,7 +21,7 @@ export class AIResolver {
     description: 'Generate or refresh the AI summary for a quotation',
   })
   @UseGuards(RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  @Roles(Role.SALES_MANAGER)
   async quotationSummary(
     @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
     quotationId: string,
@@ -33,7 +33,7 @@ export class AIResolver {
     description: 'Deterministic conversion likelihood score for a quotation',
   })
   @UseGuards(RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  @Roles(Role.SALES_MANAGER)
   async conversionScore(
     @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
     quotationId: string,
@@ -45,7 +45,7 @@ export class AIResolver {
     description: 'Aggregated win/loss analysis across all quotations',
   })
   @UseGuards(RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  @Roles(Role.SALES_MANAGER)
   async winLossAnalysis(): Promise<WinLossStatsType> {
     return this.aiService.getWinLossAnalysis();
   }
@@ -54,7 +54,7 @@ export class AIResolver {
     description: 'Answer a free-text question about a specific quotation',
   })
   @UseGuards(RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  @Roles(Role.SALES_MANAGER)
   async askAboutQuotation(
     @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
     quotationId: string,

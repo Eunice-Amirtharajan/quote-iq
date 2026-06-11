@@ -56,15 +56,6 @@ describe('RolesGuard', () => {
     );
   });
 
-  it('allows access for ADMIN when SALES_MANAGER required', () => {
-    reflector.getAllAndOverride.mockReturnValue([
-      Role.SALES_MANAGER,
-      Role.ADMIN,
-    ]);
-    const result = guard.canActivate(mockContext('ADMIN'));
-    expect(result).toBe(true);
-  });
-
   it('throws UnauthorizedException when user is undefined', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.SALES_MANAGER]);
     (GqlExecutionContext.create as jest.Mock).mockReturnValue({

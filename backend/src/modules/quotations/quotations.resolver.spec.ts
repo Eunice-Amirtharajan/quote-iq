@@ -141,21 +141,6 @@ describe('QuotationsResolver', () => {
       expect(result).toEqual(mockQuotation);
     });
 
-    it('allows ADMIN to create quotation', async () => {
-      const admin = { ...mockUser, role: Role.ADMIN };
-      const input = {
-        title: 'Admin Quote',
-        clientName: 'Some Client',
-        taxRate: 0,
-        items: [],
-      };
-      mockQuotationsService.create.mockResolvedValue(mockQuotation);
-
-      const result = await resolver.createQuotation(input, admin);
-      expect(mockQuotationsService.create).toHaveBeenCalledWith(input, admin);
-      expect(result).toEqual(mockQuotation);
-    });
-
     it('allows SALES_MANAGER to create quotation', async () => {
       const manager = { ...mockUser, role: Role.SALES_MANAGER };
       const input = {

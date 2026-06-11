@@ -530,8 +530,10 @@ strong contradicting signals. Justify your reasoning.
       }
       const entry = repAgg.get(row.createdById)!;
       entry.sent += row._count._all;
-      if (row.status === QuotationStatus.APPROVED) entry.approved += row._count._all;
-      if (row.status === QuotationStatus.REJECTED) entry.rejected += row._count._all;
+      if (row.status === QuotationStatus.APPROVED)
+        entry.approved += row._count._all;
+      if (row.status === QuotationStatus.REJECTED)
+        entry.rejected += row._count._all;
     }
     const byRep: RepStatType[] = [...repAgg.values()]
       .map((r) => ({

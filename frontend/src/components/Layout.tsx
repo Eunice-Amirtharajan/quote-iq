@@ -5,9 +5,9 @@ import { useAuth } from "../hooks/useAuth";
 import { client } from "../lib/apollo";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", to: "/dashboard", roles: ["SALES_MANAGER", "ADMIN"] },
-  { label: "Quotations", to: "/quotations", roles: ["SALES_REP", "SALES_MANAGER", "ADMIN"] },
-  { label: "Win/Loss", to: "/winloss", roles: ["SALES_MANAGER", "ADMIN"] },
+  { label: "Dashboard", to: "/dashboard", roles: ["SALES_MANAGER"] },
+  { label: "Quotations", to: "/quotations", roles: ["SALES_REP", "SALES_MANAGER"] },
+  { label: "Win/Loss", to: "/winloss", roles: ["SALES_MANAGER"] },
 ];
 
 interface LayoutProps {

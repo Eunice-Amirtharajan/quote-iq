@@ -8,7 +8,6 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
   SALES_MANAGER
   SALES_REP
 }
@@ -18,7 +17,6 @@ enum QuotationStatus {
   SENT
   APPROVED
   REJECTED
-  EXPIRED
 }
 
 enum InsightType {

@@ -15,7 +15,7 @@ export class DashboardResolver {
 
   @Query(/* istanbul ignore next */ () => DashboardStatsType)
   @UseGuards(RolesGuard)
-  @Roles(Role.SALES_MANAGER, Role.ADMIN)
+  @Roles(Role.SALES_MANAGER)
   async dashboardStats(@CurrentUser() user: User): Promise<DashboardStatsType> {
     return this.dashboardService.getStats(user);
   }
