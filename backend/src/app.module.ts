@@ -25,7 +25,10 @@ import { AIModule } from './modules/ai/ai.module';
     ]),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+      autoSchemaFile:
+        process.env.NODE_ENV === 'production'
+          ? join('/tmp', 'schema.gql')
+          : join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
       introspection: process.env.NODE_ENV !== 'production',
       playground: process.env.NODE_ENV !== 'production',
