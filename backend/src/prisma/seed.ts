@@ -18,6 +18,58 @@ function calcTotals(
   return { itemsWithTotal, subtotal, taxAmount, total };
 }
 
+async function seedStatusHistory(
+  q: { num: string; status: QuotationStatus; repId: string },
+  managerId: string,
+) {
+  if (q.status === QuotationStatus.DRAFT) return;
+
+  const quotation = await prisma.quotation.findFirst({
+    where: { quotationNumber: q.num },
+    select: { id: true },
+  });
+  if (!quotation) return;
+
+  const qid = quotation.id;
+  const existingSent = await prisma.statusHistory.findFirst({
+    where: { quotationId: qid, toStatus: QuotationStatus.SENT },
+  });
+  if (!existingSent) {
+    await prisma.statusHistory.create({
+      data: {
+        quotationId: qid,
+        fromStatus: QuotationStatus.DRAFT,
+        toStatus: QuotationStatus.SENT,
+        note: 'Sent to client',
+        changedById: q.repId,
+      },
+    });
+  }
+
+  const isFinal =
+    q.status === QuotationStatus.APPROVED ||
+    q.status === QuotationStatus.REJECTED;
+  if (!isFinal) return;
+
+  const existingFinal = await prisma.statusHistory.findFirst({
+    where: { quotationId: qid, toStatus: q.status },
+  });
+  if (!existingFinal) {
+    await prisma.statusHistory.create({
+      data: {
+        quotationId: qid,
+        fromStatus: QuotationStatus.SENT,
+        toStatus: q.status,
+        note:
+          q.status === QuotationStatus.APPROVED
+            ? 'Approved by manager'
+            : 'Rejected by manager',
+        changedById: managerId,
+      },
+    });
+  }
+}
+
 async function main() {
   console.log('Seeding...');
 
@@ -600,56 +652,7 @@ async function main() {
       },
     });
 
-    // Status history for non-DRAFT quotes
-    if (q.status !== QuotationStatus.DRAFT) {
-      const quotation = await prisma.quotation.findFirst({
-        where: { quotationNumber: q.num },
-        select: { id: true },
-      });
-
-      if (quotation) {
-        const qid = quotation.id;
-        const existingHistory = await prisma.statusHistory.findFirst({
-          where: { quotationId: qid, toStatus: QuotationStatus.SENT },
-        });
-
-        if (!existingHistory) {
-          await prisma.statusHistory.create({
-            data: {
-              quotationId: qid,
-              fromStatus: QuotationStatus.DRAFT,
-              toStatus: QuotationStatus.SENT,
-              note: 'Sent to client',
-              changedById: q.repId,
-            },
-          });
-        }
-
-        if (
-          q.status === QuotationStatus.APPROVED ||
-          q.status === QuotationStatus.REJECTED
-        ) {
-          const existingFinal = await prisma.statusHistory.findFirst({
-            where: { quotationId: qid, toStatus: q.status },
-          });
-
-          if (!existingFinal) {
-            await prisma.statusHistory.create({
-              data: {
-                quotationId: qid,
-                fromStatus: QuotationStatus.SENT,
-                toStatus: q.status,
-                note:
-                  q.status === QuotationStatus.APPROVED
-                    ? 'Approved by manager'
-                    : 'Rejected by manager',
-                changedById: marcus.id,
-              },
-            });
-          }
-        }
-      }
-    }
+    await seedStatusHistory(q, marcus.id);
   }
 
   // Advance the sequence past all seeded quotation numbers to prevent collisions

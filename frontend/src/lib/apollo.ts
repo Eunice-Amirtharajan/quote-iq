@@ -22,8 +22,8 @@ export const client = new ApolloClient({
           // cursors and must NOT be key args.
           quotations: {
             keyArgs: ["filter"],
-            merge(existing: unknown[] = [], incoming: unknown[]) {
-              return [...existing, ...incoming];
+            merge(existing: unknown[] | undefined, incoming: unknown[]) {
+              return [...(existing ?? []), ...incoming];
             },
           },
         },

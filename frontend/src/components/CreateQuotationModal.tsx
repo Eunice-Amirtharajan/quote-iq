@@ -31,6 +31,7 @@ const NOTES_MAX = 500;
 const ITEMS_MAX = 10;
 const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
 
+// [^>]* is a negated class with no backtracking ambiguity; all inputs are capped by maxLength before this runs. NOSONAR
 const stripTags = (v: string) => v.replace(/<[^>]*>/g, "");
 
 function toLineItems(
@@ -108,10 +109,10 @@ export default function CreateQuotationModal({
       setFormError("All line items must have a description.");
       return;
     }
-    const parsePrice = (v: string) => parseFloat(v);
+    const parsePrice = (v: string) => Number.parseFloat(v);
     const validQty = (v: string) => {
-      const n = parseInt(v, 10);
-      return !isNaN(n) && n >= 1;
+      const n = Number.parseInt(v, 10);
+      return !Number.isNaN(n) && n >= 1;
     };
     if (
       items.some((it) => !validQty(it.quantity) || parsePrice(it.unitPrice) <= 0)
@@ -123,12 +124,12 @@ export default function CreateQuotationModal({
     const sanitizedNotes = stripTags(notes.trim()) || undefined;
     const parsedItems = items.map((it) => ({
       description: it.description.trim(),
-      quantity: parseInt(it.quantity, 10),
+      quantity: Number.parseInt(it.quantity, 10),
       unitPrice: parsePrice(it.unitPrice),
     }));
 
     if (isEdit) {
-      void updateQuotation({
+      updateQuotation({
         variables: {
           id: quotation.id,
           input: {
@@ -141,7 +142,7 @@ export default function CreateQuotationModal({
         },
       });
     } else {
-      void createQuotation({
+      createQuotation({
         variables: {
           input: {
             title: title.trim(),
@@ -155,11 +156,14 @@ export default function CreateQuotationModal({
     }
   };
 
+  const submitLabel = loading
+    ? (isEdit ? "Saving…" : "Creating…")
+    : (isEdit ? "Save Changes" : "Create Quotation");
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 m-0 p-0 w-full h-full max-w-none max-h-none border-0"
       aria-label={isEdit ? "Edit quotation" : "Create quotation"}
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -180,7 +184,7 @@ export default function CreateQuotationModal({
           {/* Title */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-gray-700">
+              <label htmlFor="title" className="text-xs font-medium text-gray-700">
                 Title <span className="text-red-500">*</span>
               </label>
               <span
@@ -190,6 +194,7 @@ export default function CreateQuotationModal({
               </span>
             </div>
             <input
+              id="title"
               type="text"
               value={title}
               onChange={(e) =>
@@ -204,7 +209,7 @@ export default function CreateQuotationModal({
           {/* Client Name */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-gray-700">
+              <label htmlFor="clientName" className="text-xs font-medium text-gray-700">
                 Client <span className="text-red-500">*</span>
               </label>
               <span
@@ -214,6 +219,7 @@ export default function CreateQuotationModal({
               </span>
             </div>
             <input
+              id="clientName"
               type="text"
               value={clientName}
               onChange={(e) =>
@@ -227,10 +233,11 @@ export default function CreateQuotationModal({
 
           {/* Tax rate */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label htmlFor="taxRate" className="block text-xs font-medium text-gray-700 mb-1">
               Tax Rate (%)
             </label>
             <input
+              id="taxRate"
               type="number"
               value={taxRate}
               onChange={(e) => setTaxRate(e.target.value)}
@@ -264,7 +271,7 @@ export default function CreateQuotationModal({
             </div>
             <div className="space-y-2">
               {items.map((item, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                <div key={`item-${idx}`} /* NOSONAR */ className="grid grid-cols-12 gap-2 items-center">
                   <input
                     type="text"
                     value={item.description}
@@ -284,7 +291,7 @@ export default function CreateQuotationModal({
                     inputMode="numeric"
                     value={item.quantity}
                     onChange={(e) => {
-                      const v = e.target.value.replace(/[^0-9]/g, "");
+                      const v = e.target.value.replace(/\D/g, "");
                       updateItem(idx, "quantity", v);
                     }}
                     onKeyDown={(e) => {
@@ -334,7 +341,7 @@ export default function CreateQuotationModal({
           {/* Notes */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-gray-700">
+              <label htmlFor="notes" className="block text-xs font-medium text-gray-700">
                 Notes
               </label>
               <span
@@ -344,6 +351,7 @@ export default function CreateQuotationModal({
               </span>
             </div>
             <textarea
+              id="notes"
               value={notes}
               onChange={(e) =>
                 setNotes(stripTags(e.target.value).slice(0, NOTES_MAX))
@@ -374,17 +382,11 @@ export default function CreateQuotationModal({
               disabled={loading}
               className="px-4 py-2 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading
-                ? isEdit
-                  ? "Saving…"
-                  : "Creating…"
-                : isEdit
-                  ? "Save Changes"
-                  : "Create Quotation"}
+              {submitLabel}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }

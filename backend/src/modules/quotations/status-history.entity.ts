@@ -33,4 +33,4 @@ type _ScalarFieldsMatch =
   >
     ? true
     : never;
-void (true as _ScalarFieldsMatch);
+void (true as _ScalarFieldsMatch); // NOSONAR — compile-time type assertion, void is intentional

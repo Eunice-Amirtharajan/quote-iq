@@ -127,7 +127,7 @@ describe('AuthService', () => {
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockJwtService.sign.mockImplementation(() => {
         // eslint-disable-next-line @typescript-eslint/only-throw-error
-        throw 'plain string error';
+        throw 'plain string error'; // NOSONAR — intentionally testing non-Error throw handling
       });
 
       await expect(

@@ -184,7 +184,7 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted, o
   const act = (newStatus: string) => {
     setActionError(null);
     setPendingAction(newStatus);
-    void updateStatus({ variables: { id: quotationId, input: { status: newStatus } } });
+    updateStatus({ variables: { id: quotationId, input: { status: newStatus } } }).catch(() => {});
   };
 
   const isManager = user?.role === "SALES_MANAGER";
@@ -256,7 +256,7 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted, o
             <p className="text-xs text-red-700 font-medium">Delete this draft permanently?</p>
             <div className="flex gap-2">
               <button
-                onClick={() => void deleteQuotation({ variables: { id: quotationId } })}
+                onClick={() => { deleteQuotation({ variables: { id: quotationId } }).catch(() => {}); }}
                 disabled={deleting}
                 className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

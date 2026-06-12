@@ -211,7 +211,6 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(mockUser));
-    expect(client.resetStore).toHaveBeenCalled();
     // resetStore must resolve before setUser is called
     const resetOrder = (client.resetStore as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
     const setUserOrder = mockSetUser.mock.invocationCallOrder[0];

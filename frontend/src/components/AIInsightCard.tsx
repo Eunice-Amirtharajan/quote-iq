@@ -37,7 +37,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
   if (user?.role === "SALES_REP") return null;
 
   const handleGenerate = () => {
-    void generateSummary({ variables: { quotationId } });
+    generateSummary({ variables: { quotationId } }).catch(() => {});
   };
 
   if (loading) {
@@ -103,8 +103,8 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
         <div className="mb-4">
           <p className="text-xs font-medium text-gray-500 mb-2">Key Points</p>
           <ul className="space-y-1">
-            {keyPoints.map((point, i) => (
-              <li key={i} className="text-xs text-gray-600 flex gap-2">
+            {keyPoints.map((point) => (
+              <li key={point} className="text-xs text-gray-600 flex gap-2">
                 <span className="text-green-500 mt-0.5 shrink-0">✓</span>
                 {point}
               </li>
@@ -119,8 +119,8 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
           <ul className="space-y-1">
             {riskFactors
               .filter((r) => r.trim())
-              .map((risk, i) => (
-                <li key={i} className="text-xs text-gray-600 flex gap-2">
+              .map((risk) => (
+                <li key={risk} className="text-xs text-gray-600 flex gap-2">
                   <span className="text-red-400 mt-0.5 shrink-0">⚠</span>
                   {risk}
                 </li>
@@ -140,7 +140,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && question.trim()) {
-                void askQuestion({ variables: { quotationId, question } });
+                askQuestion({ variables: { quotationId, question } }).catch(() => {});
               }
             }}
             placeholder="e.g. Is the margin reasonable?"
@@ -150,7 +150,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
           <button
             onClick={() => {
               if (question.trim()) {
-                void askQuestion({ variables: { quotationId, question } });
+                askQuestion({ variables: { quotationId, question } }).catch(() => {});
               }
             }}
             disabled={askLoading || !question.trim()}

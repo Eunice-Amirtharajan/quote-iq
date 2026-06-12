@@ -71,11 +71,9 @@ export class QuotationsService {
         QuotationsService.name,
       );
       const isManager = role === Role.SALES_MANAGER;
-      const ownerWhere = isManager
-        ? filter?.repId
-          ? { createdById: filter.repId }
-          : {}
-        : { createdById: userId };
+      let ownerWhere: Record<string, string> = {};
+      if (!isManager) ownerWhere = { createdById: userId };
+      else if (filter?.repId) ownerWhere = { createdById: filter.repId };
       const statusWhere = filter?.status ? { status: filter.status } : {};
       const rawSearch = filter?.search?.trim().slice(0, 100) ?? '';
       const searchWhere = rawSearch
@@ -160,6 +158,7 @@ export class QuotationsService {
   }
 
   private static stripTags(v: string): string {
+    // [^>]* is a negated class with no backtracking ambiguity; callers enforce length limits before this runs. NOSONAR
     return v.replace(/<[^>]*>/g, '').trim();
   }
 
@@ -382,7 +381,7 @@ export class QuotationsService {
       input.title != null
         ? QuotationsService.stripTags(input.title)
         : undefined;
-    if (title !== undefined && (!title || title.length > 100))
+    if (title !== undefined && (title.length === 0 || title.length > 100))
       throw new BadRequestException(
         'title must be between 1 and 100 characters',
       );
@@ -391,14 +390,23 @@ export class QuotationsService {
       input.clientName != null
         ? QuotationsService.stripTags(input.clientName)
         : undefined;
-    if (clientName !== undefined && (!clientName || clientName.length > 200))
+    if (
+      clientName !== undefined &&
+      (clientName.length === 0 || clientName.length > 200)
+    )
       throw new BadRequestException(
         'clientName must be between 1 and 200 characters',
       );
 
-    const notes =
+    const rawNotes =
       input.notes != null
-        ? QuotationsService.stripTags(input.notes).slice(0, 500) || null
+        ? QuotationsService.stripTags(input.notes).slice(0, 500)
+        : undefined;
+    const notes =
+      rawNotes !== undefined
+        ? rawNotes.length > 0
+          ? rawNotes
+          : null
         : undefined;
 
     const taxRate = input.taxRate;
@@ -413,20 +421,7 @@ export class QuotationsService {
       | undefined;
 
     if (input.items) {
-      sanitizedItems = input.items.map((item) => {
-        const description = QuotationsService.stripTags(item.description);
-        if (!description || description.length > 200)
-          throw new BadRequestException(
-            'Each item description must be between 1 and 200 characters',
-          );
-        if (item.quantity <= 0)
-          throw new BadRequestException('Item quantity must be greater than 0');
-        if (item.unitPrice <= 0)
-          throw new BadRequestException(
-            'Item unit price must be greater than 0',
-          );
-        return { ...item, description };
-      });
+      sanitizedItems = input.items.map((item) => this.sanitizeItem(item));
       totalsData = this.calculateTotals(
         sanitizedItems,
         taxRate ??
@@ -522,5 +517,22 @@ export class QuotationsService {
       include: { changedBy: true },
       orderBy: { changedAt: 'asc' },
     });
+  }
+
+  private sanitizeItem(item: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }): { description: string; quantity: number; unitPrice: number } {
+    const description = QuotationsService.stripTags(item.description);
+    if (description.length === 0 || description.length > 200)
+      throw new BadRequestException(
+        'Each item description must be between 1 and 200 characters',
+      );
+    if (item.quantity <= 0)
+      throw new BadRequestException('Item quantity must be greater than 0');
+    if (item.unitPrice <= 0)
+      throw new BadRequestException('Item unit price must be greater than 0');
+    return { ...item, description };
   }
 }

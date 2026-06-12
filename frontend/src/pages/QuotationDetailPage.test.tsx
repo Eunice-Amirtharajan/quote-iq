@@ -3,9 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import QuotationDetailPage from "./QuotationDetailPage";
-import { QUOTATION_QUERY, STATUS_HISTORY_QUERY } from "../graphql/queries";
+import { QUOTATION_QUERY, STATUS_HISTORY_QUERY, CONVERSION_SCORE_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
-import { CONVERSION_SCORE_QUERY } from "../graphql/queries";
 import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
 
@@ -77,6 +76,18 @@ const makeMock = (
   },
   emptyHistoryMock,
 ];
+
+function makeSentMock(scoreMock: MockLink.MockedResponse): MockLink.MockedResponse[] {
+  const sentQuotation = { ...baseQuotation, status: "SENT" };
+  return [
+    {
+      request: { query: QUOTATION_QUERY, variables: { id: "q-1" } },
+      result: { data: { quotation: sentQuotation } },
+    },
+    emptyHistoryMock,
+    scoreMock,
+  ];
+}
 
 const errorMock: MockLink.MockedResponse[] = [
   {
@@ -492,18 +503,6 @@ describe("QuotationDetailPage", () => {
   });
 
   describe("ConversionScoreCard", () => {
-    function makeSentMock(scoreMock: MockLink.MockedResponse): MockLink.MockedResponse[] {
-      const sentQuotation = { ...baseQuotation, status: "SENT" };
-      return [
-        {
-          request: { query: QUOTATION_QUERY, variables: { id: "q-1" } },
-          result: { data: { quotation: sentQuotation } },
-        },
-        emptyHistoryMock,
-        scoreMock,
-      ];
-    }
-
     it("renders Win Chance score for SENT quotation viewed by manager", async () => {
       const mocks = makeSentMock({
         request: { query: CONVERSION_SCORE_QUERY, variables: { quotationId: "q-1" } },

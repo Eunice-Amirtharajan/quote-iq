@@ -405,21 +405,20 @@ describe('AIService', () => {
     });
   });
 
-  describe('getWinLossAnalysis', () => {
-    // Helpers to set up the three SQL calls the new implementation makes
-    function mockWinLossSQL({
-      statusRows = [] as { status: string; _count: { _all: number }; _avg: { total: number | null } }[],
-      repRows = [] as { createdById: string; status: string; _count: { _all: number } }[],
-      repUsers = [] as { id: string; name: string }[],
-      bucketRows = [] as { bucket: string; total: bigint; approved: bigint; decided: bigint }[],
-    } = {}) {
-      mockPrismaService.quotation.groupBy
-        .mockResolvedValueOnce(statusRows)   // by status
-        .mockResolvedValueOnce(repRows);     // by (createdById, status)
-      mockPrismaService.user.findMany.mockResolvedValue(repUsers);
-      mockPrismaService.$queryRaw.mockResolvedValue(bucketRows);
-    }
+  function mockWinLossSQL({
+    statusRows = [] as { status: string; _count: { _all: number }; _avg: { total: number | null } }[],
+    repRows = [] as { createdById: string; status: string; _count: { _all: number } }[],
+    repUsers = [] as { id: string; name: string }[],
+    bucketRows = [] as { bucket: string; total: bigint; approved: bigint; decided: bigint }[],
+  } = {}) {
+    mockPrismaService.quotation.groupBy
+      .mockResolvedValueOnce(statusRows) // by status
+      .mockResolvedValueOnce(repRows); // by (createdById, status)
+    mockPrismaService.user.findMany.mockResolvedValue(repUsers);
+    mockPrismaService.$queryRaw.mockResolvedValue(bucketRows);
+  }
 
+  describe('getWinLossAnalysis', () => {
     it('computes overall approval rate correctly', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
       mockWinLossSQL({

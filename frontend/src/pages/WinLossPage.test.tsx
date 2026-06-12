@@ -13,20 +13,20 @@ const mockStats = {
       sent: 10,
       approved: 7,
       rejected: 3,
-      approvalRate: 70.0,
+      approvalRate: 70,
     },
     {
       repName: "Bob",
       sent: 5,
       approved: 3,
       rejected: 2,
-      approvalRate: 60.0,
+      approvalRate: 60,
     },
   ],
   byDealSize: [
     { bucket: "<5k", total: 6, approved: 4, approvalRate: 66.7 },
     { bucket: "5k–20k", total: 7, approved: 5, approvalRate: 71.4 },
-    { bucket: ">20k", total: 2, approved: 1, approvalRate: 50.0 },
+    { bucket: ">20k", total: 2, approved: 1, approvalRate: 50 },
   ],
 };
 

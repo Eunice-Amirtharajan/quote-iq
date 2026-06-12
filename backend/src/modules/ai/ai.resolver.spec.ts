@@ -41,7 +41,7 @@ describe('AIResolver', () => {
           sent: 10,
           approved: 7,
           rejected: 3,
-          approvalRate: 70.0,
+          approvalRate: 70,
         },
       ],
       byDealSize: [

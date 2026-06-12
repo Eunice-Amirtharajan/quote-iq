@@ -101,6 +101,10 @@ function renderAs(
   );
 }
 
+function renderAsManager(mocks: MockLink.MockedResponse[]) {
+  return renderAs(mockManager, mocks);
+}
+
 describe('QuotationsPage', () => {
   afterEach(() => vi.clearAllMocks());
 
@@ -302,16 +306,6 @@ describe('QuotationsPage', () => {
   });
 
   describe('rep filter (manager only)', () => {
-    function renderAsManager(mocks: MockLink.MockedResponse[]) {
-      return render(
-        <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
-          <MockedProvider mocks={mocks}>
-            <QuotationsPage onSelect={mockOnSelect} />
-          </MockedProvider>
-        </AuthContext.Provider>,
-      );
-    }
-
     it('shows rep dropdown for SALES_MANAGER after reps load', async () => {
       renderAsManager(managerSuccessMock);
       await screen.findByText('Enterprise License');
@@ -345,16 +339,6 @@ describe('QuotationsPage', () => {
   });
 
   describe('conversion score badge (manager only)', () => {
-    function renderAsManager(mocks: MockLink.MockedResponse[]) {
-      return render(
-        <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
-          <MockedProvider mocks={mocks}>
-            <QuotationsPage onSelect={mockOnSelect} />
-          </MockedProvider>
-        </AuthContext.Provider>,
-      );
-    }
-
     it('shows conversion score badge on SENT rows for manager', async () => {
       renderAsManager(managerSuccessMock);
       await screen.findByText('Enterprise License');

@@ -32,7 +32,7 @@ type _ScalarFieldsMatch =
   >
     ? true
     : never;
-void (true as _ScalarFieldsMatch);
+void (true as _ScalarFieldsMatch); // NOSONAR — compile-time type assertion, void is intentional
 
 /** Minimal projection for salesReps — exposes only id and name, not email or role */
 @ObjectType({ description: 'Sales rep summary — id and name only' })

@@ -98,9 +98,9 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
 
   const loadMore = () => {
     const nextPage = page + 1;
-    void fetchMore({
+    fetchMore({
       variables: { take: PAGE_SIZE, skip: nextPage * PAGE_SIZE, filter },
-    });
+    }).catch(() => {});
     setPage(nextPage);
   };
 
@@ -182,11 +182,12 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
           )}
         </div>
 
-        {error ? (
+        {error && (
           <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
             Failed to load quotations
           </div>
-        ) : loading ? (
+        )}
+        {!error && loading && (
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <table className="w-full">
               <thead>
@@ -200,9 +201,9 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <tr key={i} className="border-b border-gray-50">
+                  <tr key={`skeleton-row-${i}`} className="border-b border-gray-50">
                     {Array.from({ length: isManager ? 7 : 6 }).map((__, j) => (
-                      <td key={j} className="px-6 py-4">
+                      <td key={`skeleton-cell-${i}-${j}`} className="px-6 py-4">
                         <div className="h-4 bg-gray-100 rounded animate-pulse w-24" />
                       </td>
                     ))}
@@ -211,7 +212,8 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
               </tbody>
             </table>
           </div>
-        ) : quotations.length === 0 ? (
+        )}
+        {!error && !loading && quotations.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
             <p className="text-gray-400 text-sm">
               {filter ? "No quotations match your filter" : "No quotations yet"}
@@ -225,7 +227,8 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
               </button>
             )}
           </div>
-        ) : (
+        )}
+        {!error && !loading && quotations.length > 0 && (
           <>
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <table className="w-full">

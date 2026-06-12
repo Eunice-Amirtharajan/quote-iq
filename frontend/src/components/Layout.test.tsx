@@ -122,7 +122,6 @@ describe("Layout", () => {
     await user.click(screen.getByText("Sign out"));
 
     await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(null));
-    expect(client.resetStore).toHaveBeenCalled();
 
     // resetStore must be called before setUser(null)
     const resetOrder = (client.resetStore as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];

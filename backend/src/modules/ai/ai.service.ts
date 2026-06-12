@@ -91,6 +91,13 @@ export class AIService {
     avgDealSize: number,
     computed: ReturnType<typeof this.computeRecommendation>,
   ) {
+    let dealVsAverage: string;
+    if (avgDealSize <= 0) dealVsAverage = 'First deal';
+    else if (quotation.total > avgDealSize)
+      dealVsAverage = `${Math.round(((quotation.total - avgDealSize) / avgDealSize) * 100)}% above average`;
+    else
+      dealVsAverage = `${Math.round(((avgDealSize - quotation.total) / avgDealSize) * 100)}% below average`;
+
     return `
 You are a sales intelligence assistant. Analyse this quotation and provide a structured assessment.
 
@@ -118,7 +125,7 @@ Total previous quotations: ${clientHistory}
 Approved: ${approvedCount}
 Rejected: ${rejectedCount}
 Average deal size: €${Math.round(avgDealSize).toLocaleString()}
-This deal vs average: ${quotation.total > avgDealSize ? `${Math.round(((quotation.total - avgDealSize) / avgDealSize) * 100)}% above average` : avgDealSize > 0 ? `${Math.round(((avgDealSize - quotation.total) / avgDealSize) * 100)}% below average` : 'First deal'}
+This deal vs average: ${dealVsAverage}
 </client_data>
 
 Respond ONLY with a JSON object, no markdown, no explanation:
@@ -391,12 +398,10 @@ strong contradicting signals. Justify your reasoning.
     if (rejectionRate > 0.6) score = Math.min(score, 30);
 
     score = Math.max(0, Math.min(100, score));
-    const label: ConversionLabel =
-      score >= 65
-        ? ConversionLabel.HIGH
-        : score >= 35
-          ? ConversionLabel.MEDIUM
-          : ConversionLabel.LOW;
+    let label: ConversionLabel;
+    if (score >= 65) label = ConversionLabel.HIGH;
+    else if (score >= 35) label = ConversionLabel.MEDIUM;
+    else label = ConversionLabel.LOW;
 
     const result: ConversionScoreType = { score, label };
 
@@ -668,6 +673,20 @@ strong contradicting signals. Justify your reasoning.
           )
         : null;
 
+    let dealVsAvg: string;
+    if (!avgDealSize) dealVsAvg = 'n/a';
+    else if (quotation.total > avgDealSize)
+      dealVsAvg = `${Math.round(((quotation.total - avgDealSize) / avgDealSize) * 100)}% above average`;
+    else
+      dealVsAvg = `${Math.round(((avgDealSize - quotation.total) / avgDealSize) * 100)}% below average`;
+
+    const previousDeals = clientHistory
+      .map(
+        (q) =>
+          `${q.quotationNumber} (${q.status}, €${q.total.toLocaleString()})`,
+      )
+      .join(', ');
+
     const clientHistoryBlock =
       clientHistory.length > 0
         ? `
@@ -675,8 +694,8 @@ Client history (last ${clientHistory.length} deals, excluding this one):
 - Total previous deals: ${clientHistory.length}
 - Approved: ${approved} | Rejected: ${rejected} | Other: ${clientHistory.length - approved - rejected}
 - Average deal size: €${avgDealSize?.toLocaleString()}
-- This deal vs average: ${avgDealSize ? (quotation.total > avgDealSize ? `${Math.round(((quotation.total - avgDealSize) / avgDealSize) * 100)}% above average` : `${Math.round(((avgDealSize - quotation.total) / avgDealSize) * 100)}% below average`) : 'n/a'}
-- Previous deals: ${clientHistory.map((q) => `${q.quotationNumber} (${q.status}, €${q.total.toLocaleString()})`).join(', ')}`
+- This deal vs average: ${dealVsAvg}
+- Previous deals: ${previousDeals}`
         : `
 Client history: No previous deals on record for this client.`;
 
