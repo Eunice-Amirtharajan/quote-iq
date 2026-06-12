@@ -16,7 +16,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 | Database | PostgreSQL (Neon DB — serverless, WebSocket driver) |
 | Auth | JWT in HttpOnly cookies · Role-based access control |
 | AI | Groq API (Llama 3.3 70B) · Zod response validation |
-| Infra | Railway (backend, EU region) · Vercel (frontend) · Neon DB |
+| Infra | Railway (backend) · Vercel (frontend) · Neon DB (EU — Frankfurt) |
 
 ---
 
@@ -34,7 +34,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 **Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on 503/429 errors — self-healing without manual intervention.
 
-**Railway EU over Render** — EU region deployment supports data residency requirements. Railway also supports Docker-based deploys which gives full control over the runtime environment.
+**Railway over Render** — Railway supports Docker-based deploys which gives full control over the runtime environment, and has better free-tier reliability than Render (no spin-down on inactivity).
 
 ---
 
@@ -42,19 +42,13 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 These are deliberate scope decisions for a portfolio build, not oversights.
 
-**No Client entity** — `clientName` is a free-text field rather than a relational `Client` model. The differentiator here is the quoting intelligence (rules engine, LLM validation, Zod safety, prompt injection guards), not CRM breadth. Adding a `Client` table would double the scope with forms, deduplication, fuzzy matching, and audit trails that don't demonstrate anything new architecturally. In production: UUID primary key with FK on `Quotation`, fuzzy-match normalisation, client-level analytics rollup, and a foundation for email notifications on status transitions.
+**No Client entity** — `clientName` is a free-text field rather than a relational `Client` model. The differentiator here is the quoting intelligence (rules engine, LLM validation, Zod safety, prompt injection guards), not CRM breadth.
 
 **No email notifications** — Status transitions (SENT, APPROVED, REJECTED) are silent. In production this would be a transactional email step (e.g. SendGrid/Resend) triggered after each `statusHistory` write.
 
-**No multi-language support** — The UI is English-only. i18n (e.g. `react-i18next`) would be the next step for a German-market deployment.
+**No GDPR data subject flows** — There are no "export my data" or "delete my account" self-service endpoints. Data deletion is covered structurally (cascade deletes on all related records) but a full Article 17/20 implementation is out of scope.
 
-**No GDPR data subject flows** — There are no "export my data" or "delete my account" self-service endpoints. Data deletion is covered structurally (cascade deletes on all related records, EU-region hosting on Railway), but a full Article 17/20 implementation is out of scope for this project.
-
-**No user management audit log** — `StatusHistory` tracks every quotation status transition with actor and timestamp. General CRUD audit logging (who created/edited/deleted a quotation or user record) is not implemented; that would be an append-only audit table or event log in production.
-
-**Login password as GraphQL argument** — The `login` mutation accepts `password` as a plain GraphQL variable. GraphQL variables are not in the URL (no server logs), but API gateways and tracing tools (e.g. Apollo Studio) can log operation variables. In production this would move to a dedicated REST `POST /auth/login` endpoint with a JSON body, which sits outside GraphQL variable logging by default.
-
-**DataLoader not implemented** — The quotation list always eager-loads `createdBy` and `items` via Prisma `include`. Prisma batches these into two JOINs (not N+1 at the SQL level), but a GraphQL DataLoader would allow field-level lazy resolution. Acceptable trade-off for portfolio scope — the per-page limit of 20 keeps result sets small.
+**Login password as GraphQL argument** — The `login` mutation accepts `password` as a plain GraphQL variable. In production this would move to a dedicated REST `POST /auth/login` endpoint where the body sits outside GraphQL variable logging by default.
 
 ---
 
@@ -230,7 +224,7 @@ Git hooks (via Husky) block commits and pushes that don't meet quality standards
 
 E2E tests are excluded from hooks — they require Docker and run in CI instead.
 
-**Backend deploys** — Railway is configured to auto-deploy on every push to `main` via its GitHub integration. The CI workflow gates the Vercel (frontend) deploy explicitly with an `if: success()` condition. The backend deploy fires from Railway's webhook on the same push and runs in parallel with CI — in production this would be tightened with GitHub branch protection rules requiring CI to pass before any push reaches `main`, so Railway's webhook only fires on a green build.
+**Backend deploys** — Railway is configured to auto-deploy on every push to `main` via its GitHub integration, running in parallel with CI. **Frontend deploys** — Vercel deploys via its own GitHub integration. An ignored build step (`git diff HEAD^ HEAD --quiet -- frontend/`) skips the Vercel build automatically on backend-only commits. In production both would be tightened with GitHub branch protection rules requiring CI to pass before any push reaches `main`.
 
 ---
 
@@ -241,6 +235,6 @@ E2E tests are excluded from hooks — they require Docker and run in CI instead.
 | Uptime monitoring + alerts | UptimeRobot (free) | Probes `GET /health` (backend) and `https://quoteiq.cc` (frontend) every 5 min — email alert on down/recovery |
 | Container health check + auto-restart | Railway (built-in) | `GET /health` every 30s — Railway restarts container automatically if it fails |
 | CPU / memory / logs | Railway dashboard | Real-time metrics and stdout logs |
-| Frontend performance + errors | Vercel Analytics | Page load times, error rates, geographic traffic |
+| Frontend performance | Vercel Analytics | Web Vitals (LCP, CLS, FID) — `@vercel/analytics` injected in `main.tsx` |
 
 The `/health` endpoint (`GET https://api.quoteiq.cc/health`) returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.

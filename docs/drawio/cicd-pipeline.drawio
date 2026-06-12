@@ -59,7 +59,7 @@
         <mxCell id="railway-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=30;" vertex="1" parent="1">
           <mxGeometry x="380" y="300" width="240" height="500" as="geometry" />
         </mxCell>
-        <mxCell id="railway-label" value="Railway EU — Backend Deploy" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="railway-label" value="Railway US West — Backend Deploy" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="380" y="305" width="240" height="25" as="geometry" />
         </mxCell>
 
