@@ -15,10 +15,10 @@ flowchart TD
 
     E2E --> CIPass{All tests<br/>passed?}
 
-    CIPass -->|No| Block[Both deployments blocked<br/>Previous versions stay live]
+    CIPass -->|No| Block[CI failed<br/>Railway + Vercel deploy independently]
 
-    CIPass -->|Yes| RailwayTrigger[Railway detects CI passed<br/>Wait for CI setting]
-    CIPass -->|Yes| VercelTrigger[GitHub Actions triggers<br/>Vercel CLI deploy]
+    GH --> RailwayTrigger[Railway GitHub integration<br/>detects push to main]
+    GH --> VercelTrigger[Vercel GitHub integration<br/>detects push to main]
 
     RailwayTrigger --> DockerBuild[Railway builds Docker image<br/>Multi-stage build]
     DockerBuild --> Stage1[Stage 1 - Builder<br/>npm ci<br/>npx prisma generate<br/>npm run build]
@@ -29,9 +29,10 @@ flowchart TD
     Health --> Switch[Traffic switches to new container<br/>Old container stopped]
     Switch --> BackendLive[api.quoteiq.cc live]
 
-    VercelTrigger --> VPull[vercel pull<br/>Fetch project config + env vars]
-    VPull --> VBuild[vercel build --prod<br/>TypeScript compiled<br/>VITE_API_URL baked in<br/>Minified + tree shaken]
-    VBuild --> VDeploy[vercel deploy --prebuilt --prod<br/>Upload dist/ to Cloudflare CDN<br/>100+ edge locations]
+    VercelTrigger --> IgnoredCheck{Frontend files<br/>changed?}
+    IgnoredCheck -->|No| Skip[Build skipped]
+    IgnoredCheck -->|Yes| VBuild[npm run build<br/>TypeScript compiled<br/>VITE_API_URL baked in<br/>Minified + tree shaken]
+    VBuild --> VDeploy[Upload dist/ to Cloudflare CDN<br/>100+ edge locations]
     VDeploy --> FrontendLive[quoteiq.cc live]
 
     BackendLive --> Done

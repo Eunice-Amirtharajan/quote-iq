@@ -51,7 +51,7 @@
           <mxGeometry x="120" y="700" width="160" height="80" as="geometry" />
         </mxCell>
 
-        <mxCell id="blocked" value="❌ Both deployments blocked&#xa;Previous versions stay live" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="blocked" value="❌ CI failed&#xa;(Railway + Vercel already deploying independently)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="60" y="840" width="180" height="60" as="geometry" />
         </mxCell>
 
@@ -93,17 +93,17 @@
           <mxGeometry x="700" y="305" width="240" height="25" as="geometry" />
         </mxCell>
 
-        <mxCell id="v1" value="GitHub Actions triggers&#xa;Vercel CLI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="v1" value="Vercel GitHub integration&#xa;detects push to main" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="720" y="340" width="200" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="v2" value="vercel pull&#xa;Fetch project config + env vars" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="410" width="200" height="50" as="geometry" />
+        <mxCell id="v2" value="Ignored build step check&#xa;git diff HEAD^ HEAD --quiet -- frontend/&#xa;Skip if no frontend changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="720" y="410" width="200" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="v3" value="vercel build --prod&#xa;TypeScript compile&#xa;VITE_API_URL baked in&#xa;Minified + tree-shaken" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="480" width="200" height="80" as="geometry" />
+        <mxCell id="v3" value="npm run build&#xa;TypeScript compile&#xa;VITE_API_URL baked in&#xa;Minified + tree-shaken" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="720" y="490" width="200" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="v4" value="vercel deploy --prebuilt --prod&#xa;Upload dist/ to Cloudflare CDN&#xa;100+ edge locations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="580" width="200" height="70" as="geometry" />
+        <mxCell id="v4" value="Upload dist/ to Cloudflare CDN&#xa;100+ edge locations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="720" y="590" width="200" height="60" as="geometry" />
         </mxCell>
         <mxCell id="v5" value="✅ quoteiq.cc live" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="720" y="760" width="200" height="40" as="geometry" />
@@ -126,7 +126,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e10-label" value="YES" style="edgeLabel;html=1;fontSize=10;fontStyle=1;" vertex="1" connectable="0" parent="e10"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="gate" target="v1" parent="1">
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="trigger" target="v1" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="r1" target="r2" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>

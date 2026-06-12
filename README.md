@@ -224,7 +224,7 @@ Git hooks (via Husky) block commits and pushes that don't meet quality standards
 
 E2E tests are excluded from hooks — they require Docker and run in CI instead.
 
-**Backend deploys** — Railway is configured to auto-deploy on every push to `main` via its GitHub integration, running in parallel with CI. **Frontend deploys** — Vercel deploys via its own GitHub integration. An ignored build step (`git diff HEAD^ HEAD --quiet -- frontend/`) skips the Vercel build automatically on backend-only commits. In production both would be tightened with GitHub branch protection rules requiring CI to pass before any push reaches `main`.
+**Backend deploys** — Railway auto-deploys on every push to `main` via GitHub integration, running in parallel with CI. **Frontend deploys** — Vercel deploys via its own GitHub integration. An ignored build step (`git diff HEAD^ HEAD --quiet -- frontend/`) skips the Vercel build on backend-only commits. In production, GitHub branch protection rules would require CI to pass before any push reaches `main`, so both Railway and Vercel only deploy on a green build.
 
 ---
 
