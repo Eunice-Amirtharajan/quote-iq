@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
 
-window.addEventListener('unhandledrejection', (event) => {
+globalThis.addEventListener('unhandledrejection', (event) => {
   event.preventDefault();
 });

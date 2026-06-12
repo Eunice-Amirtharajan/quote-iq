@@ -42,17 +42,19 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
-  const allowedOrigins = (process.env.CORS_ORIGIN ?? '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  const allowedOrigins = new Set(
+    (process.env.CORS_ORIGIN ?? '')
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
+  );
   app.enableCors({
     origin: (
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
       // Allow requests with no Origin header (Railway health checks, curl, same-origin)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.has(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -85,4 +87,7 @@ async function bootstrap() {
   const prisma = app.get(PrismaService);
   startDbKeepalive(prisma);
 }
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  console.error('Bootstrap failed', err);
+  process.exit(1);
+});

@@ -20,7 +20,7 @@ export default function Layout({ children }: Readonly<LayoutProps>) {
     onCompleted: () => {
       // Reset before clearing auth state so components never render with a
       // mismatched cache (old user's data) after the user changes.
-      void client.resetStore().finally(() => setUser(null));
+      client.resetStore().finally(() => setUser(null)).catch(() => setUser(null));
     },
   });
   const visibleNav = NAV_ITEMS.filter((item) =>
@@ -61,7 +61,7 @@ export default function Layout({ children }: Readonly<LayoutProps>) {
             {user?.role.replace("_", " ")}
           </p>
           <button
-            onClick={() => { void logout(); }}
+            onClick={() => { logout().catch(() => {}); }}
             className="w-full text-left text-xs text-gray-500 hover:text-gray-900 transition-colors"
           >
             Sign out

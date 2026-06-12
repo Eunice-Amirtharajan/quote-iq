@@ -2,13 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
-import { Role, User } from '@prisma/client';
+import { Role, User, QuotationStatus } from '@prisma/client';
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { QuotationStatus } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const mockPrismaService = {

@@ -3,7 +3,7 @@ import { createLogger, format, transports, Logger } from 'winston';
 
 @Injectable()
 export class AppLogger {
-  private logger: Logger;
+  private readonly logger: Logger;
 
   constructor() {
     this.logger = createLogger({

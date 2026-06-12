@@ -9,9 +9,9 @@ jest.mock('@nestjs/graphql', () => ({
 const makeThrottlerGuard = () => {
   // Minimal stub — only the method under test is exercised
   return new GqlThrottlerGuard(
-    {} as never,
-    {} as never,
-    {} as never,
+    {},
+    {},
+    {},
   );
 };
 

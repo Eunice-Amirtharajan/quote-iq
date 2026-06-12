@@ -25,7 +25,7 @@ export default function LoginPage() {
     onCompleted: (data) => {
       // Clear previous user's cached data before setting new user so
       // components never flash stale data from the prior session.
-      void client.resetStore().finally(() => setUser(data.login));
+      client.resetStore().finally(() => setUser(data.login)).catch(() => setUser(data.login));
     },
     onError: (err) => {
       const isCredentials = err.message.toLowerCase().includes('invalid credentials');
@@ -36,7 +36,7 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    void login({ variables: { email, password } });
+    login({ variables: { email, password } }).catch(() => {});
   };
 
   return (
@@ -49,10 +49,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email
             </label>
             <input
+              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -63,10 +64,11 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

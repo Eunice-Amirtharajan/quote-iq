@@ -19,11 +19,12 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci --only=production
-
-RUN npx prisma generate
+RUN npm ci --only=production && npx prisma generate
 
 COPY --from=builder /app/dist ./dist
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
 
 EXPOSE 4000
 
