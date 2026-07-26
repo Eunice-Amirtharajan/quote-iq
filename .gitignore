@@ -7,3 +7,4 @@ prisma.config.ts
 
 # Personal notes
 docs/lessons_learned.md
+docs/sample-playbook/

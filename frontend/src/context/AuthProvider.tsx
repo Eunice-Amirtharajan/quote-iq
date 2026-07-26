@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const user = loggedOut ? null : (localUser ?? data?.me ?? null);
 
   const setUser = useCallback((u: User | null) => {
+    console.log('setUser called with:', u);
     setLocalUser(u);
     setLoggedOut(u === null);
   }, []);

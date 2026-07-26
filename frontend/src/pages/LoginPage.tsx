@@ -39,6 +39,13 @@ export default function LoginPage() {
     login({ variables: { email, password } }).catch(() => {});
   };
 
+  const loginAs = (demoEmail: string, demoPassword: string) => {
+    setError("");
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    login({ variables: { email: demoEmail, password: demoPassword } }).catch(() => {});
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md">
@@ -92,28 +99,29 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
           {showDemo && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
-              <p className="text-xs font-medium text-gray-500 mb-2">
-                Demo credentials
-              </p>
-              <div className="space-y-1">
-                <p className="text-xs text-gray-600">
-                  <span className="font-medium">Manager:</span>{" "}
-                  marcus@quoteiq.com
-                </p>
-                <p className="text-xs text-gray-600">
-                  <span className="font-medium">Sales Rep:</span>{" "}
-                  anna@quoteiq.com
-                </p>
-                <p className="text-xs text-gray-600">
-                  <span className="font-medium">Password:</span> password123
-                </p>
+            <div className="mt-2">
+              <p className="text-xs text-gray-400 text-center mb-2">or try a demo account</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => loginAs("marcus@quoteiq.com", "password123")}
+                  disabled={loading}
+                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Try as Manager
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loginAs("anna@quoteiq.com", "password123")}
+                  disabled={loading}
+                  className="px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Try as Sales Rep
+                </button>
               </div>
             </div>
           )}
         </form>
-
-        <p className="text-xs text-gray-400 mt-6 text-center"></p>
       </div>
     </div>
   );

@@ -12,6 +12,12 @@ const mockRep = {
   email: "anna@quoteiq.com",
   role: "SALES_REP" as const,
 };
+const mockManager = {
+  id: "u-manager",
+  name: "Marcus Klein",
+  email: "marcus@quoteiq.com",
+  role: "SALES_MANAGER" as const,
+};
 const mockSetUser = vi.fn();
 
 const mockStats = {
@@ -41,18 +47,24 @@ const errorMock: MockLink.MockedResponse[] = [
 describe("DashboardPage", () => {
   it("shows loading state initially", () => {
     render(
-      <MockedProvider mocks={successMock}>
-        <DashboardPage />
-      </MockedProvider>,
+      <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+        <MockedProvider mocks={successMock}>
+          <DashboardPage />
+        </MockedProvider>
+        ,
+      </AuthContext.Provider>,
     );
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });
 
   it("renders stats after loading", async () => {
     render(
-      <MockedProvider mocks={successMock}>
-        <DashboardPage />
-      </MockedProvider>,
+      <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+        <MockedProvider mocks={successMock}>
+          <DashboardPage />
+        </MockedProvider>
+        ,
+      </AuthContext.Provider>,
     );
 
     expect(await screen.findByText("9")).toBeInTheDocument();
@@ -63,9 +75,11 @@ describe("DashboardPage", () => {
 
   it("renders pipeline and approved values", async () => {
     render(
-      <MockedProvider mocks={successMock}>
-        <DashboardPage />
-      </MockedProvider>,
+      <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+        <MockedProvider mocks={successMock}>
+          <DashboardPage />
+        </MockedProvider>
+      </AuthContext.Provider>,
     );
 
     expect(await screen.findByText("€32,412")).toBeInTheDocument();
@@ -74,9 +88,11 @@ describe("DashboardPage", () => {
 
   it("renders all stat card labels", async () => {
     render(
-      <MockedProvider mocks={successMock}>
-        <DashboardPage />
-      </MockedProvider>,
+      <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+        <MockedProvider mocks={successMock}>
+          <DashboardPage />
+        </MockedProvider>
+      </AuthContext.Provider>,
     );
 
     await screen.findByText("9");
@@ -90,9 +106,11 @@ describe("DashboardPage", () => {
 
   it("shows error state when query fails", async () => {
     render(
-      <MockedProvider mocks={errorMock}>
-        <DashboardPage />
-      </MockedProvider>,
+      <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
+        <MockedProvider mocks={errorMock}>
+          <DashboardPage />
+        </MockedProvider>
+      </AuthContext.Provider>,
     );
 
     expect(

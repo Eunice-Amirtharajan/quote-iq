@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useMutation } from "@apollo/client/react";
 import { LOGOUT_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
@@ -16,11 +16,14 @@ interface LayoutProps {
 
 export default function Layout({ children }: Readonly<LayoutProps>) {
   const { user, setUser } = useAuth();
+  const navigate = useNavigate();
   const [logout] = useMutation(LOGOUT_MUTATION, {
     onCompleted: () => {
       // Reset before clearing auth state so components never render with a
       // mismatched cache (old user's data) after the user changes.
-      client.resetStore().finally(() => setUser(null)).catch(() => setUser(null));
+      client.resetStore().finally(() => { setUser(null);
+        navigate("/");
+       }).catch(() => setUser(null));
     },
   });
   const visibleNav = NAV_ITEMS.filter((item) =>

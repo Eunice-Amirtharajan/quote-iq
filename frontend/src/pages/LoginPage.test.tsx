@@ -118,19 +118,49 @@ describe("LoginPage", () => {
     });
   });
 
-  it("shows demo credentials when VITE_SHOW_DEMO_CREDENTIALS is true", () => {
+  it("shows demo login buttons when VITE_SHOW_DEMO_CREDENTIALS is true", () => {
     vi.stubEnv("VITE_SHOW_DEMO_CREDENTIALS", "true");
     renderLoginPage();
-    expect(screen.getByText("Demo credentials")).toBeInTheDocument();
-    expect(screen.getByText(/marcus@quoteiq.com/)).toBeInTheDocument();
-    expect(screen.getByText(/password123/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try as Manager" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try as Sales Rep" })).toBeInTheDocument();
     vi.unstubAllEnvs();
   });
 
-  it("hides demo credentials when VITE_SHOW_DEMO_CREDENTIALS is not set", () => {
+  it("hides demo buttons when VITE_SHOW_DEMO_CREDENTIALS is not set", () => {
     vi.stubEnv("VITE_SHOW_DEMO_CREDENTIALS", "");
     renderLoginPage();
-    expect(screen.queryByText("Demo credentials")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try as Manager" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try as Sales Rep" })).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it("auto-submits login when Try as Manager is clicked", async () => {
+    vi.stubEnv("VITE_SHOW_DEMO_CREDENTIALS", "true");
+    const mockUser = { id: "u-1", name: "Marcus", email: "marcus@quoteiq.com", role: "SALES_MANAGER" };
+    const mocks: MockLink.MockedResponse[] = [
+      {
+        request: { query: LOGIN_MUTATION, variables: { email: "marcus@quoteiq.com", password: "password123" } },
+        result: { data: { login: mockUser } },
+      },
+    ];
+    renderLoginPage(mocks);
+    fireEvent.click(screen.getByRole("button", { name: "Try as Manager" }));
+    await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(mockUser));
+    vi.unstubAllEnvs();
+  });
+
+  it("auto-submits login when Try as Sales Rep is clicked", async () => {
+    vi.stubEnv("VITE_SHOW_DEMO_CREDENTIALS", "true");
+    const mockUser = { id: "u-2", name: "Anna", email: "anna@quoteiq.com", role: "SALES_REP" };
+    const mocks: MockLink.MockedResponse[] = [
+      {
+        request: { query: LOGIN_MUTATION, variables: { email: "anna@quoteiq.com", password: "password123" } },
+        result: { data: { login: mockUser } },
+      },
+    ];
+    renderLoginPage(mocks);
+    fireEvent.click(screen.getByRole("button", { name: "Try as Sales Rep" }));
+    await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(mockUser));
     vi.unstubAllEnvs();
   });
 

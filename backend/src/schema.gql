@@ -196,7 +196,6 @@ type RepStatType {
 }
 
 enum Role {
-  ADMIN
   SALES_MANAGER
   SALES_REP
 }

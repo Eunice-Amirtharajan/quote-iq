@@ -21,9 +21,15 @@ interface StatCardProps {
 
 function StatCard({ label, value, sub, alert }: Readonly<StatCardProps>) {
   return (
-    <div className={`bg-white rounded-xl border p-6 ${alert ? "border-amber-300 bg-amber-50" : "border-gray-100"}`}>
+    <div
+      className={`bg-white rounded-xl border p-6 ${alert ? "border-amber-300 bg-amber-50" : "border-gray-100"}`}
+    >
       <p className="text-sm text-gray-500 mb-1">{label}</p>
-      <p className={`text-2xl font-semibold ${alert ? "text-amber-600" : "text-gray-900"}`}>{value}</p>
+      <p
+        className={`text-2xl font-semibold ${alert ? "text-amber-600" : "text-gray-900"}`}
+      >
+        {value}
+      </p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
   );
@@ -31,9 +37,10 @@ function StatCard({ label, value, sub, alert }: Readonly<StatCardProps>) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const isManager = user?.role === "SALES_MANAGER";
   const { data, loading, error } = useQuery<{ dashboardStats: DashboardStats }>(
     DASHBOARD_STATS_QUERY,
-    { skip: user?.role === "SALES_REP" },
+    { skip: !isManager },
   );
 
   if (loading)
@@ -51,7 +58,6 @@ export default function DashboardPage() {
     );
 
   const stats = data?.dashboardStats;
-
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900 mb-6">Dashboard</h2>
