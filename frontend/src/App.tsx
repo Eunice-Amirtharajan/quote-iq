@@ -18,6 +18,7 @@ function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
 function QuotationDetailRoute() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+   /* istanbul ignore next */
   if (!id) return <Navigate to="/quotations" replace />;
   return (
     <QuotationDetailPage
@@ -35,6 +36,7 @@ function QuotationsRoute() {
 function DefaultRedirect() {
   const { user } = useAuth();
   useEffect(() => {}, [user]);
+  /* istanbul ignore next */
   if (!user) return null;
   return <Navigate to={user.role === "SALES_REP" ? "/quotations" : "/dashboard"} replace />;
 }

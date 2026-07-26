@@ -2,6 +2,7 @@ import { render, screen, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
+import { fireEvent } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
 import { AuthContext, type User } from "./context/auth-context";
 import { LOGOUT_MUTATION } from "./graphql/mutations";
@@ -9,7 +10,14 @@ import type { MockLink } from "@apollo/client/testing";
 
 vi.mock("./pages/DashboardPage", () => ({ default: () => <div>DashboardPage</div> }));
 vi.mock("./pages/QuotationsPage", () => ({ default: ({ onSelect }: { onSelect: (id: string) => void }) => <button onClick={() => onSelect("q-1")}>QuotationsPage</button> }));
-vi.mock("./pages/QuotationDetailPage", () => ({ default: () => <div>QuotationDetailPage</div> }));
+vi.mock("./pages/QuotationDetailPage", () => ({
+  default: ({ onBack }: { onBack: () => void }) => (
+    <div>
+      <span>QuotationDetailPage</span>
+      <button onClick={onBack}>Back to Quotations</button>
+    </div>
+  ),
+}));
 vi.mock("./pages/WinLossPage", () => ({ default: () => <div>WinLossPage</div> }));
 vi.mock("./pages/LoginPage", () => ({ default: () => <div>LoginPage</div> }));
 vi.mock("./lib/apollo", () => ({
@@ -25,7 +33,6 @@ vi.mock("react-router-dom", async (importOriginal) => {
 vi.mock("./context/AuthProvider", () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
-
 import App from "./App";
 
 const mockManager: User = {
@@ -89,18 +96,20 @@ describe("AppRoutes — initial redirect", () => {
 });
 
 describe("AppRoutes — direct route access", () => {
-  it("manager can access /dashboard directly", () => {
-    render(<TestApp initialUser={mockManager} initialPath="/dashboard" />);
-    expect(screen.getByText("DashboardPage")).toBeInTheDocument();
+  it.each([
+    { user: mockManager, path: "/dashboard", expectedText: "DashboardPage", description: "manager can access /dashboard directly" },
+    { user: mockRep, path: "/quotations", expectedText: "QuotationsPage", description: "sales rep can access /quotations directly" },
+    { user: mockRep, path: "/quotations/q-1", expectedText: "QuotationDetailPage", description: "sales rep can access /quotations/:id directly" },
+    { user: mockRep, path: "/does-not-exist", expectedText: "QuotationsPage", description: "unknown path redirects to role home" },
+  ])("$description", ({ user, path, expectedText }) => {
+    render(<TestApp initialUser={user} initialPath={path} />);
+    expect(screen.getByText(expectedText)).toBeInTheDocument();
   });
 
-  it("sales rep can access /quotations directly", () => {
-    render(<TestApp initialUser={mockRep} initialPath="/quotations" />);
-    expect(screen.getByText("QuotationsPage")).toBeInTheDocument();
-  });
-
-  it("unknown path redirects to role home", () => {
-    render(<TestApp initialUser={mockRep} initialPath="/does-not-exist" />);
+  it("navigate back to quotations when onBack is called from QuotationDetailPage", () => {
+    render(<TestApp initialUser={mockRep} initialPath="/quotations/q-1" />);
+    expect(screen.getByText("QuotationDetailPage")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Back to Quotations"));
     expect(screen.getByText("QuotationsPage")).toBeInTheDocument();
   });
 });
