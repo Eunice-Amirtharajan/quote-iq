@@ -39,6 +39,7 @@ model User {
 
 model Quotation {
   id              String          @id @default(uuid())
+  publicToken     String          @unique @default(uuid())
   quotationNumber String          @unique
   title           String
   clientName      String
