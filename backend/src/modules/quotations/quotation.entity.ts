@@ -57,6 +57,11 @@ export class QuotationType {
   @Field(() => Date, { description: 'Creation timestamp' })
   createdAt!: Date;
 
+  @Field(() => String, {
+    description: 'Public token for accessing the quotation',
+  })
+  publicToken!: string;
+
   @Field(() => [QuotationItemType])
   items!: QuotationItemType[];
 
@@ -85,3 +90,64 @@ type _ScalarFieldsMatch =
     ? true
     : never;
 void (true as _ScalarFieldsMatch); // NOSONAR — compile-time type assertion, void is intentional
+
+@ObjectType({
+  description: 'A public sales quotation with line items and calculated totals',
+})
+export class PublicQuotationType {
+  @Field(() => String, {
+    description: 'Auto-generated number e.g. QT-2026-0001',
+  })
+  quotationNumber!: string;
+
+  @Field(() => String, { description: 'Quotation title or subject' })
+  title!: string;
+
+  @Field(() => String, { description: 'Free-text client name' })
+  clientName!: string;
+
+  @Field(() => QuotationStatus, {
+    description: 'Current status in the pipeline',
+  })
+  status!: QuotationStatus;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Optional notes for the client',
+  })
+  notes?: string | null;
+
+  @Field(() => Float, { description: 'Tax rate as percentage e.g. 19 for 19%' })
+  taxRate!: number;
+
+  @Field(() => Float, { description: 'Sum of all line item totals before tax' })
+  subtotal!: number;
+
+  @Field(() => Float, {
+    description: 'Tax amount calculated from subtotal and taxRate',
+  })
+  taxAmount!: number;
+
+  @Field(() => Float, { description: 'Final total including tax' })
+  total!: number;
+
+  @Field(() => [QuotationItemType])
+  items!: QuotationItemType[];
+}
+
+type _PublicScalarFieldsMatch =
+  PublicQuotationType extends Pick<
+    Quotation,
+    | 'quotationNumber'
+    | 'title'
+    | 'clientName'
+    | 'status'
+    | 'notes'
+    | 'taxRate'
+    | 'subtotal'
+    | 'taxAmount'
+    | 'total'
+  >
+    ? true
+    : never;
+void (true as _PublicScalarFieldsMatch); // NOSONAR — compile-time type assertion, void is intentional

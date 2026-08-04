@@ -42,6 +42,7 @@ export const QUOTATION_QUERY = gql`
       taxAmount
       total
       createdAt
+      publicToken
       createdBy {
         id
         name
@@ -124,6 +125,30 @@ export const STATUS_HISTORY_QUERY = gql`
       changedAt
       changedBy {
         name
+      }
+    }
+  }
+`;
+
+export const QUOTATION_BY_TOKEN_QUERY = gql`
+  query QuotationByToken($token: String!) {
+    quotationByToken(token: $token) {
+      quotationNumber
+      title
+      clientName
+      status
+      notes
+      taxRate
+      subtotal
+      taxAmount
+      total
+      items {
+        id
+        description
+        quantity
+        unitPrice
+        lineTotal
+        sortOrder
       }
     }
   }

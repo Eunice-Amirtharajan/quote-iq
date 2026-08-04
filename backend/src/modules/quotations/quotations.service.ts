@@ -13,7 +13,7 @@ import {
 } from './dto/quotation.input';
 import { QuotationStatus, Role } from '@prisma/client';
 import { AppLogger } from '../../common/logger/logger.service';
-import { QuotationType } from './quotation.entity';
+import { PublicQuotationType, QuotationType } from './quotation.entity';
 import { StatusHistoryType } from './status-history.entity';
 import { UserType } from '../users/user.entity';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -150,6 +150,47 @@ export class QuotationsService {
     } catch (error) {
       this.logger.error(
         `Failed to retrieve quotation with id:${id}`,
+        error instanceof Error ? error.stack : String(error),
+        QuotationsService.name,
+      );
+      throw error;
+    }
+  }
+
+  async findByToken(token: string): Promise<PublicQuotationType | null> {
+    this.logger.info(
+      `Finding quotation with token:${token}`,
+      QuotationsService.name,
+    );
+    try {
+      return await this.prisma.quotation.findFirst({
+        where: { publicToken: token },
+        select: {
+          quotationNumber: true,
+          title: true,
+          clientName: true,
+          status: true,
+          notes: true,
+          taxRate: true,
+          subtotal: true,
+          taxAmount: true,
+          total: true,
+          items: {
+            select: {
+              quotationId: true,
+              id: true,
+              description: true,
+              quantity: true,
+              unitPrice: true,
+              lineTotal: true,
+              sortOrder: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to retrieve quotation with token:${token}`,
         error instanceof Error ? error.stack : String(error),
         QuotationsService.name,
       );
@@ -357,16 +398,7 @@ export class QuotationsService {
     }
   }
 
-  async update(
-    id: string,
-    input: UpdateQuotationInput,
-    userId: string,
-  ): Promise<QuotationType> {
-    this.logger.info(
-      `Updating quotation: ${id} userId: ${userId}`,
-      QuotationsService.name,
-    );
-
+  private async validateUpdatePermissions(id: string, userId: string) {
     const existing = await this.prisma.quotation.findFirst({
       where: { id },
       select: { status: true, createdById: true },
@@ -376,20 +408,19 @@ export class QuotationsService {
       throw new BadRequestException('Only DRAFT quotations can be edited');
     if (existing.createdById !== userId)
       throw new ForbiddenException('You can only edit your own quotations');
+  }
 
-    const title =
-      input.title != null
-        ? QuotationsService.stripTags(input.title)
-        : undefined;
+  private validateTitle(title: string | undefined): string | undefined {
     if (title !== undefined && (title.length === 0 || title.length > 100))
       throw new BadRequestException(
         'title must be between 1 and 100 characters',
       );
+    return title;
+  }
 
-    const clientName =
-      input.clientName != null
-        ? QuotationsService.stripTags(input.clientName)
-        : undefined;
+  private validateClientName(
+    clientName: string | undefined,
+  ): string | undefined {
     if (
       clientName !== undefined &&
       (clientName.length === 0 || clientName.length > 200)
@@ -397,22 +428,42 @@ export class QuotationsService {
       throw new BadRequestException(
         'clientName must be between 1 and 200 characters',
       );
+    return clientName;
+  }
 
-    const rawNotes =
-      input.notes != null
-        ? QuotationsService.stripTags(input.notes).slice(0, 500)
-        : undefined;
-    const notes =
-      rawNotes !== undefined
-        ? rawNotes.length > 0
-          ? rawNotes
-          : null
-        : undefined;
-
-    const taxRate = input.taxRate;
+  private validateTaxRate(taxRate: number | undefined): number | undefined {
     if (taxRate !== undefined && (taxRate < 0 || taxRate > 100))
       throw new BadRequestException('taxRate must be between 0 and 100');
+    return taxRate;
+  }
 
+  private normalizeTitle(input: string | null | undefined): string | undefined {
+    return input != null
+      ? this.validateTitle(QuotationsService.stripTags(input))
+      : undefined;
+  }
+
+  private normalizeClientName(
+    input: string | null | undefined,
+  ): string | undefined {
+    return input != null
+      ? this.validateClientName(QuotationsService.stripTags(input))
+      : undefined;
+  }
+
+  private normalizeNotes(
+    input: string | null | undefined,
+  ): string | null | undefined {
+    if (input == null) return undefined;
+    const rawNotes = QuotationsService.stripTags(input).slice(0, 500);
+    return rawNotes.length > 0 ? rawNotes : null;
+  }
+
+  private async prepareTotalsData(
+    input: UpdateQuotationInput,
+    taxRate: number | undefined,
+    id: string,
+  ) {
     let totalsData:
       | ReturnType<QuotationsService['calculateTotals']>
       | undefined;
@@ -422,23 +473,34 @@ export class QuotationsService {
 
     if (input.items) {
       sanitizedItems = input.items.map((item) => this.sanitizeItem(item));
-      totalsData = this.calculateTotals(
-        sanitizedItems,
+      const effectiveTaxRate =
         taxRate ??
-          (await this.prisma.quotation.findFirst({
-            where: { id },
-            select: { taxRate: true },
-          }))!.taxRate,
-      );
+        (await this.prisma.quotation.findFirst({
+          where: { id },
+          select: { taxRate: true },
+        }))!.taxRate;
+      totalsData = this.calculateTotals(sanitizedItems, effectiveTaxRate);
     } else if (taxRate !== undefined) {
-      // Only taxRate changed — recalculate totals from existing items
       const existingItems = await this.prisma.quotationItem.findMany({
         where: { quotationId: id },
       });
       totalsData = this.calculateTotals(existingItems, taxRate);
     }
 
-    const data: Parameters<typeof this.prisma.quotation.update>[0]['data'] = {
+    return { totalsData, sanitizedItems };
+  }
+
+  private buildUpdateData(
+    title: string | undefined,
+    clientName: string | undefined,
+    notes: string | null | undefined,
+    taxRate: number | undefined,
+    totalsData: ReturnType<QuotationsService['calculateTotals']> | undefined,
+    sanitizedItems:
+      | { description: string; quantity: number; unitPrice: number }[]
+      | undefined,
+  ): Parameters<typeof this.prisma.quotation.update>[0]['data'] {
+    return {
       ...(title !== undefined ? { title } : {}),
       ...(clientName !== undefined ? { clientName } : {}),
       ...(notes !== undefined ? { notes } : {}),
@@ -462,6 +524,57 @@ export class QuotationsService {
           }
         : {}),
     };
+  }
+
+  private getChangedFields(
+    title: string | undefined,
+    clientName: string | undefined,
+    notes: string | null | undefined,
+    taxRate: number | undefined,
+    sanitizedItems:
+      | { description: string; quantity: number; unitPrice: number }[]
+      | undefined,
+  ): string[] {
+    const changed: string[] = [];
+    if (title !== undefined) changed.push('title');
+    if (clientName !== undefined) changed.push('client name');
+    if (notes !== undefined) changed.push('notes');
+    if (taxRate !== undefined) changed.push('tax rate');
+    if (sanitizedItems !== undefined) changed.push('line items');
+    return changed;
+  }
+
+  async update(
+    id: string,
+    input: UpdateQuotationInput,
+    userId: string,
+  ): Promise<QuotationType> {
+    this.logger.info(
+      `Updating quotation: ${id} userId: ${userId}`,
+      QuotationsService.name,
+    );
+
+    await this.validateUpdatePermissions(id, userId);
+
+    const title = this.normalizeTitle(input.title);
+    const clientName = this.normalizeClientName(input.clientName);
+    const notes = this.normalizeNotes(input.notes);
+    const taxRate = this.validateTaxRate(input.taxRate);
+
+    const { totalsData, sanitizedItems } = await this.prepareTotalsData(
+      input,
+      taxRate,
+      id,
+    );
+
+    const data = this.buildUpdateData(
+      title,
+      clientName,
+      notes,
+      taxRate,
+      totalsData,
+      sanitizedItems,
+    );
 
     const updated = await this.prisma.quotation.update({
       where: { id },
@@ -469,17 +582,17 @@ export class QuotationsService {
       include: { items: true, createdBy: true },
     });
 
-    // Invalidate stale AI insight cache — quotation content changed
     await this.prisma.aIInsight.deleteMany({
       where: { quotationId: id },
     });
 
-    const changed: string[] = [];
-    if (title !== undefined) changed.push('title');
-    if (clientName !== undefined) changed.push('client name');
-    if (notes !== undefined) changed.push('notes');
-    if (taxRate !== undefined) changed.push('tax rate');
-    if (sanitizedItems !== undefined) changed.push('line items');
+    const changed = this.getChangedFields(
+      title,
+      clientName,
+      notes,
+      taxRate,
+      sanitizedItems,
+    );
     await this.prisma.statusHistory.create({
       data: {
         quotationId: id,

@@ -80,12 +80,44 @@ type Mutation {
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
 
+"""A public sales quotation with line items and calculated totals"""
+type PublicQuotationType {
+  """Free-text client name"""
+  clientName: String!
+  items: [QuotationItemType!]!
+
+  """Optional notes for the client"""
+  notes: String
+
+  """Auto-generated number e.g. QT-2026-0001"""
+  quotationNumber: String!
+
+  """Current status in the pipeline"""
+  status: QuotationStatus!
+
+  """Sum of all line item totals before tax"""
+  subtotal: Float!
+
+  """Tax amount calculated from subtotal and taxRate"""
+  taxAmount: Float!
+
+  """Tax rate as percentage e.g. 19 for 19%"""
+  taxRate: Float!
+
+  """Quotation title or subject"""
+  title: String!
+
+  """Final total including tax"""
+  total: Float!
+}
+
 type Query {
   """Deterministic conversion likelihood score for a quotation"""
   conversionScore(quotationId: ID!): ConversionScoreType!
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType
+  quotationByToken(token: String!): PublicQuotationType
   quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
   salesReps: [SalesRepSummaryType!]!
   statusHistory(quotationId: ID!): [StatusHistoryType!]!
@@ -157,6 +189,9 @@ type QuotationType {
 
   """Optional notes for the client"""
   notes: String
+
+  """Public token for accessing the quotation"""
+  publicToken: String!
 
   """Auto-generated number e.g. QT-2026-0001"""
   quotationNumber: String!

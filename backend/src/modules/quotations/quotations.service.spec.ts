@@ -235,6 +235,50 @@ describe('QuotationsService', () => {
     });
   });
 
+  describe('findByToken', () => {
+    it('returns quotation when found', async () => {
+      const mockQuotation = {
+        quotationNumber: 'q-1',
+        title: 'Test',
+        clientName: 'Client',
+        status: 'DRAFT',
+        notes: 'Some notes',
+        taxRate: 10,
+        subtotal: 100,
+        taxAmount: 10,
+        total: 110,
+        items: {
+          select: {
+            quotationId: 'q-1',
+            id: 'item-1',
+            description: 'Item description',
+            quantity: 2,
+            unitPrice: 50,
+            lineTotal: 100,
+            sortOrder: 1,
+          },
+        },
+      };
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      const result = await service.findByToken('token-1');
+      expect(result).toEqual(mockQuotation);
+    });
+
+    it('returns null when not found', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      const result = await service.findByToken('token-999');
+      expect(result).toBeNull();
+    });
+
+    it('throws and logs error when prisma fails', async () => {
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        new Error('DB error'),
+      );
+      await expect(service.findByToken('token-1')).rejects.toThrow('DB error');
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
   describe('findOwner', () => {
     it('returns createdById when quotation exists', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue({

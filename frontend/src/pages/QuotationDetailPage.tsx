@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
-import { QUOTATION_QUERY, QUOTATIONS_QUERY, CONVERSION_SCORE_QUERY, STATUS_HISTORY_QUERY } from "../graphql/queries";
-import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
+import {
+  QUOTATION_QUERY,
+  QUOTATIONS_QUERY,
+  CONVERSION_SCORE_QUERY,
+  STATUS_HISTORY_QUERY,
+} from "../graphql/queries";
+import {
+  UPDATE_QUOTATION_STATUS_MUTATION,
+  DELETE_QUOTATION_MUTATION,
+} from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
 import AIInsightCard from "../components/AIInsightCard";
 import CreateQuotationModal from "../components/CreateQuotationModal";
@@ -27,6 +35,7 @@ interface QuotationDetail {
   total: number;
   createdAt: string;
   clientName: string;
+  publicToken: string;
   createdBy: {
     id: string;
     name: string;
@@ -56,14 +65,17 @@ function StatusTimeline({ quotationId }: Readonly<{ quotationId: string }>) {
     { variables: { quotationId } },
   );
 
-  if (loading) return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
-      <div className="h-4 bg-gray-100 rounded animate-pulse w-32 mb-3" />
-      <div className="space-y-2">
-        {[1, 2].map((i) => <div key={i} className="h-4 bg-gray-100 rounded animate-pulse" />)}
+  if (loading)
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="h-4 bg-gray-100 rounded animate-pulse w-32 mb-3" />
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-4 bg-gray-100 rounded animate-pulse" />
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
 
   const entries = data?.statusHistory ?? [];
   if (entries.length === 0) return null;
@@ -73,30 +85,45 @@ function StatusTimeline({ quotationId }: Readonly<{ quotationId: string }>) {
       <h3 className="text-sm font-medium text-gray-900 mb-4">Status History</h3>
       <ol className="relative border-l border-gray-100 space-y-4 ml-2">
         {entries.map((e) => {
-          const isDraftDraft = e.fromStatus === "DRAFT" && e.toStatus === "DRAFT";
+          const isDraftDraft =
+            e.fromStatus === "DRAFT" && e.toStatus === "DRAFT";
           const isCreated = isDraftDraft && !e.note;
           const isEdited = isDraftDraft && !!e.note;
           return (
             <li key={e.id} className="ml-4">
               <span className="absolute -left-1.5 mt-1 w-3 h-3 rounded-full border-2 border-white bg-gray-300" />
               {isCreated && (
-                <span className="text-xs font-medium text-gray-700">Created</span>
+                <span className="text-xs font-medium text-gray-700">
+                  Created
+                </span>
               )}
               {isEdited && (
-                <span className="text-xs font-medium text-gray-700">Edited</span>
+                <span className="text-xs font-medium text-gray-700">
+                  Edited
+                </span>
               )}
               {!isDraftDraft && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-gray-400">{STATUS_LABELS[e.fromStatus] ?? e.fromStatus}</span>
+                  <span className="text-xs text-gray-400">
+                    {STATUS_LABELS[e.fromStatus] ?? e.fromStatus}
+                  </span>
                   <span className="text-xs text-gray-300">→</span>
-                  <span className="text-xs font-medium text-gray-700">{STATUS_LABELS[e.toStatus] ?? e.toStatus}</span>
+                  <span className="text-xs font-medium text-gray-700">
+                    {STATUS_LABELS[e.toStatus] ?? e.toStatus}
+                  </span>
                 </div>
               )}
               <p className="text-xs text-gray-400 mt-0.5">
-                {new Date(e.changedAt).toLocaleDateString("en-DE", { day: "2-digit", month: "short", year: "numeric" })}
+                {new Date(e.changedAt).toLocaleDateString("en-DE", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
                 {e.changedBy ? ` · ${e.changedBy.name}` : ""}
               </p>
-              {e.note && <p className="text-xs text-gray-500 mt-0.5 italic">{e.note}</p>}
+              {e.note && (
+                <p className="text-xs text-gray-500 mt-0.5 italic">{e.note}</p>
+              )}
             </li>
           );
         })}
@@ -105,18 +132,21 @@ function StatusTimeline({ quotationId }: Readonly<{ quotationId: string }>) {
   );
 }
 
-function ConversionScoreCard({ quotationId }: Readonly<{ quotationId: string }>) {
+function ConversionScoreCard({
+  quotationId,
+}: Readonly<{ quotationId: string }>) {
   const { data, loading } = useQuery<{ conversionScore: { score: number } }>(
     CONVERSION_SCORE_QUERY,
     { variables: { quotationId } },
   );
 
-  if (loading) return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5">
-      <div className="h-4 bg-gray-100 rounded animate-pulse w-32 mb-3" />
-      <div className="h-8 bg-gray-100 rounded animate-pulse w-16" />
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <div className="h-4 bg-gray-100 rounded animate-pulse w-32 mb-3" />
+        <div className="h-8 bg-gray-100 rounded animate-pulse w-16" />
+      </div>
+    );
 
   const s = data?.conversionScore;
   if (!s) return null;
@@ -124,8 +154,13 @@ function ConversionScoreCard({ quotationId }: Readonly<{ quotationId: string }>)
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <h3 className="text-sm font-medium text-gray-900 mb-1">Win Chance</h3>
-      <p className="text-xs text-gray-400 mb-3">Based on client approval history and deal size</p>
-      <p className="text-3xl font-semibold text-gray-900">{s.score}<span className="text-lg text-gray-400 font-normal">%</span></p>
+      <p className="text-xs text-gray-400 mb-3">
+        Based on client approval history and deal size
+      </p>
+      <p className="text-3xl font-semibold text-gray-900">
+        {s.score}
+        <span className="text-lg text-gray-400 font-normal">%</span>
+      </p>
     </div>
   );
 }
@@ -151,7 +186,14 @@ interface StatusActionsProps {
   onEdit: () => void;
 }
 
-function StatusActions({ quotationId, status, createdById, refetch, onDeleted, onEdit }: Readonly<StatusActionsProps>) {
+function StatusActions({
+  quotationId,
+  status,
+  createdById,
+  refetch,
+  onDeleted,
+  onEdit,
+}: Readonly<StatusActionsProps>) {
   const { user } = useAuth();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -184,7 +226,9 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted, o
   const act = (newStatus: string) => {
     setActionError(null);
     setPendingAction(newStatus);
-    updateStatus({ variables: { id: quotationId, input: { status: newStatus } } }).catch(() => {});
+    updateStatus({
+      variables: { id: quotationId, input: { status: newStatus } },
+    }).catch(() => {});
   };
 
   const isManager = user?.role === "SALES_MANAGER";
@@ -253,10 +297,16 @@ function StatusActions({ quotationId, status, createdById, refetch, onDeleted, o
         )}
         {showDelete && confirmDelete && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
-            <p className="text-xs text-red-700 font-medium">Delete this draft permanently?</p>
+            <p className="text-xs text-red-700 font-medium">
+              Delete this draft permanently?
+            </p>
             <div className="flex gap-2">
               <button
-                onClick={() => { deleteQuotation({ variables: { id: quotationId } }).catch(() => {}); }}
+                onClick={() => {
+                  deleteQuotation({ variables: { id: quotationId } }).catch(
+                    () => {},
+                  );
+                }}
                 disabled={deleting}
                 className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -281,10 +331,24 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { user } = useAuth();
   const isManager = user?.role === "SALES_MANAGER";
   const [showEdit, setShowEdit] = useState(false);
-  const { data, loading, error, refetch } = useQuery<{ quotation: QuotationDetail }>(
-    QUOTATION_QUERY,
-    { variables: { id } },
-  );
+  const [showCopyConfirmation, setShowCopyConfirmation] = useState(false);  
+  const { data, loading, error, refetch } = useQuery<{
+    quotation: QuotationDetail;
+  }>(QUOTATION_QUERY, { variables: { id } });
+  const showCopyLink = (quoteData: QuotationDetail) => {
+    return (
+      quoteData.status === "SENT" ||
+      quoteData.status === "APPROVED" ||
+      quoteData.status === "REJECTED"
+    );
+  };
+  const copyQuoteLink = (quoteData: QuotationDetail) => {
+    navigator.clipboard.writeText(
+      `${window.location.origin}/view-quotation/${quoteData.publicToken}`,
+    );
+    setShowCopyConfirmation(true);
+    setTimeout(() => setShowCopyConfirmation(false), 2000);
+  };
 
   if (loading)
     return (
@@ -305,7 +369,9 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   if (!q)
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-gray-500 text-sm">Quotation not found or access denied.</p>
+        <p className="text-gray-500 text-sm">
+          Quotation not found or access denied.
+        </p>
         <button
           onClick={onBack}
           className="text-sm text-gray-400 hover:text-gray-900 transition-colors"
@@ -327,7 +393,10 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             taxRate: q.taxRate,
             items: q.items,
           }}
-          onClose={() => { setShowEdit(false); refetch(); }}
+          onClose={() => {
+            setShowEdit(false);
+            refetch();
+          }}
           onCreated={() => setShowEdit(false)}
         />
       )}
@@ -453,6 +522,22 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
               <div>
                 <p className="text-xs text-gray-400">Created By</p>
                 <p className="text-sm text-gray-700">{q.createdBy.name}</p>
+              </div>
+              <div>
+                {showCopyLink(q) && (
+                  <>
+                    <p className="text-xs text-gray-400">Share Link</p>
+                    <button
+                      className="text-xs text-blue-600 hover:text-blue-800 underline cursor-pointer"
+                      onClick={() => copyQuoteLink(q)}
+                    >
+                      Copy link
+                    </button>
+                    {showCopyConfirmation && (
+                      <span className="text-xs font-bold text-black px-2">Copied!</span>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
