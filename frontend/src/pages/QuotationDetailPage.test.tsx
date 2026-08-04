@@ -31,6 +31,7 @@ const baseQuotation = {
   clientName: "Hans Bauer",
   status: "DRAFT",
   notes: "Annual license fee",
+  publicToken: "tok-abc123",
   taxRate: 19,
   subtotal: 6000,
   taxAmount: 1140,
@@ -521,6 +522,29 @@ describe("QuotationDetailPage", () => {
       renderAs(mockManager, mocks);
       await screen.findByText("Enterprise License");
       expect(screen.queryByText("Win Chance")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Copy Link", () => {
+    it("shows Copy Link button for SENT quotation", async () => {
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      renderAs(mockRep, makeMock(sentQuotation));
+      await screen.findByText("Enterprise License");
+      expect(screen.getByText("Copy link")).toBeInTheDocument();
+    });
+
+    it("does not show Copy Link button for DRAFT quotation", async () => {
+      renderAs(mockRep, makeMock(baseQuotation));
+      await screen.findByText("Enterprise License");
+      expect(screen.queryByText("Copy link")).not.toBeInTheDocument();
+    });
+
+    it("shows Copied! confirmation when Copy link is clicked", async () => {
+      const user = userEvent.setup();
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      renderAs(mockRep, makeMock(sentQuotation));
+      await user.click(await screen.findByText("Copy link"));
+      expect(screen.getByText("Copied!")).toBeInTheDocument();
     });
   });
 

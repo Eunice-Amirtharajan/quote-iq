@@ -343,7 +343,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
     );
   };
   const copyQuoteLink = (quoteData: QuotationDetail) => {
-    navigator.clipboard.writeText(
+    navigator.clipboard?.writeText(
       `${window.location.origin}/view-quotation/${quoteData.publicToken}`,
     );
     setShowCopyConfirmation(true);
