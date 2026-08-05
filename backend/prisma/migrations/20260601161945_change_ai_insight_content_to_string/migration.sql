@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "AIInsight" ALTER COLUMN "content" SET DATA TYPE TEXT;

@@ -33,6 +33,7 @@ export const QUOTATION_QUERY = gql`
     quotation(id: $id) {
       id
       quotationNumber
+      version
       title
       clientName
       status

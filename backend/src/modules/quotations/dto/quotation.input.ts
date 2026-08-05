@@ -1,4 +1,4 @@
-import { InputType, Field, Float } from '@nestjs/graphql';
+import { InputType, Field, Float, Int } from '@nestjs/graphql';
 import { QuotationStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 
@@ -34,6 +34,9 @@ export class QuotationItemInput {
 
   @Field(() => Float)
   unitPrice!: number;
+
+  @Field(() => Int)
+  sortOrder!: number;
 }
 
 @InputType()
@@ -67,6 +70,9 @@ export class UpdateQuotationStatusInput {
 export class UpdateQuotationInput {
   @Field(() => String, { nullable: true })
   title?: string;
+
+  @Field(() => Int)
+  version!: number;
 
   @Field(() => String, { nullable: true })
   clientName?: string;

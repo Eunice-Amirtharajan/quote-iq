@@ -51,6 +51,7 @@ export const UPDATE_QUOTATION_MUTATION = gql`
     updateQuotation(id: $id, input: $input) {
       id
       quotationNumber
+      version
       title
       clientName
       status

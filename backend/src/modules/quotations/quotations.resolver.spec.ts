@@ -257,12 +257,12 @@ describe('QuotationsResolver', () => {
       mockQuotationsService.update.mockResolvedValue(updated);
       const result = await resolver.updateQuotation(
         'q-1',
-        { title: 'Revised' },
+        { title: 'Revised', version: 2 },
         mockUser as UserType,
       );
       expect(mockQuotationsService.update).toHaveBeenCalledWith(
         'q-1',
-        { title: 'Revised' },
+        { title: 'Revised', version: 2 },
         'user-1',
       );
       expect(result).toEqual(updated);

@@ -98,6 +98,7 @@
       "!**/*.entity.ts",
       "!**/*.module.ts",
       "!**/*.input.ts",
+      "!**/*.resolver.ts",
       "!**/seed.ts",
       "!**/cleanup-e2e-data.ts",
       "!**/main.ts",

@@ -26,6 +26,7 @@ interface QuotationItem {
 interface QuotationDetail {
   id: string;
   quotationNumber: string;
+  version: number;
   title: string;
   status: string;
   notes: string | null;
@@ -387,6 +388,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
         <CreateQuotationModal
           quotation={{
             id: q.id,
+            version: q.version,
             title: q.title,
             clientName: q.clientName,
             notes: q.notes ?? null,

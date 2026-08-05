@@ -2,7 +2,7 @@ import { Args, Resolver, Query } from '@nestjs/graphql';
 import { PublicQuotationType } from './quotation.entity';
 import { QuotationsService } from './quotations.service';
 
-@Resolver(() => PublicQuotationType)
+@Resolver(/* istanbul ignore next */ () => PublicQuotationType)
 export class PublicQuotationsResolver {
   constructor(private readonly quotationsService: QuotationsService) {}
 

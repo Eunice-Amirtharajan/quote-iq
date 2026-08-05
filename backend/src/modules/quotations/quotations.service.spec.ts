@@ -5,6 +5,7 @@ import { AppLogger } from '../../common/logger/logger.service';
 import { Role, User, QuotationStatus } from '@prisma/client';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ const mockPrismaService = {
     findMany: jest.fn(),
     findFirst: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     delete: jest.fn(),
   },
   quotationItem: {
@@ -375,14 +377,26 @@ describe('QuotationsService', () => {
       updatedAt: new Date(),
     };
 
+    const validItem = {
+      description: 'Software License',
+      quantity: 1,
+      unitPrice: 5000,
+      sortOrder: 0,
+    };
+
     const mockInput = {
       title: 'Enterprise License',
       clientName: 'Hans Bauer',
       taxRate: 19,
       notes: 'Annual license',
       items: [
-        { description: 'Software License', quantity: 1, unitPrice: 5000 },
-        { description: 'Support Package', quantity: 2, unitPrice: 500 },
+        validItem,
+        {
+          description: 'Support Package',
+          quantity: 2,
+          unitPrice: 500,
+          sortOrder: 1,
+        },
       ],
     };
 
@@ -517,6 +531,96 @@ describe('QuotationsService', () => {
           data: expect.objectContaining({ clientName: 'Hans Bauer' }),
         }),
       );
+    });
+
+    it('throws BadRequestException when title is empty after strip', async () => {
+      await expect(
+        service.create({ ...mockInput, title: '<b></b>' }, mockUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when title exceeds 100 characters', async () => {
+      await expect(
+        service.create({ ...mockInput, title: 'A'.repeat(101) }, mockUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when taxRate is negative', async () => {
+      await expect(
+        service.create({ ...mockInput, taxRate: -1 }, mockUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when taxRate exceeds 100', async () => {
+      await expect(
+        service.create({ ...mockInput, taxRate: 101 }, mockUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when item description is empty after strip', async () => {
+      await expect(
+        service.create(
+          {
+            ...mockInput,
+            items: [
+              {
+                description: '<b></b>',
+                quantity: 1,
+                unitPrice: 10,
+                sortOrder: 0,
+              },
+            ],
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when item description exceeds 200 characters', async () => {
+      await expect(
+        service.create(
+          {
+            ...mockInput,
+            items: [
+              {
+                description: 'A'.repeat(201),
+                quantity: 1,
+                unitPrice: 10,
+                sortOrder: 0,
+              },
+            ],
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when item quantity is zero', async () => {
+      await expect(
+        service.create(
+          {
+            ...mockInput,
+            items: [
+              { description: 'Item', quantity: 0, unitPrice: 10, sortOrder: 0 },
+            ],
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow('Item quantity must be greater than 0');
+    });
+
+    it('throws BadRequestException when item unitPrice is zero', async () => {
+      await expect(
+        service.create(
+          {
+            ...mockInput,
+            items: [
+              { description: 'Item', quantity: 1, unitPrice: 0, sortOrder: 0 },
+            ],
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow('Item unit price must be greater than 0');
     });
   });
 
@@ -759,7 +863,9 @@ describe('QuotationsService', () => {
             title: 'T',
             clientName: 'Hans Bauer',
             taxRate: 0,
-            items: [{ description: 'X', quantity: 1, unitPrice: 10 }],
+            items: [
+              { description: 'X', quantity: 1, unitPrice: 10, sortOrder: 0 },
+            ],
           },
           mockUser,
         ),
@@ -851,21 +957,29 @@ describe('QuotationsService', () => {
       createdById: 'user-1',
       taxRate: 0,
     };
+    const currentVersion = { version: 1 };
     const updatedQuotation = {
       id: 'q-1',
       title: 'Updated Title',
       clientName: 'Updated Corp',
       status: QuotationStatus.DRAFT,
+      version: 2,
       items: [],
       createdBy: { id: 'user-1', name: 'Anna' },
     };
 
-    it('updates title and clientName for owner', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+    beforeEach(() => {
+      // findFirst call order: validateUpdatePermissions → version check
+      mockPrismaService.quotation.findFirst
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce(currentVersion);
       mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
-      const result = await service.update(
+    });
+
+    it('calls update with version increment and correct fields', async () => {
+      await service.update(
         'q-1',
-        { title: 'Updated Title', clientName: 'Updated Corp' },
+        { title: 'Updated Title', clientName: 'Updated Corp', version: 1 },
         'user-1',
       );
       expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
@@ -874,39 +988,59 @@ describe('QuotationsService', () => {
           data: expect.objectContaining({
             title: 'Updated Title',
             clientName: 'Updated Corp',
+            version: { increment: 1 },
           }),
         }),
+      );
+    });
+
+    it('returns the updated quotation', async () => {
+      const result = await service.update(
+        'q-1',
+        { title: 'Updated Title', clientName: 'Updated Corp', version: 1 },
+        'user-1',
       );
       expect(result).toEqual(updatedQuotation);
     });
 
     it('recalculates totals when items are replaced', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
-      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+      // findFirst order: validateUpdatePermissions → taxRate lookup → version check
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce({ taxRate: 0 })
+        .mockResolvedValueOnce(currentVersion);
       await service.update(
         'q-1',
         {
-          items: [{ description: 'New Item', quantity: 2, unitPrice: 500 }],
+          items: [
+            {
+              description: 'New Item',
+              quantity: 2,
+              unitPrice: 500,
+              sortOrder: 0,
+            },
+          ],
+          version: 1,
         },
         'user-1',
       );
       expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            subtotal: 1000,
-            total: 1000,
-          }),
+          data: expect.objectContaining({ subtotal: 1000, total: 1000 }),
         }),
       );
     });
 
     it('recalculates totals from existing items when only taxRate changes', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce(currentVersion);
       mockPrismaService.quotationItem.findMany.mockResolvedValue([
         { description: 'Item', quantity: 1, unitPrice: 1000, lineTotal: 1000 },
       ]);
-      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
-      await service.update('q-1', { taxRate: 19 }, 'user-1');
+      await service.update('q-1', { taxRate: 19, version: 1 }, 'user-1');
       expect(mockPrismaService.quotationItem.findMany).toHaveBeenCalled();
       expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -915,69 +1049,76 @@ describe('QuotationsService', () => {
       );
     });
 
+    it('throws ConflictException when input version does not match DB version', async () => {
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce({ version: 5 }); // DB has version 5, input sends 1
+      await expect(
+        service.update('q-1', { title: 'Stale Edit', version: 1 }, 'user-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
+    });
+
     it('throws NotFoundException when quotation not found', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
-      await expect(service.update('q-999', {}, 'user-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(null);
+      await expect(
+        service.update('q-999', { version: 1 }, 'user-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when quotation is not DRAFT', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue({
-        ...draftOwned,
-        status: QuotationStatus.SENT,
-      });
-      await expect(service.update('q-1', {}, 'user-1')).rejects.toThrow(
-        BadRequestException,
-      );
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce({ ...draftOwned, status: QuotationStatus.SENT });
+      await expect(
+        service.update('q-1', { version: 1 }, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws ForbiddenException when user does not own the quotation', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue({
-        ...draftOwned,
-        createdById: 'user-999',
-      });
-      await expect(service.update('q-1', {}, 'user-1')).rejects.toThrow(
-        ForbiddenException,
-      );
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce({ ...draftOwned, createdById: 'user-999' });
+      await expect(
+        service.update('q-1', { version: 1 }, 'user-1'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('throws BadRequestException when title is empty after strip', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
       await expect(
-        service.update('q-1', { title: '<b></b>' }, 'user-1'),
+        service.update('q-1', { title: '<b></b>', version: 1 }, 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when taxRate is out of range', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned);
       await expect(
-        service.update('q-1', { taxRate: 101 }, 'user-1'),
+        service.update('q-1', { taxRate: 101, version: 1 }, 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('deletes stale AIInsight cache entries after successful update', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
-      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
-
-      await service.update('q-1', { title: 'Updated Title' }, 'user-1');
-
+      await service.update(
+        'q-1',
+        { title: 'Updated Title', version: 1 },
+        'user-1',
+      );
       expect(mockPrismaService.aIInsight.deleteMany).toHaveBeenCalledWith({
         where: { quotationId: 'q-1' },
       });
     });
 
     it('writes a DRAFT→DRAFT history entry with changed fields note on update', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValue(draftOwned);
-      mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
-      mockPrismaService.statusHistory.create.mockResolvedValue({});
-
       await service.update(
         'q-1',
-        { title: 'Updated Title', clientName: 'Updated Corp' },
+        { title: 'Updated Title', clientName: 'Updated Corp', version: 1 },
         'user-1',
       );
-
       expect(mockPrismaService.statusHistory.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           quotationId: 'q-1',
@@ -987,6 +1128,93 @@ describe('QuotationsService', () => {
           note: expect.stringContaining('title'),
         }),
       });
+    });
+
+    it('throws BadRequestException when clientName exceeds 200 characters on update', async () => {
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned);
+      await expect(
+        service.update(
+          'q-1',
+          { clientName: 'A'.repeat(201), version: 1 },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('sets notes to null when update input is an empty string after strip', async () => {
+      await service.update('q-1', { notes: '<b>  </b>', version: 1 }, 'user-1');
+      expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ notes: null }),
+        }),
+      );
+    });
+
+    it('throws BadRequestException when item description is empty after strip (update)', async () => {
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce({ taxRate: 0 })
+        .mockResolvedValueOnce(currentVersion);
+      await expect(
+        service.update(
+          'q-1',
+          {
+            items: [
+              {
+                description: '<b></b>',
+                quantity: 1,
+                unitPrice: 10,
+                sortOrder: 0,
+              },
+            ],
+            version: 1,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when item quantity is zero (update)', async () => {
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce({ taxRate: 0 })
+        .mockResolvedValueOnce(currentVersion);
+      await expect(
+        service.update(
+          'q-1',
+          {
+            items: [
+              { description: 'Item', quantity: 0, unitPrice: 10, sortOrder: 0 },
+            ],
+            version: 1,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow('Item quantity must be greater than 0');
+    });
+
+    it('throws BadRequestException when item unitPrice is zero (update)', async () => {
+      mockPrismaService.quotation.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(draftOwned)
+        .mockResolvedValueOnce({ taxRate: 0 })
+        .mockResolvedValueOnce(currentVersion);
+      await expect(
+        service.update(
+          'q-1',
+          {
+            items: [
+              { description: 'Item', quantity: 1, unitPrice: 0, sortOrder: 0 },
+            ],
+            version: 1,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow('Item unit price must be greater than 0');
     });
   });
 });

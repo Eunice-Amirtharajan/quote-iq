@@ -3,6 +3,7 @@ import {
   Field,
   ID,
   Float,
+  Int,
   registerEnumType,
 } from '@nestjs/graphql';
 import { QuotationItemType } from './quotation-item.entity';
@@ -54,6 +55,9 @@ export class QuotationType {
   @Field(() => Float, { description: 'Final total including tax' })
   total!: number;
 
+  @Field(() => Int, { description: 'Optimistic concurrency version' })
+  version!: number;
+
   @Field(() => Date, { description: 'Creation timestamp' })
   createdAt!: Date;
 
@@ -84,6 +88,7 @@ type _ScalarFieldsMatch =
     | 'subtotal'
     | 'taxAmount'
     | 'total'
+    | 'version'
     | 'createdAt'
     | 'createdById'
   >

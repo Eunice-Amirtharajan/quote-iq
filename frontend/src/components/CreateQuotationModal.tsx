@@ -11,6 +11,7 @@ interface LineItem {
 
 interface ExistingQuotation {
   id: string;
+  version: number;
   title: string;
   clientName: string;
   notes: string | null;
@@ -134,6 +135,7 @@ export default function CreateQuotationModal({
           id: quotation.id,
           input: {
             title: title.trim(),
+            version: quotation.version,
             clientName: stripTags(clientName.trim()),
             notes: sanitizedNotes ?? null,
             taxRate: Number(taxRate),
@@ -156,9 +158,9 @@ export default function CreateQuotationModal({
     }
   };
 
-  const submitLabel = loading
-    ? (isEdit ? "Saving…" : "Creating…")
-    : (isEdit ? "Save Changes" : "Create Quotation");
+  const getLoadingLabel = () => isEdit ? "Saving…" : "Creating…";
+  const getDefaultLabel = () => isEdit ? "Save Changes" : "Create Quotation";
+  const submitLabel = loading ? getLoadingLabel() : getDefaultLabel();
 
   return (
     <dialog

@@ -1,9 +1,10 @@
 import {
   BadRequestException,
-  ForbiddenException,
   HttpException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -575,12 +576,27 @@ export class QuotationsService {
       totalsData,
       sanitizedItems,
     );
-
+    const currentVersion = await this.prisma.quotation.findFirst({
+      where: { id },
+      select: { version: true },
+    });
+    if (currentVersion?.version !== input.version) {
+      throw new ConflictException(
+        'Version mismatch. The quotation has been modified by someone else — please refresh and try again.',
+      );
+    }
     const updated = await this.prisma.quotation.update({
       where: { id },
-      data,
+      data: {
+        ...data,
+        version: { increment: 1 },
+      },
       include: { items: true, createdBy: true },
     });
+
+    if (!updated) {
+      throw new NotFoundException(`Quotation ${id} not found`);
+    }
 
     await this.prisma.aIInsight.deleteMany({
       where: { quotationId: id },

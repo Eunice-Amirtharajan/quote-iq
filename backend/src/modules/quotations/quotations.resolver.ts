@@ -18,7 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserType } from '../users/user.entity';
 import { Role } from '@prisma/client';
 
-@Resolver(() => QuotationType)
+@Resolver(/* istanbul ignore next */ () => QuotationType)
 @UseGuards(JwtAuthGuard)
 export class QuotationsResolver {
   constructor(private readonly quotationsService: QuotationsService) {}

@@ -50,6 +50,8 @@ model Quotation {
   taxAmount       Float           @default(0)
   total           Float           @default(0)
 
+  version         Int             @default(1)
+
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   createdById     String

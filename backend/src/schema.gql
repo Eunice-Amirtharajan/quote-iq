@@ -140,6 +140,7 @@ input QuotationFilterInput {
 input QuotationItemInput {
   description: String!
   quantity: Float!
+  sortOrder: Int!
   unitPrice: Float!
 }
 
@@ -213,6 +214,9 @@ type QuotationType {
 
   """Final total including tax"""
   total: Float!
+
+  """Optimistic concurrency version"""
+  version: Int!
 }
 
 enum Recommendation {
@@ -266,6 +270,7 @@ input UpdateQuotationInput {
   notes: String
   taxRate: Float
   title: String
+  version: Int!
 }
 
 input UpdateQuotationStatusInput {
