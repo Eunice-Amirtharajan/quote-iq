@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import QuotationsPage from './QuotationsPage';
-import { QUOTATIONS_QUERY, SALES_REPS_QUERY, CONVERSION_SCORE_QUERY } from '../graphql/queries';
+import { QUOTATIONS_QUERY, SALES_REPS_QUERY, CONVERSION_SCORES_QUERY } from '../graphql/queries';
 import { CREATE_QUOTATION_MUTATION } from '../graphql/mutations';
 import { AuthContext } from '../context/auth-context';
 import type { MockLink } from '@apollo/client/testing';
@@ -67,10 +67,10 @@ const managerSuccessMock: MockLink.MockedResponse[] = [
     request: { query: SALES_REPS_QUERY, variables: {} },
     result:  { data: { salesReps: mockReps } },
   },
-  // ConversionBadge fires for the SENT quotation (q-2)
+  // Batch conversion scores fires once for all SENT quotations
   {
-    request: { query: CONVERSION_SCORE_QUERY, variables: { quotationId: 'q-2' } },
-    result:  { data: { conversionScore: { score: 72, label: 'HIGH' } } },
+    request: { query: CONVERSION_SCORES_QUERY, variables: { quotationIds: ['q-2'] } },
+    result:  { data: { conversionScores: [{ quotationId: 'q-2', score: 72, label: 'HIGH' }] } },
   },
 ];
 

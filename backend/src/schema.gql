@@ -24,6 +24,7 @@ enum ConversionLabel {
 type ConversionScoreType {
   """HIGH ≥ 65, MEDIUM ≥ 35, LOW < 35"""
   label: ConversionLabel!
+  quotationId: ID
 
   """Score 0–100"""
   score: Int!
@@ -114,6 +115,7 @@ type PublicQuotationType {
 type Query {
   """Deterministic conversion likelihood score for a quotation"""
   conversionScore(quotationId: ID!): ConversionScoreType!
+  conversionScores(quotationIds: [ID!]!): [ConversionScoreType!]!
   dashboardStats: DashboardStatsType!
   me: UserType!
   quotation(id: ID!): QuotationType

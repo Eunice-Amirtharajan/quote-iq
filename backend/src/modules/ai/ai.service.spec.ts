@@ -43,6 +43,7 @@ const mockPrismaService = {
   },
   aIInsight: {
     findFirst: jest.fn().mockResolvedValue(null),
+    findMany: jest.fn().mockResolvedValue([]),
     upsert: jest.fn().mockResolvedValue({}),
     create: jest.fn().mockResolvedValue({}),
     update: jest.fn().mockResolvedValue({}),
@@ -667,6 +668,63 @@ describe('AIService', () => {
     });
   });
 
+  describe('getConversionScores', () => {
+    const cachedInsight = (quotationId: string, score: number) => ({
+      id: `insight-${quotationId}`,
+      quotationId,
+      insightType: 'CONVERSION_SCORE',
+      content: JSON.stringify({ score, label: 'HIGH' }),
+      expiresAt: new Date(Date.now() + 86400000),
+    });
+
+    beforeEach(() => {
+      mockPrismaService.aIInsight.findMany.mockResolvedValue([]);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('returns empty array when quotationIds is empty', async () => {
+      const result = await service.getConversionScores([]);
+      expect(result).toEqual([]);
+    });
+
+    it('returns cached scores without computing when all are in cache', async () => {
+      mockPrismaService.aIInsight.findMany
+        .mockResolvedValueOnce([cachedInsight('q-1', 72), cachedInsight('q-2', 50)])
+        .mockResolvedValueOnce([cachedInsight('q-1', 72), cachedInsight('q-2', 50)]);
+
+      const result = await service.getConversionScores(['q-1', 'q-2']);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ quotationId: 'q-1', score: 72 });
+      expect(result[1]).toMatchObject({ quotationId: 'q-2', score: 50 });
+      expect(mockPrismaService.quotation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('computes and caches missing scores then returns all', async () => {
+      mockPrismaService.aIInsight.findMany
+        .mockResolvedValueOnce([cachedInsight('q-1', 72)])
+        .mockResolvedValueOnce([cachedInsight('q-1', 72), cachedInsight('q-2', 50)]);
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+
+      const result = await service.getConversionScores(['q-1', 'q-2']);
+
+      expect(result).toHaveLength(2);
+      expect(mockPrismaService.aIInsight.upsert).toHaveBeenCalled();
+    });
+
+    it('propagates NotFoundException when a missing id does not exist in DB', async () => {
+      mockPrismaService.aIInsight.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getConversionScores(['q-999']),
+      ).rejects.toThrow('Quotation q-999 not found');
+    });
+  });
+
   describe('askAboutQuotation', () => {
     const mockAnswer = {
       choices: [{ message: { content: 'The margin looks reasonable.' } }],
@@ -732,10 +790,10 @@ describe('AIService', () => {
       ).rejects.toThrow('Quotation q-999 not found');
     });
 
-    it('returns early message for blank question', async () => {
-      const result = await service.askAboutQuotation('q-1', '   ');
-
-      expect(result.answer).toBe('Please enter a question.');
+    it('throws BadRequestException for blank question', async () => {
+      await expect(
+        service.askAboutQuotation('q-1', '   '),
+      ).rejects.toThrow('Please enter a question.');
       expect(mockCreate).not.toHaveBeenCalled();
     });
 

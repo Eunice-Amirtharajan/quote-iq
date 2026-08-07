@@ -1,6 +1,9 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
+-- CreateSequence (used to generate QT-YYYY-NNNN quotation numbers)
+CREATE SEQUENCE IF NOT EXISTS quote_number_seq START 1;
+
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('SALES_MANAGER', 'SALES_REP');
 

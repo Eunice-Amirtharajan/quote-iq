@@ -3,6 +3,7 @@ import {
   Field,
   Int,
   Float,
+  ID,
   registerEnumType,
 } from '@nestjs/graphql';
 
@@ -40,6 +41,9 @@ export class QuotationSummaryType {
   description: 'Deterministic conversion likelihood score for a SENT quotation',
 })
 export class ConversionScoreType {
+  @Field(() => ID, { nullable: true })
+  quotationId?: string;
+
   @Field(() => Int, { description: 'Score 0–100' })
   score!: number;
 

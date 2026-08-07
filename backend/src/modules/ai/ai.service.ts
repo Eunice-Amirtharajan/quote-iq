@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -405,6 +406,18 @@ strong contradicting signals. Justify your reasoning.
 
     const result: ConversionScoreType = { score, label };
 
+    this.logger.info(
+      `Conversion score: ${score} (${label}) for quotation: ${quotationId}`,
+      AIService.name,
+    );
+    await this.updateInsightCache(quotationId, result);
+    return result;
+  }
+
+  private async updateInsightCache(
+    quotationId: string,
+    insightData: ConversionScoreType,
+  ): Promise<ConversionScoreType> {
     await this.prisma.aIInsight.upsert({
       where: {
         quotationId_insightType: {
@@ -415,20 +428,20 @@ strong contradicting signals. Justify your reasoning.
       create: {
         quotationId,
         insightType: InsightType.CONVERSION_SCORE,
-        content: JSON.stringify(result),
+        content: JSON.stringify(insightData),
         expiresAt: new Date(Date.now() + INSIGHT_TTL_MS),
       },
       update: {
-        content: JSON.stringify(result),
+        content: JSON.stringify(insightData),
         expiresAt: new Date(Date.now() + INSIGHT_TTL_MS),
       },
     });
 
     this.logger.info(
-      `Conversion score: ${score} (${label}) for quotation: ${quotationId}`,
+      `Insight data cached: ${insightData.score} (${insightData.label}) for quotation: ${quotationId}`,
       AIService.name,
     );
-    return result;
+    return insightData;
   }
 
   /**
@@ -632,32 +645,35 @@ strong contradicting signals. Justify your reasoning.
     return result;
   }
 
-  async askAboutQuotation(
-    quotationId: string,
-    question: string,
-  ): Promise<QuotationAnswerType> {
+  private validateQuestion(question: string): string {
     const trimmed = question.trim().slice(0, 500);
     if (!trimmed) {
-      return { answer: 'Please enter a question.' };
+      throw new BadRequestException('Please enter a question.');
     }
+    return trimmed;
+  }
 
-    const quotation = await this.prisma.quotation.findFirst({
-      where: { id: quotationId },
-      include: { items: true, createdBy: true },
-    });
-    if (!quotation) {
-      throw new NotFoundException(`Quotation ${quotationId} not found`);
+  private calculateDealVsAverage(
+    quotationTotal: number,
+    avgDealSize: number | null,
+  ): string {
+    if (!avgDealSize) return 'n/a';
+    const percentage = Math.round(
+      Math.abs((quotationTotal - avgDealSize) / avgDealSize) * 100,
+    );
+    return quotationTotal > avgDealSize
+      ? `${percentage}% above average`
+      : `${percentage}% below average`;
+  }
+
+  private buildClientHistoryBlock(
+    clientHistory: QuotationType[],
+    avgDealSize: number | null,
+    quotationTotal: number,
+  ): string {
+    if (clientHistory.length === 0) {
+      return 'Client history: No previous deals on record for this client.';
     }
-
-    const clientHistory = await this.prisma.quotation.findMany({
-      where: {
-        clientName: { equals: quotation.clientName, mode: 'insensitive' },
-        id: { not: quotationId },
-        createdAt: { lt: quotation.createdAt },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
 
     const approved = clientHistory.filter(
       (q) => q.status === QuotationStatus.APPROVED,
@@ -665,21 +681,7 @@ strong contradicting signals. Justify your reasoning.
     const rejected = clientHistory.filter(
       (q) => q.status === QuotationStatus.REJECTED,
     ).length;
-    const avgDealSize =
-      clientHistory.length > 0
-        ? Math.round(
-            clientHistory.reduce((s, q) => s + q.total, 0) /
-              clientHistory.length,
-          )
-        : null;
-
-    let dealVsAvg: string;
-    if (!avgDealSize) dealVsAvg = 'n/a';
-    else if (quotation.total > avgDealSize)
-      dealVsAvg = `${Math.round(((quotation.total - avgDealSize) / avgDealSize) * 100)}% above average`;
-    else
-      dealVsAvg = `${Math.round(((avgDealSize - quotation.total) / avgDealSize) * 100)}% below average`;
-
+    const dealVsAvg = this.calculateDealVsAverage(quotationTotal, avgDealSize);
     const previousDeals = clientHistory
       .map(
         (q) =>
@@ -687,19 +689,20 @@ strong contradicting signals. Justify your reasoning.
       )
       .join(', ');
 
-    const clientHistoryBlock =
-      clientHistory.length > 0
-        ? `
+    return `
 Client history (last ${clientHistory.length} deals, excluding this one):
 - Total previous deals: ${clientHistory.length}
 - Approved: ${approved} | Rejected: ${rejected} | Other: ${clientHistory.length - approved - rejected}
 - Average deal size: €${avgDealSize?.toLocaleString()}
 - This deal vs average: ${dealVsAvg}
-- Previous deals: ${previousDeals}`
-        : `
-Client history: No previous deals on record for this client.`;
+- Previous deals: ${previousDeals}`;
+  }
 
-    const systemPrompt = `You are a sales analyst assistant. Your ONLY job is to answer questions about the specific quotation and client history data provided below.
+  private buildSystemPrompt(
+    quotation: QuotationWithRelations,
+    clientHistoryBlock: string,
+  ): string {
+    return `You are a sales analyst assistant. Your ONLY job is to answer questions about the specific quotation and client history data provided below.
 
 If the question is unrelated to this quotation or client (e.g. general knowledge, other topics), respond with exactly: "I can only answer questions about this quotation."
 
@@ -724,12 +727,22 @@ ${clientHistoryBlock}
 </quotation_data>
 
 Answer in 2–4 sentences. Be direct and factual.`;
+  }
 
-    this.logger.info(
-      `NL question for quotation: ${quotationId}`,
-      AIService.name,
+  private isTransientError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false;
+    return (
+      err.message.includes('503') ||
+      err.message.includes('overloaded') ||
+      err.message.includes('rate_limit') ||
+      err.message.includes('429')
     );
+  }
 
+  private async queryGroqModels(
+    systemPrompt: string,
+    question: string,
+  ): Promise<string> {
     let lastError: unknown;
     for (const model of GROQ_MODELS) {
       try {
@@ -737,7 +750,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
           model,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: trimmed },
+            { role: 'user', content: question },
           ],
           temperature: 0.3,
         });
@@ -746,14 +759,9 @@ Answer in 2–4 sentences. Be direct and factual.`;
           `NL answer received from model: ${model}`,
           AIService.name,
         );
-        return { answer };
+        return answer;
       } catch (err) {
-        const isTransient =
-          err instanceof Error &&
-          (err.message.includes('503') ||
-            err.message.includes('overloaded') ||
-            err.message.includes('rate_limit') ||
-            err.message.includes('429'));
+        const isTransient = this.isTransientError(err);
         this.logger.warn(
           `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
           AIService.name,
@@ -763,5 +771,110 @@ Answer in 2–4 sentences. Be direct and factual.`;
       }
     }
     throw lastError;
+  }
+
+  async askAboutQuotation(
+    quotationId: string,
+    question: string,
+  ): Promise<QuotationAnswerType> {
+    const trimmed = this.validateQuestion(question);
+
+    const quotation = await this.prisma.quotation.findFirst({
+      where: { id: quotationId },
+      include: { items: true, createdBy: true },
+    });
+    if (!quotation) {
+      throw new NotFoundException(`Quotation ${quotationId} not found`);
+    }
+
+    const clientHistory = await this.prisma.quotation.findMany({
+      where: {
+        clientName: { equals: quotation.clientName, mode: 'insensitive' },
+        id: { not: quotationId },
+        createdAt: { lt: quotation.createdAt },
+      },
+      include: { items: true, createdBy: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    const avgDealSize =
+      clientHistory.length > 0
+        ? Math.round(
+            clientHistory.reduce((s, q) => s + q.total, 0) /
+              clientHistory.length,
+          )
+        : null;
+
+    const clientHistoryBlock = this.buildClientHistoryBlock(
+      clientHistory,
+      avgDealSize,
+      quotation.total,
+    );
+
+    const systemPrompt = this.buildSystemPrompt(quotation, clientHistoryBlock);
+
+    this.logger.info(
+      `NL question for quotation: ${quotationId}`,
+      AIService.name,
+    );
+
+    const answer = await this.queryGroqModels(systemPrompt, trimmed);
+    return { answer };
+  }
+
+  async getConversionScores(
+    quotationIds: string[],
+  ): Promise<ConversionScoreType[]> {
+    try {
+      const quotationDataInCache = await this.prisma.aIInsight.findMany({
+        where: {
+          quotationId: { in: quotationIds },
+          insightType: InsightType.CONVERSION_SCORE,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      const quotationIdsInCache = new Set(
+        quotationDataInCache.map((quoteData) => quoteData.quotationId),
+      );
+      const missingQuoteIds = quotationIds.filter(
+        (quoteId) => !quotationIdsInCache.has(quoteId),
+      );
+      await Promise.all(
+        missingQuoteIds.map((id) => this.getConversionScore(id)),
+      );
+
+      const allRows = await this.prisma.aIInsight.findMany({
+        where: {
+          quotationId: { in: quotationIds },
+          insightType: InsightType.CONVERSION_SCORE,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      const scoreMap = new Map(
+        allRows.map((row) => {
+          const parsed = JSON.parse(row.content) as ConversionScoreType;
+          return [
+            row.quotationId,
+            {
+              score: parsed.score,
+              label: parsed.label,
+              quotationId: row.quotationId ?? undefined,
+            },
+          ];
+        }),
+      );
+      return quotationIds.flatMap((id) => {
+        const entry = scoreMap.get(id);
+        return entry ? [entry] : [];
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to get conversion score`,
+        error instanceof Error ? error.stack : String(error),
+        AIService.name,
+      );
+      throw error;
+    }
   }
 }

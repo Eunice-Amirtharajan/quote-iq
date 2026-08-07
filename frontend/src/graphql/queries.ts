@@ -62,7 +62,6 @@ export const QUOTATION_QUERY = gql`
   }
 `;
 
-
 export const ME_QUERY = gql`
   query Me {
     me {
@@ -115,7 +114,6 @@ export const WIN_LOSS_ANALYSIS_QUERY = gql`
   }
 `;
 
-
 export const STATUS_HISTORY_QUERY = gql`
   query StatusHistory($quotationId: ID!) {
     statusHistory(quotationId: $quotationId) {
@@ -151,6 +149,16 @@ export const QUOTATION_BY_TOKEN_QUERY = gql`
         lineTotal
         sortOrder
       }
+    }
+  }
+`;
+
+export const CONVERSION_SCORES_QUERY = gql`
+  query ConversionScores($quotationIds: [ID!]!) {
+    conversionScores(quotationIds: $quotationIds) {
+      quotationId
+      score
+      label
     }
   }
 `;

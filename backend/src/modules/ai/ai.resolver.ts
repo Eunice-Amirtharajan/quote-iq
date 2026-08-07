@@ -38,7 +38,17 @@ export class AIResolver {
     @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
     quotationId: string,
   ): Promise<ConversionScoreType> {
-    return this.aiService.getConversionScore(quotationId);
+    return await this.aiService.getConversionScore(quotationId);
+  }
+
+  @Query(/* istanbul ignore next */ () => [ConversionScoreType])
+  @UseGuards(RolesGuard)
+  @Roles(Role.SALES_MANAGER)
+  async conversionScores(
+    @Args('quotationIds', { type: /* istanbul ignore next */ () => [ID] })
+    quotationIds: string[],
+  ): Promise<ConversionScoreType[]> {
+    return this.aiService.getConversionScores(quotationIds);
   }
 
   @Query(/* istanbul ignore next */ () => WinLossStatsType, {
