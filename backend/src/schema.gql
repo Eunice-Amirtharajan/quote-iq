@@ -142,7 +142,7 @@ input QuotationFilterInput {
 input QuotationItemInput {
   description: String!
   quantity: Float!
-  sortOrder: Int!
+  sortOrder: Int
   unitPrice: Float!
 }
 

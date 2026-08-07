@@ -35,8 +35,8 @@ export class QuotationItemInput {
   @Field(() => Float)
   unitPrice!: number;
 
-  @Field(() => Int)
-  sortOrder!: number;
+  @Field(() => Int, { nullable: true })
+  sortOrder?: number;
 }
 
 @InputType()

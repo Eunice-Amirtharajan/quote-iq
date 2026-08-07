@@ -689,7 +689,7 @@ describe('QuoteIQ E2E', () => {
             mutation {
               updateQuotation(
                 id: "${editDraftId}",
-                input: { title: "Updated Title" }
+                input: { title: "Updated Title", version: 1 }
               ) {
                 id
                 title
@@ -715,7 +715,7 @@ describe('QuoteIQ E2E', () => {
         .send({
           query: `
             mutation {
-              updateQuotation(id: "${quotationId}", input: { title: "Hack" }) {
+              updateQuotation(id: "${quotationId}", input: { title: "Hack", version: 1 }) {
                 id
               }
             }
@@ -860,7 +860,7 @@ describe('QuoteIQ E2E', () => {
             mutation {
               updateQuotation(
                 id: "${freshId}",
-                input: { title: "Edited Title", clientName: "Edited Client" }
+                input: { title: "Edited Title", clientName: "Edited Client", version: 1 }
               ) { id }
             }
           `,
