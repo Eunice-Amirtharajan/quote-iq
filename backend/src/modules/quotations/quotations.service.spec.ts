@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
+import { MailService } from '../../common/mail/mail.service';
 import { Role, User, QuotationStatus } from '@prisma/client';
 import {
   BadRequestException,
@@ -31,6 +32,9 @@ const mockPrismaService = {
   aIInsight: {
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
+  user: {
+    findMany: jest.fn(),
+  },
   $queryRaw: jest.fn(),
 };
 
@@ -39,6 +43,10 @@ const mockLogger = {
   warn: jest.fn(),
   error: jest.fn(),
   debug: jest.fn(),
+};
+
+const mockMailService = {
+  sendMail: jest.fn(),
 };
 
 describe('QuotationsService', () => {
@@ -50,6 +58,7 @@ describe('QuotationsService', () => {
         QuotationsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AppLogger, useValue: mockLogger },
+        { provide: MailService, useValue: mockMailService },
       ],
     }).compile();
 
@@ -625,17 +634,35 @@ describe('QuotationsService', () => {
   });
 
   describe('updateStatus', () => {
+    const createdBy = { name: 'Anna', email: 'anna@quoteiq.com' };
+
     const draftQuotation = {
       id: 'q-1',
+      quotationNumber: 'QT-2026-0001',
+      clientName: 'Acme Corp',
       status: QuotationStatus.DRAFT,
       title: 'Test',
       total: 5000,
+      createdBy,
     };
     const sentQuotation = { ...draftQuotation, status: QuotationStatus.SENT };
     const approvedQuotation = {
       ...draftQuotation,
       status: QuotationStatus.APPROVED,
     };
+
+    const richQuotation = {
+      id: 'q-1',
+      quotationNumber: 'QT-2026-0001',
+      clientName: 'Acme Corp',
+      status: QuotationStatus.SENT,
+      createdBy,
+    };
+
+    beforeEach(() => {
+      // default: no managers found — existing tests that don't assert on email still pass
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+    });
 
     it('records status history and updates quotation', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
@@ -799,6 +826,82 @@ describe('QuotationsService', () => {
         expect.any(String),
         'plain string error',
         QuotationsService.name,
+      );
+    });
+
+    it('emails all managers when status transitions to SENT', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+      mockPrismaService.quotation.update.mockResolvedValue({
+        ...richQuotation,
+        status: QuotationStatus.SENT,
+      });
+      mockPrismaService.user.findMany.mockResolvedValue([
+        { email: 'manager1@quoteiq.com' },
+        { email: 'manager2@quoteiq.com' },
+      ]);
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.SENT,
+        undefined,
+        'user-1',
+        Role.SALES_REP,
+      );
+
+      expect(mockMailService.sendMail).toHaveBeenCalledTimes(2);
+      expect(mockMailService.sendMail).toHaveBeenCalledWith(
+        'manager1@quoteiq.com',
+        expect.stringContaining('QT-2026-0001'),
+        expect.stringContaining('Anna'),
+      );
+    });
+
+    it('emails the rep when status transitions to APPROVED', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+      mockPrismaService.quotation.update.mockResolvedValue({
+        ...richQuotation,
+        status: QuotationStatus.APPROVED,
+      });
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.APPROVED,
+        undefined,
+        'manager-1',
+        Role.SALES_MANAGER,
+      );
+
+      expect(mockMailService.sendMail).toHaveBeenCalledTimes(1);
+      expect(mockMailService.sendMail).toHaveBeenCalledWith(
+        'anna@quoteiq.com',
+        expect.stringContaining('QT-2026-0001'),
+        expect.stringContaining('approved'),
+      );
+    });
+
+    it('emails the rep with note when status transitions to REJECTED', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+      mockPrismaService.quotation.update.mockResolvedValue({
+        ...richQuotation,
+        status: QuotationStatus.REJECTED,
+      });
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.REJECTED,
+        'Price too high',
+        'manager-1',
+        Role.SALES_MANAGER,
+      );
+
+      expect(mockMailService.sendMail).toHaveBeenCalledTimes(1);
+      expect(mockMailService.sendMail).toHaveBeenCalledWith(
+        'anna@quoteiq.com',
+        expect.stringContaining('QT-2026-0001'),
+        expect.stringContaining('Price too high'),
       );
     });
   });

@@ -227,7 +227,9 @@ describe("QuotationDetailPage", () => {
           },
           result: { data: { updateQuotationStatus: { id: "q-1", status: "SENT" } } },
         },
-        ...makeMock(sentQuotation),
+        // refetchQueries after mutation
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: sentQuotation } } },
+        { request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } }, result: { data: { statusHistory: [] } } },
       ];
 
       renderAs(mockRep, mocks);
@@ -237,6 +239,30 @@ describe("QuotationDetailPage", () => {
       await waitFor(() => {
         expect(screen.queryByText("Submitting…")).not.toBeInTheDocument();
       });
+    });
+
+    it("shows toast after rep submits for approval", async () => {
+      const user = userEvent.setup();
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(baseQuotation),
+        {
+          request: {
+            query: UPDATE_QUOTATION_STATUS_MUTATION,
+            variables: { id: "q-1", input: { status: "SENT" } },
+          },
+          result: { data: { updateQuotationStatus: { id: "q-1", status: "SENT" } } },
+        },
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: sentQuotation } } },
+        { request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } }, result: { data: { statusHistory: [] } } },
+      ];
+
+      renderAs(mockRep, mocks);
+      await user.click(await screen.findByText("Submit for Approval"));
+
+      expect(
+        await screen.findByText("Submitted for approval. Managers have been notified."),
+      ).toBeInTheDocument();
     });
 
     it("shows error message when status update fails", async () => {
@@ -294,7 +320,8 @@ describe("QuotationDetailPage", () => {
           },
           result: { data: { updateQuotationStatus: { id: "q-1", status: "APPROVED" } } },
         },
-        ...makeMock(approvedQuotation),
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: approvedQuotation } } },
+        { request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } }, result: { data: { statusHistory: [] } } },
       ];
 
       renderAs(mockManager, mocks);
@@ -304,6 +331,31 @@ describe("QuotationDetailPage", () => {
       await waitFor(() => {
         expect(screen.queryByText("Approving…")).not.toBeInTheDocument();
       });
+    });
+
+    it("shows toast after manager approves", async () => {
+      const user = userEvent.setup();
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      const approvedQuotation = { ...baseQuotation, status: "APPROVED" };
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(sentQuotation),
+        {
+          request: {
+            query: UPDATE_QUOTATION_STATUS_MUTATION,
+            variables: { id: "q-1", input: { status: "APPROVED" } },
+          },
+          result: { data: { updateQuotationStatus: { id: "q-1", status: "APPROVED" } } },
+        },
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: approvedQuotation } } },
+        { request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } }, result: { data: { statusHistory: [] } } },
+      ];
+
+      renderAs(mockManager, mocks);
+      await user.click(await screen.findByText("Approve"));
+
+      expect(
+        await screen.findByText("Quotation approved. The rep has been notified."),
+      ).toBeInTheDocument();
     });
 
     it("calls updateQuotationStatus with REJECTED when Reject is clicked", async () => {
@@ -319,7 +371,8 @@ describe("QuotationDetailPage", () => {
           },
           result: { data: { updateQuotationStatus: { id: "q-1", status: "REJECTED" } } },
         },
-        ...makeMock(rejectedQuotation),
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: rejectedQuotation } } },
+        { request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } }, result: { data: { statusHistory: [] } } },
       ];
 
       renderAs(mockManager, mocks);
@@ -330,6 +383,32 @@ describe("QuotationDetailPage", () => {
         expect(screen.queryByText("Rejecting…")).not.toBeInTheDocument();
       });
     });
+
+    it("shows toast after manager rejects", async () => {
+      const user = userEvent.setup();
+      const sentQuotation = { ...baseQuotation, status: "SENT" };
+      const rejectedQuotation = { ...baseQuotation, status: "REJECTED" };
+      const mocks: MockLink.MockedResponse[] = [
+        ...makeMock(sentQuotation),
+        {
+          request: {
+            query: UPDATE_QUOTATION_STATUS_MUTATION,
+            variables: { id: "q-1", input: { status: "REJECTED" } },
+          },
+          result: { data: { updateQuotationStatus: { id: "q-1", status: "REJECTED" } } },
+        },
+        { request: { query: QUOTATION_QUERY, variables: { id: "q-1" } }, result: { data: { quotation: rejectedQuotation } } },
+        { request: { query: STATUS_HISTORY_QUERY, variables: { quotationId: "q-1" } }, result: { data: { statusHistory: [] } } },
+      ];
+
+      renderAs(mockManager, mocks);
+      await user.click(await screen.findByText("Reject"));
+
+      expect(
+        await screen.findByText("Quotation rejected. The rep has been notified."),
+      ).toBeInTheDocument();
+    });
+
   });
 
   describe("delete draft", () => {

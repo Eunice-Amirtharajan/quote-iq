@@ -44,7 +44,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 
 **No Client entity** — `clientName` is a free-text field rather than a relational `Client` model. The differentiator here is the quoting intelligence (rules engine, LLM validation, Zod safety, prompt injection guards), not CRM breadth.
 
-**No email notifications** — Status transitions (SENT, APPROVED, REJECTED) are silent. In production this would be a transactional email step (e.g. SendGrid/Resend) triggered after each `statusHistory` write.
+**Email notifications via Mailtrap** — Status transitions fire transactional emails: DRAFT→SENT notifies all Sales Managers, SENT→APPROVED/REJECTED notifies the rep. Delivered via Nodemailer + [Mailtrap Email Sandbox](https://mailtrap.io) (catches all outgoing mail in a safe inbox — no real emails sent). In production this would swap to a live SMTP provider (SendGrid, Resend, etc.) by updating the `MAIL_*` env vars.
 
 **No GDPR data subject flows** — There are no "export my data" or "delete my account" self-service endpoints. Data deletion is covered structurally (cascade deletes on all related records) but a full Article 17/20 implementation is out of scope.
 

@@ -182,7 +182,6 @@ interface StatusActionsProps {
   quotationId: string;
   status: string;
   createdById: string;
-  refetch: () => void;
   onDeleted: () => void;
   onEdit: () => void;
 }
@@ -191,7 +190,6 @@ function StatusActions({
   quotationId,
   status,
   createdById,
-  refetch,
   onDeleted,
   onEdit,
 }: Readonly<StatusActionsProps>) {
@@ -199,12 +197,26 @@ function StatusActions({
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const [updateStatus] = useMutation(UPDATE_QUOTATION_STATUS_MUTATION, {
+    refetchQueries: [
+      { query: QUOTATION_QUERY, variables: { id: quotationId } },
+      { query: STATUS_HISTORY_QUERY, variables: { quotationId } },
+    ],
     onCompleted: () => {
       setActionError(null);
+      const toastMessages: Record<string, string> = {
+        SENT: "Submitted for approval. Managers have been notified.",
+        APPROVED: "Quotation approved. The rep has been notified.",
+        REJECTED: "Quotation rejected. The rep has been notified.",
+      };
+      const msg = pendingAction ? toastMessages[pendingAction] : null;
+      if (msg) {
+        setToast(msg);
+        setTimeout(() => setToast(null), 4000);
+      }
       setPendingAction(null);
-      refetch();
     },
     onError: (err) => {
       setActionError(err.message);
@@ -240,7 +252,7 @@ function StatusActions({
   const showDelete = status === "DRAFT" && isOwner;
   const showApproveReject = status === "SENT" && isManager;
 
-  if (!showSend && !showApproveReject && !showDelete) return null;
+  if (!showSend && !showApproveReject && !showDelete && !toast) return null;
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
@@ -250,9 +262,15 @@ function StatusActions({
           {actionError}
         </p>
       )}
+      {toast && (
+        <p className="text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+          {toast}
+        </p>
+      )}
       <div className="flex flex-col gap-2">
         {showEdit && (
           <button
+            type="button"
             onClick={onEdit}
             disabled={pendingAction !== null || deleting}
             className="w-full py-2 px-4 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -262,6 +280,7 @@ function StatusActions({
         )}
         {showSend && (
           <button
+            type="button"
             onClick={() => act("SENT")}
             disabled={pendingAction !== null || deleting}
             className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -272,6 +291,7 @@ function StatusActions({
         {showApproveReject && (
           <>
             <button
+              type="button"
               onClick={() => act("APPROVED")}
               disabled={pendingAction !== null}
               className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -279,6 +299,7 @@ function StatusActions({
               {pendingAction === "APPROVED" ? "Approving…" : "Approve"}
             </button>
             <button
+              type="button"
               onClick={() => act("REJECTED")}
               disabled={pendingAction !== null}
               className="w-full py-2 px-4 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -289,6 +310,7 @@ function StatusActions({
         )}
         {showDelete && !confirmDelete && (
           <button
+            type="button"
             onClick={() => setConfirmDelete(true)}
             disabled={pendingAction !== null || deleting}
             className="w-full py-2 px-4 rounded-lg text-sm font-medium border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -303,6 +325,7 @@ function StatusActions({
             </p>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => {
                   deleteQuotation({ variables: { id: quotationId } }).catch(
                     () => {},
@@ -314,6 +337,7 @@ function StatusActions({
                 {deleting ? "Deleting…" : "Yes, delete"}
               </button>
               <button
+                type="button"
                 onClick={() => setConfirmDelete(false)}
                 disabled={deleting}
                 className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -332,7 +356,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { user } = useAuth();
   const isManager = user?.role === "SALES_MANAGER";
   const [showEdit, setShowEdit] = useState(false);
-  const [showCopyConfirmation, setShowCopyConfirmation] = useState(false);  
+  const [showCopyConfirmation, setShowCopyConfirmation] = useState(false);
   const { data, loading, error, refetch } = useQuery<{
     quotation: QuotationDetail;
   }>(QUOTATION_QUERY, { variables: { id } });
@@ -374,6 +398,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
           Quotation not found or access denied.
         </p>
         <button
+          type="button"
           onClick={onBack}
           className="text-sm text-gray-400 hover:text-gray-900 transition-colors"
         >
@@ -406,6 +431,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
       {/* Header */}
       <div className="flex items-center gap-2 mb-6 text-sm">
         <button
+          type="button"
           onClick={onBack}
           className="text-gray-400 hover:text-gray-900 transition-colors"
         >
@@ -500,7 +526,6 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             quotationId={q.id}
             status={q.status}
             createdById={q.createdBy.id}
-            refetch={refetch}
             onDeleted={onBack}
             onEdit={() => setShowEdit(true)}
           />
@@ -530,13 +555,16 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
                   <>
                     <p className="text-xs text-gray-400">Share Link</p>
                     <button
+                      type="button"
                       className="text-xs text-blue-600 hover:text-blue-800 underline cursor-pointer"
                       onClick={() => copyQuoteLink(q)}
                     >
                       Copy link
                     </button>
                     {showCopyConfirmation && (
-                      <span className="text-xs font-bold text-black px-2">Copied!</span>
+                      <span className="text-xs font-bold text-black px-2">
+                        Copied!
+                      </span>
                     )}
                   </>
                 )}

@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
+import { MailService } from '../src/common/mail/mail.service';
 
 describe('QuoteIQ E2E', () => {
   let app: INestApplication;
@@ -15,7 +16,10 @@ describe('QuoteIQ E2E', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(MailService)
+      .useValue({ sendMail: jest.fn() })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());

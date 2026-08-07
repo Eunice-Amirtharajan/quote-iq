@@ -18,6 +18,11 @@ import { PublicQuotationType, QuotationType } from './quotation.entity';
 import { StatusHistoryType } from './status-history.entity';
 import { UserType } from '../users/user.entity';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { MailService } from '../../common/mail/mail.service';
+import { quoteSubmittedTemplate } from '../../common/mail/templates/quote-submitted';
+import { quoteApprovedTemplate } from '../../common/mail/templates/quote-approved';
+import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejected';
+
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
   [QuotationStatus.SENT]: [QuotationStatus.APPROVED, QuotationStatus.REJECTED],
@@ -30,6 +35,7 @@ export class QuotationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
+    private readonly mailService: MailService,
   ) {}
 
   // Calculate totals — stored at write time for consistency
@@ -355,6 +361,12 @@ export class QuotationsService {
         data: { status },
         include: { items: true, createdBy: true },
       });
+
+      // Mail sends run after the DB write succeeds. Kept outside the catch so
+      // a user.findMany failure never produces an error response after the
+      // status transition is already committed.
+      void this.sendStatusEmail(quotation, status, note);
+
       return quotation;
     } catch (error) {
       if (!(error instanceof HttpException)) {
@@ -365,6 +377,55 @@ export class QuotationsService {
         );
       }
       throw error;
+    }
+  }
+
+  private async sendStatusEmail(
+    quotation: Awaited<ReturnType<typeof this.prisma.quotation.update>> & {
+      createdBy: { name: string; email: string } | null;
+    },
+    status: QuotationStatus,
+    note: string | undefined,
+  ): Promise<void> {
+    if (!quotation.createdBy) {
+      this.logger.warn(
+        `Cannot send status email — createdBy missing on quotation ${quotation.id}`,
+        QuotationsService.name,
+      );
+      return;
+    }
+    if (status === QuotationStatus.SENT) {
+      const managers = await this.prisma.user.findMany({
+        where: { role: Role.SALES_MANAGER },
+        select: { email: true },
+      });
+      managers.forEach(({ email }) => {
+        this.mailService.sendMail(
+          email,
+          `[QuoteIQ] Quotation ${quotation.quotationNumber} awaiting approval`,
+          quoteSubmittedTemplate(
+            quotation.quotationNumber,
+            quotation.createdBy!.name,
+            quotation.clientName,
+          ),
+        );
+      });
+    } else if (status === QuotationStatus.APPROVED) {
+      this.mailService.sendMail(
+        quotation.createdBy.email,
+        `[QuoteIQ] Quotation ${quotation.quotationNumber} approved`,
+        quoteApprovedTemplate(quotation.quotationNumber, quotation.clientName),
+      );
+    } else if (status === QuotationStatus.REJECTED) {
+      this.mailService.sendMail(
+        quotation.createdBy.email,
+        `[QuoteIQ] Quotation ${quotation.quotationNumber} rejected`,
+        quoteRejectedTemplate(
+          quotation.quotationNumber,
+          quotation.clientName,
+          note,
+        ),
+      );
     }
   }
 

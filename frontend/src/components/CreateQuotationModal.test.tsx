@@ -300,6 +300,7 @@ describe('CreateQuotationModal — edit mode', () => {
     clientName: 'Old Corp',
     notes: 'Old notes',
     taxRate: 0,
+    version: 1,
     items: [{ description: 'Old Item', quantity: 1, unitPrice: 500, sortOrder: 0 }],
   };
 
@@ -310,6 +311,7 @@ describe('CreateQuotationModal — edit mode', () => {
         id: 'q-1',
         input: {
           title: 'Old Title',
+          version: 1,
           clientName: 'Old Corp',
           notes: 'Old notes',
           taxRate: 0,

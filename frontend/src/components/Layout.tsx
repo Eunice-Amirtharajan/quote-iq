@@ -64,8 +64,9 @@ export default function Layout({ children }: Readonly<LayoutProps>) {
             {user?.role.replace("_", " ")}
           </p>
           <button
+            type="button"
             onClick={() => { logout().catch(() => {}); }}
-            className="w-full text-left text-xs text-gray-500 hover:text-gray-900 transition-colors"
+            className="w-full text-left text-xs text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
           >
             Sign out
           </button>

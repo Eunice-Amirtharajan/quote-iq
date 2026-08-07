@@ -12,6 +12,7 @@ import { QuotationsModule } from './modules/quotations/quotations.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { AIModule } from './modules/ai/ai.module';
+import { MailModule } from './common/mail/mail.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { AIModule } from './modules/ai/ai.module';
     QuotationsModule,
     DashboardModule,
     AIModule,
+    MailModule,
   ],
   providers: [
     {
