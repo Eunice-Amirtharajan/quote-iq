@@ -4,6 +4,7 @@ import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 describe('QuoteIQ E2E', () => {
   let app: INestApplication;
@@ -17,6 +18,8 @@ describe('QuoteIQ E2E', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
+      .overrideModule(ThrottlerModule)
+      .useModule(ThrottlerModule.forRoot([{ name: 'global', ttl: 60_000, limit: 10_000 }]))
       .overrideProvider(MailService)
       .useValue({ sendMail: jest.fn() })
       .compile();
