@@ -1,10 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
-import { ThrottlerModule } from '@nestjs/throttler';
+
+class NoopThrottlerGuard implements CanActivate {
+  canActivate(_context: ExecutionContext): boolean {
+    return true;
+  }
+}
 
 describe('QuoteIQ E2E', () => {
   let app: INestApplication;
@@ -18,8 +24,8 @@ describe('QuoteIQ E2E', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideModule(ThrottlerModule)
-      .useModule(ThrottlerModule.forRoot([{ name: 'global', ttl: 60_000, limit: 10_000 }]))
+      .overrideProvider(APP_GUARD)
+      .useClass(NoopThrottlerGuard)
       .overrideProvider(MailService)
       .useValue({ sendMail: jest.fn() })
       .compile();
