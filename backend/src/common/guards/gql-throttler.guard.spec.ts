@@ -1,17 +1,22 @@
 import { ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import { GqlThrottlerGuard } from './gql-throttler.guard';
 
 jest.mock('@nestjs/graphql', () => ({
   GqlExecutionContext: { create: jest.fn() },
 }));
 
+const stubStorage = { increment: jest.fn() } as unknown as ThrottlerStorage;
+const stubReflector = new Reflector();
+
 const makeThrottlerGuard = () => {
   // Minimal stub — only the method under test is exercised
   return new GqlThrottlerGuard(
-    {},
-    {},
-    {},
+    { throttlers: [{ ttl: 60_000, limit: 100 }] },
+    stubStorage,
+    stubReflector,
   );
 };
 
@@ -49,7 +54,10 @@ describe('GqlThrottlerGuard', () => {
       const mockHttpRes = {};
       // Stub the parent class method
       jest
-        .spyOn(Object.getPrototypeOf(GqlThrottlerGuard.prototype), 'getRequestResponse')
+        .spyOn(
+          Object.getPrototypeOf(GqlThrottlerGuard.prototype),
+          'getRequestResponse',
+        )
         .mockReturnValue({ req: mockHttpReq, res: mockHttpRes });
 
       const ctx = {
@@ -76,7 +84,10 @@ describe('GqlThrottlerGuard', () => {
       const mockHttpReq = { ip: '10.0.0.2' };
       const mockHttpRes = {};
       jest
-        .spyOn(Object.getPrototypeOf(GqlThrottlerGuard.prototype), 'getRequestResponse')
+        .spyOn(
+          Object.getPrototypeOf(GqlThrottlerGuard.prototype),
+          'getRequestResponse',
+        )
         .mockReturnValue({ req: mockHttpReq, res: mockHttpRes });
 
       const ctx = {

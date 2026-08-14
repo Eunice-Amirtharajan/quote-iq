@@ -8,6 +8,7 @@ const mockAIService = {
   getConversionScore: jest.fn(),
   getWinLossAnalysis: jest.fn(),
   askAboutQuotation: jest.fn(),
+  askLessonsLearned: jest.fn(),
 };
 
 const mockSummary = {
@@ -120,6 +121,31 @@ describe('AIResolver', () => {
 
       await expect(resolver.quotationSummary('q-1')).rejects.toThrow(
         'Gemini error',
+      );
+    });
+  });
+
+  describe('askLessonsLearned', () => {
+    it('delegates to aiService.askLessonsLearned and returns result', async () => {
+      mockAIService.askLessonsLearned.mockResolvedValue({
+        answer: 'Grounded answer.',
+        sources: ['63. N+1 queries — per-row useQuery...'],
+      });
+
+      const result = await resolver.askLessonsLearned('Why N+1?');
+
+      expect(mockAIService.askLessonsLearned).toHaveBeenCalledWith('Why N+1?');
+      expect(result.answer).toBe('Grounded answer.');
+      expect(result.sources).toEqual(['63. N+1 queries — per-row useQuery...']);
+    });
+
+    it('propagates error when service throws', async () => {
+      mockAIService.askLessonsLearned.mockRejectedValue(
+        new Error('Please enter a question.'),
+      );
+
+      await expect(resolver.askLessonsLearned('   ')).rejects.toThrow(
+        'Please enter a question.',
       );
     });
   });

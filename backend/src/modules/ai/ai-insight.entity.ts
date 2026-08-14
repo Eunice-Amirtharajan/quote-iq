@@ -115,3 +115,12 @@ export class WinLossStatsType {
   @Field(() => [BucketStatType])
   byDealSize!: BucketStatType[];
 }
+
+@ObjectType()
+export class LessonsLearnedAnswerType {
+  @Field()
+  answer!: string;
+
+  @Field(() => [String])
+  sources!: string[];
+}

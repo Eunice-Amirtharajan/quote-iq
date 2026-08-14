@@ -18,7 +18,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "dotenv -e .env.test -- jest --config ./test/jest-e2e.json --forceExit",
-    "test:e2e:local": "docker-compose -f docker-compose.test.yml down -v && docker-compose -f docker-compose.test.yml up -d && npx dotenv -e .env.test -- prisma migrate deploy && npx dotenv -e .env.test -- prisma db seed && dotenv -e .env.test -- jest --config ./test/jest-e2e.json --forceExit && docker-compose -f docker-compose.test.yml down -v"
+    "test:e2e:local": "docker-compose -f docker-compose.test.yml down -v && docker-compose -f docker-compose.test.yml up -d && npx dotenv -e .env.test -- prisma migrate deploy && npx dotenv -e .env.test -- prisma db seed && dotenv -e .env.test -- jest --config ./test/jest-e2e.json --forceExit && docker-compose -f docker-compose.test.yml down -v",
+    "seed:rag": "ts-node -r tsconfig-paths/register src/prisma/seed-rag.ts"
+
   },
   "dependencies": {
     "@as-integrations/express5": "^1.1.2",
@@ -43,6 +45,7 @@
     "helmet": "^8.2.0",
     "nest-winston": "^1.10.2",
     "nodemailer": "^9.0.4",
+    "openai": "^7.4.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",

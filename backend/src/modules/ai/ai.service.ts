@@ -16,9 +16,11 @@ import {
   RepStatType,
   BucketStatType,
   QuotationAnswerType,
+  LessonsLearnedAnswerType,
 } from './ai-insight.entity';
 import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
+import OpenAI from 'openai';
 
 const QuotationSummarySchema = z.object({
   summary: z.string(),
@@ -50,6 +52,7 @@ type QuotationWithRelations = QuotationType & {
 @Injectable()
 export class AIService {
   private readonly groq: Groq;
+  private readonly openAI: OpenAI;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -58,6 +61,9 @@ export class AIService {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY is not set');
     this.groq = new Groq({ apiKey });
+    const openAIKey = process.env.OPENAI_API_KEY;
+    if (!openAIKey) throw new Error('OPENAI_API_KEY is not set');
+    this.openAI = new OpenAI({ apiKey: openAIKey });
   }
 
   private computeRecommendation(
@@ -876,5 +882,49 @@ Answer in 2–4 sentences. Be direct and factual.`;
       );
       throw error;
     }
+  }
+
+  async searchLessonsLearned(
+    query: string,
+  ): Promise<Array<{ source: string; content: string }>> {
+    const embeddingResponse = await this.openAI.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: query,
+    });
+    const vector = '[' + embeddingResponse.data[0].embedding.join(',') + ']';
+
+    const results = await this.prisma.$queryRaw<
+      Array<{ source: string; content: string }>
+    >`
+  SELECT source, content
+  FROM "PlaybookChunk"
+  ORDER BY embedding <=> ${vector}::vector
+  LIMIT 5
+`;
+    return results;
+  }
+
+  async askLessonsLearned(question: string): Promise<LessonsLearnedAnswerType> {
+    const trimmed = this.validateQuestion(question);
+    const chunks = await this.searchLessonsLearned(trimmed);
+
+    const context = chunks
+      .map((c, i) => `[${i + 1}] ${c.source}\n${c.content}`)
+      .join('\n\n---\n\n');
+
+    const systemPrompt = `You are an engineering assistant with access to a lessons-learned log.
+Answer the question using ONLY the entries provided below.
+Always cite the entry heading(s) you used in your answer.
+If the answer is not in the entries, say so.
+
+ENTRIES:
+${context}`;
+
+    const answer = await this.queryGroqModels(systemPrompt, trimmed);
+
+    return {
+      answer,
+      sources: chunks.map((c) => c.source),
+    };
   }
 }

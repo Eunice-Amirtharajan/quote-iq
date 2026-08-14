@@ -101,3 +101,13 @@ model AIInsight {
   @@unique([quotationId, insightType])
   @@index([quotationId])
 }
+
+model PlaybookChunk {
+  id        String   @id @default(uuid())
+  source    String   // filename, e.g. "pricing-guidelines.md"
+  content   String   // the raw text of the chunk
+  embedding Unsupported("vector(1536)")?
+  createdAt DateTime @default(now())
+
+  @@index([source])
+}

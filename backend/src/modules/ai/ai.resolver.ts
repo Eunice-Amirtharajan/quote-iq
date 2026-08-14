@@ -6,6 +6,7 @@ import {
   QuotationAnswerType,
   QuotationSummaryType,
   WinLossStatsType,
+  LessonsLearnedAnswerType,
 } from './ai-insight.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -72,5 +73,14 @@ export class AIResolver {
     question: string,
   ): Promise<QuotationAnswerType> {
     return this.aiService.askAboutQuotation(quotationId, question);
+  }
+
+  @Query(/* istanbul ignore next */ () => LessonsLearnedAnswerType)
+  @UseGuards(RolesGuard)
+  @Roles(Role.SALES_MANAGER)
+  async askLessonsLearned(
+    @Args('question') question: string,
+  ): Promise<LessonsLearnedAnswerType> {
+    return this.aiService.askLessonsLearned(question);
   }
 }

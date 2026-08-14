@@ -32,6 +32,19 @@ jest.mock('groq-sdk', () => ({
   })),
 }));
 
+const mockEmbeddingsCreate = jest.fn().mockResolvedValue({
+  data: [{ embedding: Array(1536).fill(0.1) }],
+});
+
+jest.mock('openai', () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
+    embeddings: {
+      create: mockEmbeddingsCreate,
+    },
+  })),
+}));
+
 const mockPrismaService = {
   quotation: {
     findFirst: jest.fn(),
@@ -91,6 +104,18 @@ describe('AIService — missing API key', () => {
     ).toThrow('GROQ_API_KEY is not set');
     process.env.GROQ_API_KEY = savedKey;
   });
+
+  it('throws on construction when OPENAI_API_KEY is not set', () => {
+    const savedGroq = process.env.GROQ_API_KEY;
+    const savedOpenAI = process.env.OPENAI_API_KEY;
+    process.env.GROQ_API_KEY = 'test-key';
+    delete process.env.OPENAI_API_KEY;
+    expect(
+      () => new AIService(mockPrismaService as never, mockLogger as never),
+    ).toThrow('OPENAI_API_KEY is not set');
+    process.env.GROQ_API_KEY = savedGroq;
+    process.env.OPENAI_API_KEY = savedOpenAI;
+  });
 });
 
 describe('AIService', () => {
@@ -98,6 +123,7 @@ describe('AIService', () => {
 
   beforeEach(async () => {
     process.env.GROQ_API_KEY = 'test-key';
+    process.env.OPENAI_API_KEY = 'test-openai-key';
     mockCreate.mockResolvedValue(mockGroqResponse);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -818,6 +844,94 @@ describe('AIService', () => {
 
       await expect(
         service.askAboutQuotation('q-1', 'Is it risky?'),
+      ).rejects.toThrow('Groq unavailable');
+    });
+  });
+
+  describe('askLessonsLearned', () => {
+    const mockChunks = [
+      {
+        source: '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
+        content: 'Full entry text about N+1 query problem.',
+      },
+      {
+        source: '12. Switched from Gemini to Groq for AI completions',
+        content: 'Full entry text about switching to Groq.',
+      },
+    ];
+
+    beforeEach(() => {
+      mockPrismaService.$queryRaw.mockResolvedValue(mockChunks);
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'Answer grounded in lessons learned.' } }],
+      });
+    });
+
+    it('returns answer and sources for a valid question', async () => {
+      const result = await service.askLessonsLearned('Why did we switch to Groq?');
+
+      expect(result.answer).toBe('Answer grounded in lessons learned.');
+      expect(result.sources).toEqual([
+        '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
+        '12. Switched from Gemini to Groq for AI completions',
+      ]);
+    });
+
+    it('embeds the question using OpenAI text-embedding-3-small', async () => {
+      await service.askLessonsLearned('Why did we switch to Groq?');
+
+      expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+        model: 'text-embedding-3-small',
+        input: 'Why did we switch to Groq?',
+      });
+    });
+
+    it('calls $queryRaw for vector similarity search', async () => {
+      await service.askLessonsLearned('Why did we switch to Groq?');
+
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
+    });
+
+    it('injects retrieved chunks as context in the Groq prompt', async () => {
+      await service.askLessonsLearned('Why did we switch to Groq?');
+
+      const systemMessage = mockCreate.mock.calls[0][0].messages[0].content as string;
+      expect(systemMessage).toContain('63. N+1 queries');
+      expect(systemMessage).toContain('Full entry text about N+1 query problem.');
+    });
+
+    it('throws BadRequestException for a blank question', async () => {
+      await expect(service.askLessonsLearned('   ')).rejects.toThrow(
+        'Please enter a question.',
+      );
+    });
+
+    it('truncates question to 500 characters before embedding', async () => {
+      const longQuestion = 'a'.repeat(600);
+      await service.askLessonsLearned(longQuestion);
+
+      expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+        model: 'text-embedding-3-small',
+        input: 'a'.repeat(500),
+      });
+    });
+
+    it('propagates error when OpenAI embeddings fail', async () => {
+      mockEmbeddingsCreate.mockRejectedValue(new Error('OpenAI unavailable'));
+
+      await expect(
+        service.askLessonsLearned('Any question?'),
+      ).rejects.toThrow('OpenAI unavailable');
+    });
+
+    it('propagates error when Groq fails', async () => {
+      mockEmbeddingsCreate.mockResolvedValue({
+        data: [{ embedding: Array(1536).fill(0.1) }],
+      });
+      mockCreate.mockRejectedValue(new Error('Groq unavailable'));
+
+      await expect(
+        service.askLessonsLearned('Any question?'),
       ).rejects.toThrow('Groq unavailable');
     });
   });

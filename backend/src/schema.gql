@@ -67,6 +67,11 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type LessonsLearnedAnswerType {
+  answer: String!
+  sources: [String!]!
+}
+
 type Mutation {
   """Answer a free-text question about a specific quotation"""
   askAboutQuotation(question: String!, quotationId: ID!): QuotationAnswerType!
@@ -113,6 +118,8 @@ type PublicQuotationType {
 }
 
 type Query {
+  askLessonsLearned(question: String!): LessonsLearnedAnswerType!
+
   """Deterministic conversion likelihood score for a quotation"""
   conversionScore(quotationId: ID!): ConversionScoreType!
   conversionScores(quotationIds: [ID!]!): [ConversionScoreType!]!
