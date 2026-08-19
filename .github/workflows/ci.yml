@@ -78,6 +78,7 @@ jobs:
           NODE_ENV: test
           PORT: 4000
           GROQ_API_KEY: test-groq-key
+          OPENAI_API_KEY: test-openai-key
           CORS_ORIGIN: http://localhost:3000
           JWT_EXPIRES_IN: 7d
 
