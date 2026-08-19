@@ -13,7 +13,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_DB: quoteiq_test
           POSTGRES_USER: postgres
@@ -67,6 +67,7 @@ jobs:
           JWT_SECRET: test-secret-key
           NODE_ENV: test
           GROQ_API_KEY: test-groq-key
+          OPENAI_API_KEY: test-openai-key
 
       - name: Run e2e tests
         working-directory: backend
