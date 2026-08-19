@@ -1,3 +1,6 @@
+-- EnableExtension
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- CreateTable
 CREATE TABLE "PlaybookChunk" (
     "id" TEXT NOT NULL,
