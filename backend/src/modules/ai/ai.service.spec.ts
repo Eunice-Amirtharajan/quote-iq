@@ -20,6 +20,13 @@ const mockGroqResponse = {
 };
 
 const mockCreate = jest.fn().mockResolvedValue(mockGroqResponse);
+const mockModelsList = jest.fn().mockResolvedValue({
+  data: [
+    { id: 'llama-3.1-70b-versatile' },
+    { id: 'llama-3.1-8b-instant' },
+    { id: 'llama3-8b-8192' },
+  ],
+});
 
 jest.mock('groq-sdk', () => ({
   __esModule: true,
@@ -28,6 +35,9 @@ jest.mock('groq-sdk', () => ({
       completions: {
         create: mockCreate,
       },
+    },
+    models: {
+      list: mockModelsList,
     },
   })),
 }));
@@ -135,6 +145,7 @@ describe('AIService', () => {
     }).compile();
 
     service = module.get<AIService>(AIService);
+    await service.onModuleInit();
   });
 
   afterEach(() => {

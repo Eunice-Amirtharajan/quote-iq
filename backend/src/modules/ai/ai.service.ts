@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import Groq from 'groq-sdk';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -36,13 +37,6 @@ const QuotationSummarySchema = z.object({
 const DEAL_SIZE_PROCEED_THRESHOLD = 20;
 const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Models tried in order — first one that succeeds wins
-const GROQ_MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'mixtral-8x7b-32768',
-];
-
 export type QuotationSummary = z.infer<typeof QuotationSummarySchema>;
 type QuotationWithRelations = QuotationType & {
   createdBy: NonNullable<QuotationType['createdBy']>;
@@ -50,9 +44,34 @@ type QuotationWithRelations = QuotationType & {
 };
 
 @Injectable()
-export class AIService {
+export class AIService implements OnModuleInit {
   private readonly groq: Groq;
   private readonly openAI: OpenAI;
+  private availableModels: Set<string> = new Set();
+
+  async onModuleInit() {
+    try {
+      const res = await this.groq.models.list();
+      this.availableModels = new Set(
+        res.data.map((m) => m.id).filter((id) => this.isChatModel(id)),
+      );
+      if (this.availableModels.size === 0) {
+        throw new Error('No usable chat models returned from Groq');
+      }
+      this.logger.info(
+        `Groq models loaded: ${[...this.availableModels].join(', ')}`,
+        AIService.name,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Groq models could not be loaded: ${err}`,
+        AIService.name,
+      );
+      throw new InternalServerErrorException(
+        `Groq model list unavailable — service cannot start`,
+      );
+    }
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -153,10 +172,25 @@ Your recommendation MUST match this unless the line items or notes contain
 strong contradicting signals. Justify your reasoning.
 `.trim();
   }
+  private isChatModel(id: string): boolean {
+    return (
+      !id.includes('whisper') && !id.includes('embed') && !id.includes('tts')
+    );
+  }
+
+  private rankedModels(): string[] {
+    return [...this.availableModels].sort((a, b) => {
+      const size = (id: string) => {
+        const m = /(\d+)b/i.exec(id);
+        return m ? Number.parseInt(m[1], 10) : 0;
+      };
+      return size(b) - size(a);
+    });
+  }
 
   private async callGroq(prompt: string): Promise<string> {
     let lastError: unknown;
-    for (const model of GROQ_MODELS) {
+    for (const model of this.rankedModels()) {
       try {
         this.logger.info(`Trying Groq model: ${model}`, AIService.name);
         const response = await this.groq.chat.completions.create({
@@ -750,7 +784,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
     question: string,
   ): Promise<string> {
     let lastError: unknown;
-    for (const model of GROQ_MODELS) {
+    for (const model of this.rankedModels()) {
       try {
         const response = await this.groq.chat.completions.create({
           model,
