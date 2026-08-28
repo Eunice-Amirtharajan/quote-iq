@@ -66,6 +66,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
           Generate an AI-powered analysis of this quotation.
         </p>
         <button
+          type="button"
           onClick={handleGenerate}
           className="w-full text-xs font-medium bg-gray-900 text-white py-2 px-3 rounded-lg hover:bg-gray-700 transition-colors"
         >
@@ -148,6 +149,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
             className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
           />
           <button
+            type="button"
             onClick={() => {
               if (question.trim()) {
                 askQuestion({ variables: { quotationId, question } }).catch(() => {});

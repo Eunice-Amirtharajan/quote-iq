@@ -32,8 +32,8 @@ const NOTES_MAX = 500;
 const ITEMS_MAX = 10;
 const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
 
-// [^>]* is a negated class with no backtracking ambiguity; all inputs are capped by maxLength before this runs. NOSONAR
-const stripTags = (v: string) => v.replace(/<[^>]*>/g, "");
+// [^>]* is a negated class with no backtracking ambiguity; all inputs are capped by maxLength before this runs.
+const stripTags = (v: string) => v.replace(/<[^>]*>/g, ""); // NOSONAR
 
 function toLineItems(
   items: ExistingQuotation["items"],
@@ -174,6 +174,7 @@ export default function CreateQuotationModal({
             {isEdit ? "Edit Quotation" : "New Quotation"}
           </h2>
           <button
+            type="button"
             onClick={onClose}
             aria-label="Close"
             className="text-gray-400 hover:text-gray-900 transition-colors text-xl leading-none"

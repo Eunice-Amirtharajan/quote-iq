@@ -7,4 +7,11 @@ npm --prefix backend run test:cov -- --coverageThreshold='{"global":{"statements
 echo "--- pre-push: frontend coverage gate (>95% statements) ---"
 npm --prefix frontend run test -- --run --coverage --coverage.thresholds.statements=95 --coverage.thresholds.branches=90 --coverage.thresholds.functions=90 --coverage.thresholds.lines=95
 
+echo "--- pre-push: backend e2e tests (docker postgres) ---"
+if ! docker info > /dev/null 2>&1; then
+  echo "Docker is not running — start Docker Desktop to run e2e tests before push." >&2
+  exit 1
+fi
+npm --prefix backend run test:e2e:local
+
 echo "✓ pre-push checks passed"

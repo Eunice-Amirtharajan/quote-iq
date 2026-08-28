@@ -64,11 +64,8 @@ export class AIService implements OnModuleInit {
       );
     } catch (err) {
       this.logger.error(
-        `Groq models could not be loaded: ${err}`,
+        `Groq models could not be loaded, AI features will be unavailable until the next restart: ${err}`,
         AIService.name,
-      );
-      throw new InternalServerErrorException(
-        `Groq model list unavailable — service cannot start`,
       );
     }
   }
@@ -181,7 +178,8 @@ strong contradicting signals. Justify your reasoning.
   private rankedModels(): string[] {
     return [...this.availableModels].sort((a, b) => {
       const size = (id: string) => {
-        const m = /(\d+)b/i.exec(id);
+        // \d+ is a single unambiguous quantifier with no nested/overlapping groups.
+        const m = /(\d+)b/i.exec(id); // NOSONAR
         return m ? Number.parseInt(m[1], 10) : 0;
       };
       return size(b) - size(a);
@@ -189,6 +187,11 @@ strong contradicting signals. Justify your reasoning.
   }
 
   private async callGroq(prompt: string): Promise<string> {
+    if (this.availableModels.size === 0) {
+      throw new InternalServerErrorException(
+        'No Groq chat models are currently available',
+      );
+    }
     let lastError: unknown;
     for (const model of this.rankedModels()) {
       try {

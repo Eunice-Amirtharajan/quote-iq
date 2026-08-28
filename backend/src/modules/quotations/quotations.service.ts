@@ -206,8 +206,8 @@ export class QuotationsService {
   }
 
   private static stripTags(v: string): string {
-    // [^>]* is a negated class with no backtracking ambiguity; callers enforce length limits before this runs. NOSONAR
-    return v.replace(/<[^>]*>/g, '').trim();
+    // [^>]* is a negated class with no backtracking ambiguity; callers enforce length limits before this runs.
+    return v.replace(/<[^>]*>/g, '').trim(); // NOSONAR
   }
 
   async create(

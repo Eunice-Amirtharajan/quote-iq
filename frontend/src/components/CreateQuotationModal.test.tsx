@@ -222,6 +222,10 @@ describe('CreateQuotationModal', () => {
     await user.type(screen.getByPlaceholderText(/Optional notes/i), 'Some notes');
 
     await user.click(screen.getByText('Create Quotation'));
+
+    await waitFor(() => {
+      expect(mockOnCreated).toHaveBeenCalledWith('q-new');
+    });
   });
 
   it('can add and remove line items', async () => {

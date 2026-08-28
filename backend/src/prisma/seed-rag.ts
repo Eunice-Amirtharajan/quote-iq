@@ -3,8 +3,8 @@ dotenv.config();
 
 import { PrismaClient } from '@prisma/client';
 import OpenAI from 'openai';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const prisma = new PrismaClient();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

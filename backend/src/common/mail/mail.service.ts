@@ -7,10 +7,10 @@ export class MailService {
   private readonly transporter: nodemailer.Transporter;
 
   constructor() {
-    const port = parseInt(process.env.MAIL_PORT ?? '', 10);
+    const port = Number.parseInt(process.env.MAIL_PORT ?? '', 10);
     if (
       !process.env.MAIL_HOST ||
-      isNaN(port) ||
+      Number.isNaN(port) ||
       !process.env.MAIL_USER ||
       !process.env.MAIL_PASS
     ) {
@@ -20,7 +20,7 @@ export class MailService {
     }
     this.transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
-      port: isNaN(port) ? 2525 : port,
+      port: Number.isNaN(port) ? 2525 : port,
       auth: {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
