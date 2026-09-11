@@ -83,7 +83,7 @@ describe("AIInsightCard", () => {
         </AuthContext.Provider>
       </MockedProvider>,
     );
-    userEvent.click(screen.getByRole("button", { name: /generate insight/i })).catch(() => {});
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(await screen.findByText("Analysing...")).toBeInTheDocument();
   });
 

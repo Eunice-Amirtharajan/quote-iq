@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
 import {
   QUOTATION_QUERY,
@@ -198,7 +198,7 @@ function StatusActions({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
+  const pendingActionRef = useRef<string | null>(null);
   const [updateStatus] = useMutation(UPDATE_QUOTATION_STATUS_MUTATION, {
     refetchQueries: [
       { query: QUOTATION_QUERY, variables: { id: quotationId } },
@@ -211,7 +211,7 @@ function StatusActions({
         APPROVED: "Quotation approved. The rep has been notified.",
         REJECTED: "Quotation rejected. The rep has been notified.",
       };
-      const msg = pendingAction ? toastMessages[pendingAction] : null;
+      const msg = pendingActionRef.current ? toastMessages[pendingActionRef.current] : null;
       if (msg) {
         setToast(msg);
         setTimeout(() => setToast(null), 4000);
@@ -221,6 +221,7 @@ function StatusActions({
     onError: (err) => {
       setActionError(err.message);
       setPendingAction(null);
+      pendingActionRef.current = null;
     },
   });
 
@@ -237,7 +238,7 @@ function StatusActions({
   );
 
   const act = (newStatus: string) => {
-    setActionError(null);
+    pendingActionRef.current = newStatus;
     setPendingAction(newStatus);
     updateStatus({
       variables: { id: quotationId, input: { status: newStatus } },

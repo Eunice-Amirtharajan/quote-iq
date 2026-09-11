@@ -105,6 +105,7 @@
       "!**/*.input.ts",
       "!**/*.resolver.ts",
       "!**/seed.ts",
+      "!**/seed-rag.ts",
       "!**/cleanup-e2e-data.ts",
       "!**/main.ts",
       "!**/*.decorator.ts",
