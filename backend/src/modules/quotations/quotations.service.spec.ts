@@ -904,6 +904,24 @@ describe('QuotationsService', () => {
         expect.stringContaining('Price too high'),
       );
     });
+
+    it('invalidates AiInsight cache on successful status update', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+      mockPrismaService.quotation.update.mockResolvedValue(sentQuotation);
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.SENT,
+        undefined,
+        'user-1',
+        Role.SALES_REP,
+      );
+
+      expect(mockPrismaService.aIInsight.deleteMany).toHaveBeenCalledWith({
+        where: { quotationId: 'q-1' },
+      });
+    });
   });
 
   describe('non-Error throws (branch coverage for String(error) path)', () => {

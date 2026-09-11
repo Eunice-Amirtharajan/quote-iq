@@ -366,7 +366,7 @@ export class QuotationsService {
       // a user.findMany failure never produces an error response after the
       // status transition is already committed.
       void this.sendStatusEmail(quotation, status, note);
-
+      await this.prisma.aIInsight.deleteMany({ where: { quotationId: id } });
       return quotation;
     } catch (error) {
       if (!(error instanceof HttpException)) {
