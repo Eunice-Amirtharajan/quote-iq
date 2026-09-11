@@ -864,17 +864,31 @@ describe('AIService', () => {
       {
         source: '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
         content: 'Full entry text about N+1 query problem.',
+        distance: 0.2,
       },
       {
         source: '12. Switched from Gemini to Groq for AI completions',
         content: 'Full entry text about switching to Groq.',
+        distance: 0.2,
       },
     ];
 
     beforeEach(() => {
       mockPrismaService.$queryRaw.mockResolvedValue(mockChunks);
       mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'Answer grounded in lessons learned.' } }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                answer: 'Answer grounded in lessons learned.',
+                citedEntries: [
+                  '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
+                  '12. Switched from Gemini to Groq for AI completions',
+                ],
+              }),
+            },
+          },
+        ],
       });
     });
 
