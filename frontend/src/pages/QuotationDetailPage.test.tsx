@@ -27,6 +27,7 @@ const mockSetUser = vi.fn();
 const baseQuotation = {
   id: "q-1",
   quotationNumber: "QT-2026-0001",
+  version: 1,
   title: "Enterprise License",
   clientName: "Hans Bauer",
   status: "DRAFT",
