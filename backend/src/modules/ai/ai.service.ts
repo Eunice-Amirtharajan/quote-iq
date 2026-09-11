@@ -930,31 +930,53 @@ Answer in 2–4 sentences. Be direct and factual.`;
 
   async searchLessonsLearned(
     query: string,
-  ): Promise<Array<{ source: string; content: string; distance: number }>> {
+  ): Promise<Array<{ source: string; content: string; score: number }>> {
     const embeddingResponse = await this.openAI.embeddings.create({
       model: 'text-embedding-3-small',
       input: query,
     });
     const vector = '[' + embeddingResponse.data[0].embedding.join(',') + ']';
 
-    const results = await this.prisma.$queryRaw<
-      Array<{ source: string; content: string; distance: number }>
-    >`
-  SELECT source, content, embedding <=> ${vector}::vector As distance
-  FROM "PlaybookChunk"
-  ORDER BY embedding <=> ${vector}::vector
-  LIMIT 5
-`;
-    return results;
+    const [vectorResults, keywordResults] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ source: string; content: string }>>`
+      SELECT source, content
+      FROM "PlaybookChunk"
+      ORDER BY embedding <=> ${vector}::vector
+      LIMIT 10
+    `,
+      this.prisma.$queryRaw<Array<{ source: string; content: string }>>`
+      SELECT source, content
+      FROM "PlaybookChunk"
+      WHERE content_tsv @@ plainto_tsquery('english', ${query})
+         OR similarity(content, ${query}) > 0.2
+      LIMIT 10
+    `,
+    ]);
+    const scoreMap = new Map<
+      string,
+      { source: string; content: string; score: number }
+    >();
+    vectorResults.forEach((r, i) => {
+      scoreMap.set(r.source, { ...r, score: 1 / (60 + i) });
+    });
+    keywordResults.forEach((r, i) => {
+      const existing = scoreMap.get(r.source);
+      const add = 1 / (60 + i);
+      if (existing) {
+        existing.score += add;
+      } else {
+        scoreMap.set(r.source, { ...r, score: add });
+      }
+    });
+
+    return [...scoreMap.values()].sort((a, b) => b.score - a.score).slice(0, 5);
   }
 
   async askLessonsLearned(question: string): Promise<LessonsLearnedAnswerType> {
     try {
       const trimmed = this.validateQuestion(question);
       const chunks = await this.searchLessonsLearned(trimmed);
-      const threshold = 0.45;
-      const relevant = chunks.filter((res) => res.distance < threshold);
-      if (relevant.length === 0) {
+      if (chunks.length === 0) {
         return {
           answer:
             'No relevant lessons-learned entries found for this question.',
@@ -962,7 +984,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
         };
       }
 
-      const context = relevant
+      const context = chunks
         .map((c, i) => `[${i + 1}] ${c.source}\n${c.content}`)
         .join('\n\n---\n\n');
 

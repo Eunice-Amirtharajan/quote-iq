@@ -145,6 +145,13 @@ describe('AIService', () => {
     }).compile();
 
     service = module.get<AIService>(AIService);
+    mockModelsList.mockResolvedValue({
+      data: [
+        { id: 'llama-3.1-70b-versatile' },
+        { id: 'llama-3.1-8b-instant' },
+        { id: 'llama3-8b-8192' },
+      ],
+    });
     await service.onModuleInit();
   });
 
@@ -864,16 +871,17 @@ describe('AIService', () => {
       {
         source: '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
         content: 'Full entry text about N+1 query problem.',
-        distance: 0.2,
+        score: 0.016,
       },
       {
         source: '12. Switched from Gemini to Groq for AI completions',
         content: 'Full entry text about switching to Groq.',
-        distance: 0.2,
+        score: 0.016,
       },
     ];
 
     beforeEach(() => {
+      // both vector and keyword searches return mockChunks by default
       mockPrismaService.$queryRaw.mockResolvedValue(mockChunks);
       mockCreate.mockResolvedValue({
         choices: [
@@ -911,10 +919,23 @@ describe('AIService', () => {
       });
     });
 
-    it('calls $queryRaw for vector similarity search', async () => {
+    it('calls $queryRaw twice — vector search and keyword search', async () => {
       await service.askLessonsLearned('Why did we switch to Groq?');
 
-      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns empty response when both searches return no results', async () => {
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.askLessonsLearned('Unknown question?');
+
+      expect(result.answer).toBe(
+        'No relevant lessons-learned entries found for this question.',
+      );
+      expect(result.sources).toEqual([]);
     });
 
     it('injects retrieved chunks as context in the Groq prompt', async () => {
