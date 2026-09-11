@@ -5,6 +5,13 @@ dist/
 generated/
 prisma.config.ts
 
+# Seed scripts (local/dev only — not for production or CI)
+backend/src/prisma/seed.ts
+backend/src/prisma/seed-rag.ts
+backend/src/prisma/seed-load-test.ts
+backend/src/prisma/explain-baseline.ts
+backend/src/prisma/apply-trgm-indexes.ts
+
 # Personal notes
 docs/lessons_learned.md
 docs/sample-playbook/
