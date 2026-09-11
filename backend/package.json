@@ -107,6 +107,7 @@
       "!**/*.input.ts",
       "!**/*.resolver.ts",
       "!**/seed.ts",
+      "!**/seed-ci.ts",
       "!**/seed-rag.ts",
       "!**/seed-load-test.ts",
       "!**/apply-trgm-indexes.ts",
@@ -120,6 +121,6 @@
     "testEnvironment": "node"
   },
   "prisma": {
-    "seed": "npx tsx src/prisma/seed.ts"
+    "seed": "npx tsx src/prisma/seed-ci.ts"
   }
 }

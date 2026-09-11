@@ -55,7 +55,7 @@ jobs:
 
       - name: Seed test database
         working-directory: backend
-        run: npx tsx src/prisma/seed.ts
+        run: npx tsx src/prisma/seed-ci.ts
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
 
