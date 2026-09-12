@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -81,4 +83,11 @@ jobs:
           OPENAI_API_KEY: test-openai-key
           CORS_ORIGIN: http://localhost:3000
           JWT_EXPIRES_IN: 7d
+
+      - name: SonarCloud analysis
+        uses: SonarSource/sonarcloud-github-action@v3.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
 
