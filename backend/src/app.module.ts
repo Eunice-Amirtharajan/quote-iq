@@ -13,6 +13,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { AIModule } from './modules/ai/ai.module';
 import { MailModule } from './common/mail/mail.module';
+import { EventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { MailModule } from './common/mail/mail.module';
     DashboardModule,
     AIModule,
     MailModule,
+    EventsModule,
   ],
   providers: [
     {
