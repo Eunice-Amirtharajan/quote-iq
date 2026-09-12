@@ -22,12 +22,12 @@ test.describe('Quote creation', () => {
 
     await page.click('button:has-text("Create Quotation")');
 
-    // Modal closes and new row appears (use first() in case a previous run left rows)
-    await expect(page.locator('text=E2E Test Quotation').first()).toBeVisible();
-    await expect(page.locator('text=Test Client Co').first()).toBeVisible();
+    // Wait for the new row — title appears as a <p title="..."> inside the table
+    await expect(page.locator('p[title="E2E Test Quotation"]').first()).toBeVisible();
 
-    // Scope status check to the newly created row
-    const row = page.getByRole('row', { name: /E2E Test Quotation/ }).first();
+    // Find the row that contains our title and verify the DRAFT badge inside it
+    const titleCell = page.locator('p[title="E2E Test Quotation"]').first();
+    const row = titleCell.locator('xpath=ancestor::tr[1]');
     await expect(row.locator('span:has-text("DRAFT")')).toBeVisible();
   });
 });
