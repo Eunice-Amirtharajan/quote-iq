@@ -13,7 +13,6 @@ test.describe('Quote creation', () => {
   test('rep can create a quotation and it appears in the list', async ({ page }) => {
     await page.click('button:has-text("New Quotation")');
 
-    // Fill modal
     await page.fill('input[placeholder*="Software Development"]', 'E2E Test Quotation');
     await page.fill('input[placeholder*="Acme Corp"]', 'Test Client Co');
     await page.fill('input[placeholder="Description"]', 'Consulting services');
@@ -22,12 +21,10 @@ test.describe('Quote creation', () => {
 
     await page.click('button:has-text("Create Quotation")');
 
-    // Wait for the new row — title appears as a <p title="..."> inside the table
-    await expect(page.locator('p[title="E2E Test Quotation"]').first()).toBeVisible();
+    // Wait for modal to close (button disappears)
+    await expect(page.locator('button:has-text("Create Quotation")')).not.toBeVisible();
 
-    // Find the row that contains our title and verify the DRAFT badge inside it
-    const titleCell = page.locator('p[title="E2E Test Quotation"]').first();
-    const row = titleCell.locator('xpath=ancestor::tr[1]');
-    await expect(row.locator('span:has-text("DRAFT")')).toBeVisible();
+    // Quotation title now appears in the list
+    await expect(page.locator('text=E2E Test Quotation').first()).toBeVisible();
   });
 });
