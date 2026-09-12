@@ -178,6 +178,7 @@ jobs:
         run: npx playwright test
         env:
           CI: true
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
