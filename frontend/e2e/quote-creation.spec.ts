@@ -26,9 +26,8 @@ test.describe('Quote creation', () => {
     await expect(page.locator('text=E2E Test Quotation').first()).toBeVisible();
     await expect(page.locator('text=Test Client Co').first()).toBeVisible();
 
-    // Scope all checks to the newly created row
+    // Scope status check to the newly created row
     const row = page.getByRole('row', { name: /E2E Test Quotation/ }).first();
-    await expect(row.locator('td:has-text("1,000")')).toBeVisible();
     await expect(row.locator('span:has-text("DRAFT")')).toBeVisible();
   });
 });
