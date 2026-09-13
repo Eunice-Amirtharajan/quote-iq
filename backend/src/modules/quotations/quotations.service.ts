@@ -22,6 +22,8 @@ import { MailService } from '../../common/mail/mail.service';
 import { quoteSubmittedTemplate } from '../../common/mail/templates/quote-submitted';
 import { quoteApprovedTemplate } from '../../common/mail/templates/quote-approved';
 import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejected';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
 
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
@@ -36,6 +38,7 @@ export class QuotationsService {
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
     private readonly mailService: MailService,
+    private readonly amqp: AmqpConnection,
   ) {}
 
   // Calculate totals — stored at write time for consistency
@@ -268,7 +271,7 @@ export class QuotationsService {
       const seq = Number(seqResult[0].nextval);
       const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
 
-      return await this.prisma.quotation.create({
+      const quotation = await this.prisma.quotation.create({
         data: {
           quotationNumber: quoteNumber,
           title,
@@ -295,6 +298,21 @@ export class QuotationsService {
         },
         include: { items: true, createdBy: true },
       });
+
+      void this.amqp
+        .publish(EXCHANGE, ROUTING_KEY, {
+          quotationId: quotation.id,
+          createdById: user.id,
+        })
+        .catch((err: unknown) =>
+          this.logger.error(
+            `Failed to publish quote.created for quotationId:${quotation.id}`,
+            err instanceof Error ? err.stack : String(err),
+            QuotationsService.name,
+          ),
+        );
+
+      return quotation;
     } catch (error) {
       this.logger.error(
         `Failed to create quotation — title: "${title}" clientName: "${clientName}" userId: ${user.id}`,

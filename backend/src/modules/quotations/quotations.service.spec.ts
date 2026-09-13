@@ -3,6 +3,7 @@ import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { MailService } from '../../common/mail/mail.service';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { Role, User, QuotationStatus } from '@prisma/client';
 import {
   BadRequestException,
@@ -49,6 +50,10 @@ const mockMailService = {
   sendMail: jest.fn(),
 };
 
+const mockAmqpConnection = {
+  publish: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('QuotationsService', () => {
   let service: QuotationsService;
 
@@ -59,6 +64,7 @@ describe('QuotationsService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AppLogger, useValue: mockLogger },
         { provide: MailService, useValue: mockMailService },
+        { provide: AmqpConnection, useValue: mockAmqpConnection },
       ],
     }).compile();
 
@@ -489,6 +495,32 @@ describe('QuotationsService', () => {
     it('returns the quotation returned by prisma create', async () => {
       const result = await service.create(mockInput, mockUser);
       expect(result).toEqual(mockCreatedQuotation);
+    });
+
+    it('publishes quote.created to the exchange after successful create', async () => {
+      await service.create(mockInput, mockUser);
+      // Give the void promise a tick to resolve
+      await new Promise(process.nextTick);
+      expect(mockAmqpConnection.publish).toHaveBeenCalledWith(
+        'quoteiq.events',
+        'quote.created',
+        { quotationId: mockCreatedQuotation.id, createdById: mockUser.id },
+      );
+    });
+
+    it('does not throw when publish fails — logs the error instead', async () => {
+      mockAmqpConnection.publish.mockRejectedValueOnce(
+        new Error('RabbitMQ unavailable'),
+      );
+      await expect(service.create(mockInput, mockUser)).resolves.toEqual(
+        mockCreatedQuotation,
+      );
+      await new Promise(process.nextTick);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to publish quote.created'),
+        expect.any(String),
+        QuotationsService.name,
+      );
     });
 
     it('writes a DRAFT→DRAFT status history entry nested in create', async () => {
