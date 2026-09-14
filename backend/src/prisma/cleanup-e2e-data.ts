@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const E2E_PREFIXES = ['E2E', 'Status-Test-'];
+  const E2E_PREFIXES = ['E2E', 'Status-Test-', 'Pipeline-Test-'];
   for (const prefix of E2E_PREFIXES) {
     await prisma.quotationItem.deleteMany({
       where: { quotation: { title: { startsWith: prefix } } },

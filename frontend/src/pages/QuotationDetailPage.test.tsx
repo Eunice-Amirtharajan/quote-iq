@@ -610,6 +610,20 @@ describe("QuotationDetailPage", () => {
         expect(screen.queryByText("Win Chance")).not.toBeInTheDocument();
       });
     });
+
+    it("shows Computing… while score query is in flight and no live score has arrived", async () => {
+      const mocks = makeSentMock({
+        request: { query: CONVERSION_SCORE_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { conversionScore: { score: 82, label: "HIGH" } } },
+      });
+      renderAs(mockManager, mocks);
+      // before the Apollo mock resolves, loading=true and liveScore=null → computing state
+      expect(await screen.findByText("Computing…")).toBeInTheDocument();
+      expect(screen.getByText("Win Chance")).toBeInTheDocument();
+      // once the query resolves the skeleton is replaced by the real score
+      expect(await screen.findByText(/82/)).toBeInTheDocument();
+      expect(screen.queryByText("Computing…")).not.toBeInTheDocument();
+    });
   });
 
   describe("Copy Link", () => {
