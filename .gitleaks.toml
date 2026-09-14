@@ -1,0 +1,23 @@
+[extend]
+# Use the default Gitleaks ruleset as the base.
+useDefault = true
+
+[allowlist]
+description = "Allowlist for known safe patterns in this repo"
+paths = [
+  # Example env files contain placeholder values, not real secrets
+  '''.env\.example$''',
+  # Test fixtures and seed files use obviously fake credentials
+  '''src/prisma/seed.*\.ts$''',
+  '''src/prisma/seed-ci\.ts$''',
+  # Docs may reference example tokens for illustration
+  '''docs/.*\.md$''',
+]
+regexes = [
+  # JWT_SECRET values in CI env blocks in the workflow are test-only placeholder strings
+  '''test-secret-key''',
+  '''test-groq-key''',
+  '''test-openai-key''',
+  # Prisma example connection string in docs
+  '''postgresql://postgres:postgres@localhost''',
+]

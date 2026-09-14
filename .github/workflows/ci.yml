@@ -7,9 +7,24 @@ on:
     branches: [main]
 
 jobs:
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history — scan every commit, not just HEAD
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     name: Unit Tests + E2E Tests
     runs-on: ubuntu-latest
+    needs: secret-scan
 
     services:
       postgres:
@@ -22,6 +37,16 @@ jobs:
           - 5433:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -70,6 +95,7 @@ jobs:
           NODE_ENV: test
           GROQ_API_KEY: test-groq-key
           OPENAI_API_KEY: test-openai-key
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672
 
       - name: Run e2e tests
         working-directory: backend
@@ -83,6 +109,7 @@ jobs:
           OPENAI_API_KEY: test-openai-key
           CORS_ORIGIN: http://localhost:3000
           JWT_EXPIRES_IN: 7d
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672
 
       - name: SonarCloud analysis
         uses: SonarSource/sonarcloud-github-action@383f7e52eae3ab0510c3cb0e7d9d150bbaeab838 # v3.1.0
@@ -106,6 +133,16 @@ jobs:
           - 5433:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -165,6 +202,7 @@ jobs:
           OPENAI_API_KEY: test-openai-key
           CORS_ORIGIN: http://localhost:5173
           JWT_EXPIRES_IN: 7d
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672
 
       - name: Wait for backend
         run: |
