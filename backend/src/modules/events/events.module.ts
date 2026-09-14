@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 
 export const EXCHANGE = 'quoteiq.events';
@@ -7,6 +7,7 @@ export const ROUTING_KEY = 'quote.created';
 export const DLX = 'quoteiq.dlx';
 export const DLQ = 'quoteiq.scoring.dlq';
 
+@Global()
 @Module({
   imports: [
     RabbitMQModule.forRootAsync({

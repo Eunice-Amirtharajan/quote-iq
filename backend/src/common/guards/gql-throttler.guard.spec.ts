@@ -23,6 +23,19 @@ const makeThrottlerGuard = () => {
 describe('GqlThrottlerGuard', () => {
   afterEach(() => jest.clearAllMocks());
 
+  describe('canActivate', () => {
+    it('returns true immediately for non-http non-graphql contexts (e.g. RabbitMQ)', async () => {
+      const guard = makeThrottlerGuard();
+      const ctx = {
+        getType: () => 'rmq',
+        getHandler: jest.fn(),
+        getClass: jest.fn(),
+      } as unknown as ExecutionContext;
+
+      await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    });
+  });
+
   describe('getRequestResponse', () => {
     it('returns req and res from GraphQL context when present', () => {
       const mockReq = { ip: '127.0.0.1' };

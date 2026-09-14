@@ -4,5 +4,6 @@ import { AIResolver } from './ai.resolver';
 
 @Module({
   providers: [AIService, AIResolver],
+  exports: [AIService],
 })
 export class AIModule {}

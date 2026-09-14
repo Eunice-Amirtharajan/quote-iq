@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -14,6 +14,7 @@ import { LoggerModule } from './common/logger/logger.module';
 import { AIModule } from './modules/ai/ai.module';
 import { MailModule } from './common/mail/mail.module';
 import { EventsModule } from './modules/events/events.module';
+import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { EventsModule } from './modules/events/events.module';
     AIModule,
     MailModule,
     EventsModule,
+    QueueConsumerModule,
   ],
   providers: [
     {

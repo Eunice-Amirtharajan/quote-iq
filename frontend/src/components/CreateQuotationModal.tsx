@@ -111,14 +111,20 @@ export default function CreateQuotationModal({
       return;
     }
     const parsePrice = (v: string) => Number.parseFloat(v);
+    const validPrice = (v: string) => {
+      const n = parsePrice(v);
+      return !Number.isNaN(n) && n > 0;
+    };
     const validQty = (v: string) => {
       const n = Number.parseInt(v, 10);
       return !Number.isNaN(n) && n >= 1;
     };
-    if (
-      items.some((it) => !validQty(it.quantity) || parsePrice(it.unitPrice) <= 0)
-    ) {
-      setFormError("Quantity and unit price must be greater than 0.");
+    if (items.some((it) => !validQty(it.quantity))) {
+      setFormError("Quantity must be a whole number greater than 0.");
+      return;
+    }
+    if (items.some((it) => !validPrice(it.unitPrice))) {
+      setFormError("Unit price must be a number greater than 0.");
       return;
     }
 

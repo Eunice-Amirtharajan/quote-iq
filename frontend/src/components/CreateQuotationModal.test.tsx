@@ -183,7 +183,7 @@ describe('CreateQuotationModal', () => {
     await user.click(screen.getByText('Create Quotation'));
 
     expect(
-      screen.getByText('Quantity and unit price must be greater than 0.'),
+      screen.getByText('Quantity must be a whole number greater than 0.'),
     ).toBeInTheDocument();
   });
 
