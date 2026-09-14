@@ -1,4 +1,4 @@
-﻿import { Module } from '@nestjs/common';
+﻿import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -16,6 +16,7 @@ import { MailModule } from './common/mail/mail.module';
 import { EventsModule } from './modules/events/events.module';
 import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { CorrelationIdMiddleware } from './common/correlation/correlation-id.middleware';
 
 @Module({
   imports: [
@@ -75,4 +76,8 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

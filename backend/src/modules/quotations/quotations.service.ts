@@ -24,6 +24,7 @@ import { quoteApprovedTemplate } from '../../common/mail/templates/quote-approve
 import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejected';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
+import { getCorrelationId } from '../../common/correlation/correlation.store';
 
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
@@ -299,11 +300,14 @@ export class QuotationsService {
         include: { items: true, createdBy: true },
       });
 
+      const correlationId = getCorrelationId();
       void this.amqp
-        .publish(EXCHANGE, ROUTING_KEY, {
-          quotationId: quotation.id,
-          createdById: user.id,
-        })
+        .publish(
+          EXCHANGE,
+          ROUTING_KEY,
+          { quotationId: quotation.id, createdById: user.id },
+          { headers: { 'x-correlation-id': correlationId ?? '' } },
+        )
         .catch((err: unknown) =>
           this.logger.error(
             `Failed to publish quote.created for quotationId:${quotation.id}`,

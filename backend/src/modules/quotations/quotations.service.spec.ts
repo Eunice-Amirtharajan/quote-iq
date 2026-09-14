@@ -505,6 +505,7 @@ describe('QuotationsService', () => {
         'quoteiq.events',
         'quote.created',
         { quotationId: mockCreatedQuotation.id, createdById: mockUser.id },
+        { headers: { 'x-correlation-id': expect.any(String) } },
       );
     });
 

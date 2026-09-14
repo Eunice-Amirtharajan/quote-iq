@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createLogger, format, transports, Logger } from 'winston';
+import { getCorrelationId } from '../correlation/correlation.store';
 
 @Injectable()
 export class AppLogger {
@@ -14,8 +15,10 @@ export class AppLogger {
         format.printf(({ timestamp, level, message, context, stack }) => {
           const ctx =
             context && typeof context === 'string' ? `[${context}]` : '';
+          const cid = getCorrelationId();
+          const cidPart = cid ? ` cid:${cid}` : '';
           const trace = stack && typeof stack === 'string' ? `\n${stack}` : '';
-          return `${String(timestamp)} ${level.toUpperCase()} ${ctx} ${String(message)}${trace}`;
+          return `${String(timestamp)} ${level.toUpperCase()} ${ctx}${cidPart} ${String(message)}${trace}`;
         }),
       ),
       transports: [new transports.Console()],
