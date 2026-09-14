@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { RabbitSubscribe, Nack } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE, QUEUE, ROUTING_KEY } from '../events/events.module';
 import { AIService } from '../ai/ai.service';
+import { ScoreGateway } from '../gateway/score.gateway';
 import { AppLogger } from '../../common/logger/logger.service';
 
 const MAX_RETRIES = 3;
@@ -10,6 +11,7 @@ const MAX_RETRIES = 3;
 export class QueueConsumerService {
   constructor(
     private readonly ai: AIService,
+    private readonly gateway: ScoreGateway,
     private readonly logger: AppLogger,
   ) {}
 
@@ -41,7 +43,8 @@ export class QueueConsumerService {
     );
 
     try {
-      await this.ai.getConversionScore(quotationId);
+      const result = await this.ai.getConversionScore(quotationId);
+      this.gateway.emitScoreReady(quotationId, result.score, result.label);
       this.logger.info(
         `Score computed and cached — quotationId:${quotationId}`,
         QueueConsumerService.name,

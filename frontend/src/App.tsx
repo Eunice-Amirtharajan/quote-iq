@@ -19,8 +19,14 @@ import PublicQuotePage from "./pages/PublicQuotePage";
 
 function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
-  if (!user) return <LoginPage />;
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
+}
+
+function LoginRoute() {
+  const { user } = useAuth();
+  if (user) return <Navigate to="/" replace />;
+  return <LoginPage />;
 }
 
 function QuotationDetailRoute() {
@@ -52,6 +58,7 @@ function DefaultRedirect() {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/login" element={<LoginRoute />} />
       <Route path="/view-quotation/:token" element={<PublicQuotePage />} />
       <Route
         path="*"

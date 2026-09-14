@@ -4,9 +4,18 @@ import { Nack } from '@golevelup/nestjs-rabbitmq';
 import { QueueConsumerService } from './queue-consumer.service';
 import { AIService } from '../ai/ai.service';
 import { AppLogger } from '../../common/logger/logger.service';
+import { ConversionLabel } from '../ai/ai-insight.entity';
+
+// socket.io is ESM-only — mock the gateway module to avoid import errors in Jest
+jest.mock('../gateway/score.gateway');
+import { ScoreGateway } from '../gateway/score.gateway';
 
 const mockAIService = {
   getConversionScore: jest.fn(),
+};
+
+const mockGateway = {
+  emitScoreReady: jest.fn(),
 };
 
 const mockLogger = {
@@ -33,6 +42,7 @@ describe('QueueConsumerService', () => {
       providers: [
         QueueConsumerService,
         { provide: AIService, useValue: mockAIService },
+        { provide: ScoreGateway, useValue: mockGateway },
         { provide: AppLogger, useValue: mockLogger },
       ],
     }).compile();
@@ -41,13 +51,17 @@ describe('QueueConsumerService', () => {
   });
 
   describe('onQuoteCreated — success path', () => {
-    it('calls getConversionScore and logs success', async () => {
-      mockAIService.getConversionScore.mockResolvedValueOnce(undefined);
+    it('calls getConversionScore, emits score.ready, and logs success', async () => {
+      mockAIService.getConversionScore.mockResolvedValueOnce({
+        score: 72,
+        label: ConversionLabel.HIGH,
+      });
       const payload = { quotationId: 'q-1', createdById: 'u-1' };
 
       const result = await service.onQuoteCreated(payload, makeMsg());
 
       expect(mockAIService.getConversionScore).toHaveBeenCalledWith('q-1');
+      expect(mockGateway.emitScoreReady).toHaveBeenCalledWith('q-1', 72, ConversionLabel.HIGH);
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('Score computed and cached'),
         QueueConsumerService.name,

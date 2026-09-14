@@ -15,6 +15,7 @@ import { AIModule } from './modules/ai/ai.module';
 import { MailModule } from './common/mail/mail.module';
 import { EventsModule } from './modules/events/events.module';
 import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.module';
+import { GatewayModule } from './modules/gateway/gateway.module';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.mod
       introspection: process.env.NODE_ENV !== 'production',
       playground: process.env.NODE_ENV !== 'production',
       csrfPrevention: true,
-      formatError: (err) => {
+      formatError: (err: import('graphql').GraphQLFormattedError) => {
         const msg = err.message ?? '';
         const isDbDown =
           msg.includes("Can't reach database") ||
@@ -65,6 +66,7 @@ import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.mod
     MailModule,
     EventsModule,
     QueueConsumerModule,
+    GatewayModule,
   ],
   providers: [
     {

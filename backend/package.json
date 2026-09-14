@@ -24,6 +24,7 @@
     "seed:load-test:dry": "npx tsx src/prisma/seed-load-test.ts --dry-run"
   },
   "dependencies": {
+    "@apollo/server": "^5.5.1",
     "@as-integrations/express5": "^1.1.2",
     "@golevelup/nestjs-rabbitmq": "^9.0.2",
     "@google/generative-ai": "^0.24.1",
@@ -35,8 +36,10 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.2.3",
     "@nestjs/schedule": "^6.1.3",
     "@nestjs/throttler": "^6.5.0",
+    "@nestjs/websockets": "^11.2.3",
     "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^6.19.3",
     "@types/nodemailer": "^8.0.1",
@@ -53,6 +56,7 @@
     "prisma": "6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
     "vitest": "^4.1.4",
     "winston": "^3.19.0",
     "ws": "^8.21.0",
@@ -98,6 +102,10 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "moduleNameMapper": {
+      "^@nestjs/websockets$": "<rootDir>/../test/mocks/nestjs-websockets.mock.ts",
+      "^@nestjs/platform-socket.io$": "<rootDir>/../test/mocks/nestjs-platform-socket-io.mock.ts"
+    },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

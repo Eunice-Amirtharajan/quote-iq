@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import QuotationDetailPage from "./QuotationDetailPage";
+
+// socket.io-client is not available in jsdom — mock the hook so tests run without a real server
+vi.mock("../hooks/useScoreSocket", () => ({ useScoreSocket: () => null }));
 import { QUOTATION_QUERY, STATUS_HISTORY_QUERY, CONVERSION_SCORE_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/auth-context";
@@ -591,7 +594,8 @@ describe("QuotationDetailPage", () => {
       });
       renderAs(mockManager, mocks);
       expect(await screen.findByText("Win Chance")).toBeInTheDocument();
-      expect(screen.getByText("82")).toBeInTheDocument();
+      // score (82) and unit (%) are separate text nodes inside the same <p>; wait for query to resolve
+      expect(await screen.findByText(/82/)).toBeInTheDocument();
     });
 
     it("renders nothing when conversion score query returns no data", async () => {
@@ -601,7 +605,10 @@ describe("QuotationDetailPage", () => {
       });
       renderAs(mockManager, mocks);
       await screen.findByText("Enterprise License");
-      expect(screen.queryByText("Win Chance")).not.toBeInTheDocument();
+      // wait for the score query to settle (error → loading false → card hidden)
+      await waitFor(() => {
+        expect(screen.queryByText("Win Chance")).not.toBeInTheDocument();
+      });
     });
   });
 
