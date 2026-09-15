@@ -67,12 +67,36 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+enum DocumentStatus {
+  FAILED
+  PENDING_REVIEW
+  PENDING_SCAN
+  READY
+  REJECTED
+  SCANNING
+}
+
+"""An uploaded document in the RAG knowledge base"""
+type DocumentType {
+  createdAt: DateTime!
+  filename: String!
+  id: ID!
+  mimeType: String!
+  rejectedReason: String
+  sizeBytes: Int!
+  status: DocumentStatus!
+  storageUrl: String!
+}
+
 type LessonsLearnedAnswerType {
   answer: String!
   sources: [String!]!
 }
 
 type Mutation {
+  """Approve a document for RAG use"""
+  approveDocument(id: String!): DocumentType!
+
   """Answer a free-text question about a specific quotation"""
   askAboutQuotation(question: String!, quotationId: ID!): QuotationAnswerType!
   createQuotation(input: CreateQuotationInput!): QuotationType!
@@ -82,6 +106,9 @@ type Mutation {
 
   """Generate or refresh the AI summary for a quotation"""
   quotationSummary(quotationId: ID!): QuotationSummaryType!
+
+  """Reject a document and record the reason"""
+  rejectDocument(id: String!, reason: String!): DocumentType!
   updateQuotation(id: ID!, input: UpdateQuotationInput!): QuotationType!
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
@@ -124,6 +151,9 @@ type Query {
   conversionScore(quotationId: ID!): ConversionScoreType!
   conversionScores(quotationIds: [ID!]!): [ConversionScoreType!]!
   dashboardStats: DashboardStatsType!
+
+  """List all uploaded documents (managers only)"""
+  documents: [DocumentType!]!
   me: UserType!
   quotation(id: ID!): QuotationType
   quotationByToken(token: String!): PublicQuotationType

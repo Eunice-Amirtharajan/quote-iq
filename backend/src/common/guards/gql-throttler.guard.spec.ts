@@ -73,6 +73,27 @@ describe('GqlThrottlerGuard', () => {
   });
 
   describe('getRequestResponse', () => {
+    it('returns req and res directly for plain HTTP context', () => {
+      const mockReq = { ip: '127.0.0.1' };
+      const mockRes = { setHeader: jest.fn() };
+
+      const guard = makeThrottlerGuard();
+      const ctx = {
+        getType: () => 'http',
+        getHandler: jest.fn(),
+        getClass: jest.fn(),
+        switchToHttp: () => ({
+          getRequest: () => mockReq,
+          getResponse: () => mockRes,
+        }),
+      } as unknown as ExecutionContext;
+
+      const result = guard.getRequestResponse(ctx);
+
+      expect(result.req).toBe(mockReq);
+      expect(result.res).toBe(mockRes);
+    });
+
     it('returns req and res from GraphQL context when present', () => {
       const mockReq = { ip: '127.0.0.1' };
       const mockRes = { setHeader: jest.fn() };
@@ -82,6 +103,7 @@ describe('GqlThrottlerGuard', () => {
 
       const guard = makeThrottlerGuard();
       const ctx = {
+        getType: () => 'graphql',
         getHandler: jest.fn(),
         getClass: jest.fn(),
         switchToHttp: jest.fn(),
@@ -101,7 +123,6 @@ describe('GqlThrottlerGuard', () => {
       const guard = makeThrottlerGuard();
       const mockHttpReq = { ip: '10.0.0.1' };
       const mockHttpRes = {};
-      // Stub the parent class method
       jest
         .spyOn(
           Object.getPrototypeOf(GqlThrottlerGuard.prototype),
@@ -110,6 +131,7 @@ describe('GqlThrottlerGuard', () => {
         .mockReturnValue({ req: mockHttpReq, res: mockHttpRes });
 
       const ctx = {
+        getType: () => 'graphql',
         getHandler: jest.fn(),
         getClass: jest.fn(),
         switchToHttp: jest.fn().mockReturnValue({
@@ -140,6 +162,7 @@ describe('GqlThrottlerGuard', () => {
         .mockReturnValue({ req: mockHttpReq, res: mockHttpRes });
 
       const ctx = {
+        getType: () => 'graphql',
         getHandler: jest.fn(),
         getClass: jest.fn(),
       } as unknown as ExecutionContext;

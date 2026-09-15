@@ -35,6 +35,7 @@ model User {
   updatedAt     DateTime        @updatedAt
   quotations    Quotation[]     @relation("CreatedBy")
   statusChanges StatusHistory[]
+  documents     Document[]      @relation("UploadedDocuments")
 }
 
 model Quotation {
@@ -103,11 +104,51 @@ model AIInsight {
 }
 
 model PlaybookChunk {
-  id        String   @id @default(uuid())
-  source    String   // filename, e.g. "pricing-guidelines.md"
-  content   String   // the raw text of the chunk
+  id        String                      @id @default(uuid())
+  source    String
+  content   String
   embedding Unsupported("vector(1536)")?
-  createdAt DateTime @default(now())
+  createdAt DateTime                    @default(now())
 
   @@index([source])
+}
+
+enum DocumentStatus {
+  PENDING_SCAN     // uploaded, awaiting malware + moderation scan
+  SCANNING         // scan in progress
+  PENDING_REVIEW   // clean file, text extracted — ready for human review
+  READY            // approved for RAG use
+  REJECTED         // malware detected or moderation flagged
+  FAILED           // processing error (extraction, scan service down, etc.)
+}
+
+model Document {
+  id            String         @id @default(uuid())
+  filename      String
+  mimeType      String
+  sizeBytes     Int
+  storageKey    String         @unique  // Supabase Storage object key
+  storageUrl    String                  // public or signed URL
+  status        DocumentStatus @default(PENDING_SCAN)
+  rejectedReason String?                // populated on REJECTED or FAILED
+  uploadedById  String
+  uploadedBy    User           @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  chunks        DocumentChunk[]
+
+  @@index([uploadedById])
+  @@index([status])
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  chunkIndex Int
+  content    String
+  embedding  Unsupported("vector(1536)")?
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
 }

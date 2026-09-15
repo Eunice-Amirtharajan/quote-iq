@@ -1,6 +1,6 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerLimitDetail } from '@nestjs/throttler';
 
 @Injectable()
 export class GqlThrottlerGuard extends ThrottlerGuard {
@@ -22,6 +22,16 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     req: Record<string, unknown>;
     res: Record<string, unknown>;
   } {
+    const type = context.getType<string>();
+    if (type === 'http') {
+      // Plain HTTP (REST endpoints) — use the HTTP context directly
+      const http = context.switchToHttp();
+      return {
+        req: http.getRequest<Record<string, unknown>>(),
+        res: http.getResponse<Record<string, unknown>>(),
+      };
+    }
+    // GraphQL — extract req/res from Apollo context
     const gqlCtx = GqlExecutionContext.create(context);
     const ctx = gqlCtx.getContext<{
       req: Record<string, unknown>;
@@ -31,5 +41,12 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
       return super.getRequestResponse(context);
     }
     return { req: ctx.req, res: ctx.res };
+  }
+
+  protected override throwThrottlingException(
+    context: ExecutionContext,
+    throttlerLimitDetail: ThrottlerLimitDetail,
+  ): Promise<void> {
+    return super.throwThrottlingException(context, throttlerLimitDetail);
   }
 }

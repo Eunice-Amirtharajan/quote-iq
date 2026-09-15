@@ -18,6 +18,7 @@ import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.mod
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { CorrelationIdMiddleware } from './common/correlation/correlation-id.middleware';
 import { MetricsModule } from './common/metrics/metrics.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { MetricsModule } from './common/metrics/metrics.module';
     QueueConsumerModule,
     GatewayModule,
     MetricsModule,
+    DocumentsModule,
   ],
   providers: [
     {
