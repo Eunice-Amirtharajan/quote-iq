@@ -34,6 +34,42 @@ describe('GqlThrottlerGuard', () => {
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
     });
+
+    it('returns true for HTTP requests to /metrics (Prometheus scrape target)', async () => {
+      const guard = makeThrottlerGuard();
+      const ctx = {
+        getType: () => 'http',
+        getHandler: jest.fn(),
+        getClass: jest.fn(),
+        switchToHttp: () => ({
+          getRequest: () => ({ url: '/metrics' }),
+        }),
+      } as unknown as ExecutionContext;
+
+      await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    });
+
+    it('delegates to super.canActivate for plain HTTP requests that are not /metrics', async () => {
+      const guard = makeThrottlerGuard();
+      const superSpy = jest
+        .spyOn(
+          Object.getPrototypeOf(GqlThrottlerGuard.prototype),
+          'canActivate',
+        )
+        .mockResolvedValue(true);
+
+      const ctx = {
+        getType: () => 'http',
+        getHandler: jest.fn(),
+        getClass: jest.fn(),
+        switchToHttp: () => ({
+          getRequest: () => ({ url: '/health' }),
+        }),
+      } as unknown as ExecutionContext;
+
+      await expect(guard.canActivate(ctx)).resolves.toBe(true);
+      expect(superSpy).toHaveBeenCalledWith(ctx);
+    });
   });
 
   describe('getRequestResponse', () => {
