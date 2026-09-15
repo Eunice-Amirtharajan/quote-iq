@@ -10,6 +10,11 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
     if (type !== 'http' && type !== 'graphql') {
       return true;
     }
+    // /metrics is a plain HTTP route used by Prometheus — skip throttling
+    if (type === 'http') {
+      const req = context.switchToHttp().getRequest<{ url?: string }>();
+      if (req?.url?.startsWith('/metrics')) return true;
+    }
     return super.canActivate(context);
   }
 

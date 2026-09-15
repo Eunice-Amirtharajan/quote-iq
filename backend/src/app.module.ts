@@ -17,6 +17,7 @@ import { EventsModule } from './modules/events/events.module';
 import { QueueConsumerModule } from './modules/queue-consumer/queue-consumer.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { CorrelationIdMiddleware } from './common/correlation/correlation-id.middleware';
+import { MetricsModule } from './common/metrics/metrics.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { CorrelationIdMiddleware } from './common/correlation/correlation-id.mid
     EventsModule,
     QueueConsumerModule,
     GatewayModule,
+    MetricsModule,
   ],
   providers: [
     {

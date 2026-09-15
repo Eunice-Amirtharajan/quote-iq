@@ -25,5 +25,36 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
 
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: quoteiq-prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: quoteiq-grafana
+    ports:
+      - "3001:3000"   # Grafana UI — http://localhost:3001 (admin/admin)
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
 volumes:
   rabbitmq_data:
+  prometheus_data:
+  grafana_data:

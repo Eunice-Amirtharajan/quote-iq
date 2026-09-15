@@ -44,6 +44,10 @@ describe('QuotationsResolver', () => {
       providers: [
         QuotationsResolver,
         { provide: QuotationsService, useValue: mockQuotationsService },
+        {
+          provide: 'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
+          useValue: { startTimer: jest.fn().mockReturnValue(jest.fn()) },
+        },
       ],
     }).compile();
 

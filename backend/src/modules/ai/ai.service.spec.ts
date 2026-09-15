@@ -110,7 +110,7 @@ describe('AIService — missing API key', () => {
     const savedKey = process.env.GROQ_API_KEY;
     delete process.env.GROQ_API_KEY;
     expect(
-      () => new AIService(mockPrismaService as never, mockLogger as never),
+      () => new AIService(mockPrismaService as never, mockLogger as never, {} as never),
     ).toThrow('GROQ_API_KEY is not set');
     process.env.GROQ_API_KEY = savedKey;
   });
@@ -121,7 +121,7 @@ describe('AIService — missing API key', () => {
     process.env.GROQ_API_KEY = 'test-key';
     delete process.env.OPENAI_API_KEY;
     expect(
-      () => new AIService(mockPrismaService as never, mockLogger as never),
+      () => new AIService(mockPrismaService as never, mockLogger as never, {} as never),
     ).toThrow('OPENAI_API_KEY is not set');
     process.env.GROQ_API_KEY = savedGroq;
     process.env.OPENAI_API_KEY = savedOpenAI;
@@ -141,6 +141,10 @@ describe('AIService', () => {
         AIService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AppLogger, useValue: mockLogger },
+        {
+          provide: 'PROM_METRIC_GROQ_MODEL_REQUESTS_TOTAL',
+          useValue: { inc: jest.fn() },
+        },
       ],
     }).compile();
 

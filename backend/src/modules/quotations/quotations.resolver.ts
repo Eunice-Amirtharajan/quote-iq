@@ -4,6 +4,8 @@ import {
   ForbiddenException,
   UseGuards,
 } from '@nestjs/common';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Histogram } from 'prom-client';
 import { QuotationsService } from './quotations.service';
 import { QuotationType } from './quotation.entity';
 import { StatusHistoryType } from './status-history.entity';
@@ -21,7 +23,11 @@ import { Role } from '@prisma/client';
 @Resolver(/* istanbul ignore next */ () => QuotationType)
 @UseGuards(JwtAuthGuard)
 export class QuotationsResolver {
-  constructor(private readonly quotationsService: QuotationsService) {}
+  constructor(
+    private readonly quotationsService: QuotationsService,
+    @InjectMetric('graphql_resolver_duration_seconds')
+    private readonly resolverDuration: Histogram<string>,
+  ) {}
 
   @Query(/* istanbul ignore next */ () => [QuotationType])
   async quotations(
@@ -42,7 +48,15 @@ export class QuotationsResolver {
     })
     filter?: QuotationFilterInput,
   ): Promise<QuotationType[]> {
-    return this.quotationsService.findAll(user, take, skip, filter);
+    const end = this.resolverDuration.startTimer({ resolver: 'quotations' });
+    try {
+      const result = await this.quotationsService.findAll(user, take, skip, filter);
+      end({ status: 'success' });
+      return result;
+    } catch (err) {
+      end({ status: 'error' });
+      throw err;
+    }
   }
 
   @Query(/* istanbul ignore next */ () => QuotationType, { nullable: true })
@@ -63,7 +77,15 @@ export class QuotationsResolver {
     @Args('input') input: CreateQuotationInput,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType> {
-    return this.quotationsService.create(input, user);
+    const end = this.resolverDuration.startTimer({ resolver: 'createQuotation' });
+    try {
+      const result = await this.quotationsService.create(input, user);
+      end({ status: 'success' });
+      return result;
+    } catch (err) {
+      end({ status: 'error' });
+      throw err;
+    }
   }
 
   @Mutation(/* istanbul ignore next */ () => QuotationType)

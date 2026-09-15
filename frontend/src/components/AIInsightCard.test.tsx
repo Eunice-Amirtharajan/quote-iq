@@ -83,7 +83,9 @@ describe("AIInsightCard", () => {
         </AuthContext.Provider>
       </MockedProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    // Don't await the click — fire it and immediately assert loading state
+    // before the 200ms mock delay resolves and loading flips back to false
+    void userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
     expect(await screen.findByText("Analysing...")).toBeInTheDocument();
   });
 

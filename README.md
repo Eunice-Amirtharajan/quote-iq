@@ -170,7 +170,8 @@ quote-iq/
 │       ├── common/
 │       │   ├── decorators/  # @CurrentUser, @Roles
 │       │   ├── guards/      # JwtAuthGuard, RolesGuard, GqlThrottlerGuard
-│       │   └── logger/      # Winston logger
+│       │   ├── logger/      # Winston logger
+│       │   └── metrics/     # MetricsModule — Prometheus Histogram + Counter providers
 │       ├── modules/
 │       │   ├── ai/          # Groq integration, hybrid recommendation model
 │       │   ├── auth/        # JWT, HttpOnly cookie, passport-jwt
@@ -189,6 +190,10 @@ quote-iq/
 ├── docs/
 │   ├── cicd-flow.md         # Mermaid CI/CD diagram (renders on GitHub)
 │   └── drawio/              # Architecture, ERD, sequence, AI pipeline diagrams
+├── observability/
+│   ├── prometheus.yml       # Scrape config — backend /metrics every 15s
+│   └── grafana/
+│       └── provisioning/    # Auto-loaded datasource (Prometheus) + dashboard JSON
 └── README.md
 ```
 
@@ -236,8 +241,28 @@ E2E tests are excluded from hooks — they require Docker and run in CI instead.
 | Container health check + auto-restart | Railway (built-in) | `GET /health` every 30s — Railway restarts container automatically if it fails |
 | CPU / memory / logs | Railway dashboard | Real-time metrics and stdout logs |
 | Frontend performance | Vercel Analytics | Web Vitals (LCP, CLS, FID) — `@vercel/analytics` injected in `main.tsx` |
+| Metrics | Prometheus + prom-client | `GET /metrics` exposes default Node.js metrics + custom app metrics: resolver latency histogram (`createQuotation`, `quotations`), Groq model invocations counter with `model`/`tier`/`outcome` labels |
+| Dashboards | Grafana | Local via Docker Compose — resolver p95 latency, Groq fallback rate gauge, request volume, heap usage. See [`observability/`](observability/) |
 
 The `/health` endpoint (`GET https://api.quoteiq.cc/health`) returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.
+
+### Running Prometheus + Grafana locally
+
+```bash
+# Start from the repo root
+docker-compose up prometheus grafana
+
+# Grafana UI → http://localhost:3001  (admin / admin)
+# Prometheus UI → http://localhost:9090
+```
+
+The backend must be running locally (`npm run start:dev` in `backend/`) so Prometheus can scrape `http://host.docker.internal:4000/metrics` every 15 s.
+
+**Live dashboard — captured under real traffic:**
+
+![Grafana dashboard: resolver request rate, p95 latency, Groq primary vs fallback, 0% fallback rate, heap and event loop](docs/screenshots/grafana-dashboard.png)
+
+0% Groq fallback rate — primary model handled every AI call. Resolver p95 latency ~1s (Neon DB including cold start). Heap stable at 62–70 MB with healthy GC sawtooth.
 
 ## Kubernetes (GKE Autopilot)
 

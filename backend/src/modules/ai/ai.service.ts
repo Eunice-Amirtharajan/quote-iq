@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { Counter } from 'prom-client';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import Groq from 'groq-sdk';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
@@ -81,6 +84,8 @@ export class AIService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
+    @InjectMetric('groq_model_requests_total')
+    private readonly groqCounter: Counter<string>,
   ) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY is not set');
@@ -204,7 +209,10 @@ strong contradicting signals. Justify your reasoning.
       );
     }
     let lastError: unknown;
-    for (const model of this.rankedModels()) {
+    const ranked = this.rankedModels();
+    const primaryModel = ranked[0];
+    for (const model of ranked) {
+      const tier = model === primaryModel ? 'primary' : 'fallback';
       try {
         this.logger.info(`Trying Groq model: ${model}`, AIService.name);
         const response = await this.groq.chat.completions.create({
@@ -217,6 +225,7 @@ strong contradicting signals. Justify your reasoning.
           `Groq response received from model: ${model}`,
           AIService.name,
         );
+        this.groqCounter.inc({ model, outcome: 'success', tier });
         return text;
       } catch (err) {
         const isTransient =
@@ -229,6 +238,7 @@ strong contradicting signals. Justify your reasoning.
           `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
           AIService.name,
         );
+        this.groqCounter.inc({ model, outcome: isTransient ? 'transient_error' : 'error', tier });
         lastError = err;
         if (!isTransient) throw err;
       }
