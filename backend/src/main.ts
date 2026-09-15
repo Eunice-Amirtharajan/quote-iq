@@ -1,3 +1,4 @@
+import './tracing'; // must be first — registers OTel SDK before any instrumented module loads
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';

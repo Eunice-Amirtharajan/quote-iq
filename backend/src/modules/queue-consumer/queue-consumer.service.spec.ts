@@ -63,7 +63,7 @@ describe('QueueConsumerService', () => {
       expect(mockAIService.getConversionScore).toHaveBeenCalledWith('q-1');
       expect(mockGateway.emitScoreReady).toHaveBeenCalledWith('q-1', 72, ConversionLabel.HIGH);
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Score computed and cached'),
+        expect.stringContaining('Score computed and emitted'),
         QueueConsumerService.name,
       );
       expect(result).toBeUndefined();

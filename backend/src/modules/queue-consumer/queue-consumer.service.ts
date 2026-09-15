@@ -36,21 +36,24 @@ export class QueueConsumerService {
     const headers = amqpMsg.properties.headers;
     const xDeath = headers['x-death'] as { count: number }[] | undefined;
     const deathCount = xDeath?.[0]?.count ?? 0;
-    // Re-attach the correlation ID from the message header so all log lines
-    // in this handler share the same ID as the original HTTP request.
     const correlationId = (headers['x-correlation-id'] as string | undefined) ?? '';
+    const traceparent = (headers['traceparent'] as string | undefined) ?? '';
+    const publishedAt = (headers['x-published-at'] as number | undefined) ?? 0;
+    const consumeStart = Date.now();
+    const queueWaitMs = publishedAt ? consumeStart - publishedAt : -1;
 
     return correlationStore.run(correlationId, async () => {
       this.logger.info(
-        `Received quote.created — quotationId:${quotationId} attempt:${deathCount + 1}`,
+        `Received quote.created — quotationId:${quotationId} attempt:${deathCount + 1} traceparent:${traceparent} queueWaitMs:${queueWaitMs}`,
         QueueConsumerService.name,
       );
 
       try {
         const result = await this.ai.getConversionScore(quotationId);
+        const processingMs = Date.now() - consumeStart;
         this.gateway.emitScoreReady(quotationId, result.score, result.label);
         this.logger.info(
-          `Score computed and cached — quotationId:${quotationId}`,
+          `Score computed and emitted — quotationId:${quotationId} processingMs:${processingMs} totalMs:${queueWaitMs + processingMs}`,
           QueueConsumerService.name,
         );
       } catch (err) {

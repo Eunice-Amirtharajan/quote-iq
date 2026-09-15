@@ -25,6 +25,13 @@ import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejecte
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
 import { getCorrelationId } from '../../common/correlation/correlation.store';
+import { randomBytes } from 'crypto';
+
+function generateTraceparent(): { traceparent: string; traceId: string; spanId: string } {
+  const traceId = randomBytes(16).toString('hex');
+  const spanId = randomBytes(8).toString('hex');
+  return { traceparent: `00-${traceId}-${spanId}-01`, traceId, spanId };
+}
 
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
@@ -301,13 +308,27 @@ export class QuotationsService {
       });
 
       const correlationId = getCorrelationId();
+      const { traceparent, traceId, spanId } = generateTraceparent();
+      const publishStart = Date.now();
       void this.amqp
         .publish(
           EXCHANGE,
           ROUTING_KEY,
           { quotationId: quotation.id, createdById: user.id },
-          { headers: { 'x-correlation-id': correlationId ?? '' } },
+          {
+            headers: {
+              'x-correlation-id': correlationId ?? '',
+              traceparent,
+              'x-published-at': publishStart,
+            },
+          },
         )
+        .then(() => {
+          this.logger.info(
+            `Published quote.created — quotationId:${quotation.id} traceId:${traceId} spanId:${spanId} publishMs:${Date.now() - publishStart}`,
+            QuotationsService.name,
+          );
+        })
         .catch((err: unknown) =>
           this.logger.error(
             `Failed to publish quote.created for quotationId:${quotation.id}`,
