@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: quoteiq-backend
+  namespace: quoteiq
+spec:
+  selector:
+    app: quoteiq-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 4000
+  type: LoadBalancer
