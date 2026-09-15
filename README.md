@@ -238,3 +238,15 @@ E2E tests are excluded from hooks — they require Docker and run in CI instead.
 | Frontend performance | Vercel Analytics | Web Vitals (LCP, CLS, FID) — `@vercel/analytics` injected in `main.tsx` |
 
 The `/health` endpoint (`GET https://api.quoteiq.cc/health`) returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.
+
+## Kubernetes (GKE Autopilot)
+
+The backend is deployable to Google Kubernetes Engine Autopilot (`europe-west2`). Manifests live in [`k8s/`](k8s/).
+
+**HPA scale-out — confirmed live under k6 load (100 VUs, GraphQL endpoint):**
+
+![HPA scale event: 1 → 5 replicas at 100% CPU, scale-down back to 1](docs/screenshots/hpa-scale-event.png)
+
+CPU peaked at 100%, HPA scaled from 1 → 5 replicas (max), then scaled back to 1 as load dropped. Full scale-up and scale-down cycle observed.
+
+> Cluster is torn down after each demo session to avoid idle charges (`k8s/teardown.sh`). Re-provisioning takes ~5 minutes.
