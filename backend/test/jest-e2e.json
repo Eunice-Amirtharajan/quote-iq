@@ -7,7 +7,10 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "moduleNameMapper": {
-    "^src/(.*)$": "<rootDir>/../src/$1"
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^pdfjs-dist/legacy/build/pdf\\.mjs$": "<rootDir>/mocks/pdfjs-dist.mock.ts",
+    "^@nestjs/websockets$": "<rootDir>/mocks/nestjs-websockets.mock.ts",
+    "^@nestjs/platform-socket.io$": "<rootDir>/mocks/nestjs-platform-socket-io.mock.ts"
   },
   "detectOpenHandles": true
 }
