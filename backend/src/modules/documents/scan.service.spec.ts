@@ -1,38 +1,26 @@
 import { ScanService } from './scan.service';
-import * as net from 'node:net';
+import { EventEmitter } from 'node:events';
 
-jest.mock('node:net');
+const mockSpawn = jest.fn();
+jest.mock('node:child_process', () => ({ spawn: (...args: unknown[]) => mockSpawn(...args) }));
+jest.mock('node:fs/promises', () => ({
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
+}));
 
-const mockSocket = {
-  setTimeout: jest.fn(),
-  connect: jest.fn(),
-  write: jest.fn(),
-  on: jest.fn(),
-  destroy: jest.fn(),
-};
-
-(net.Socket as jest.Mock).mockImplementation(() => mockSocket);
-
-const simulateClamd = (response: string) => {
-  let connectCb: () => void;
-  let dataCb: (chunk: Buffer) => void;
-  let endCb: () => void;
-
-  mockSocket.connect.mockImplementation((_port: number, _host: string, cb: () => void) => {
-    connectCb = cb;
+function makeProc(stdout: string, exitCode: number) {
+  const proc = Object.assign(new EventEmitter(), {
+    stdout: new EventEmitter(),
+    stderr: new EventEmitter(),
+    kill: jest.fn(),
   });
-  mockSocket.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
-    if (event === 'data') dataCb = cb as (chunk: Buffer) => void;
-    if (event === 'end') endCb = cb;
-  });
-
-  // Simulate async ClamD response
   setImmediate(() => {
-    connectCb();
-    dataCb(Buffer.from(response));
-    endCb();
+    proc.stdout.emit('data', Buffer.from(stdout));
+    proc.stderr.emit('data', Buffer.from(''));
+    proc.emit('close', exitCode);
   });
-};
+  return proc;
+}
 
 describe('ScanService', () => {
   let service: ScanService;
@@ -40,19 +28,23 @@ describe('ScanService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new ScanService();
-    // Reset mock implementations
-    (net.Socket as jest.Mock).mockImplementation(() => mockSocket);
   });
 
   describe('scan — ClamAV available', () => {
-    it('returns not infected when ClamAV responds OK', async () => {
-      simulateClamd('stream: OK');
-      const result = await service.scan(Buffer.from('clean-file'));
+    it('returns not infected when clamdscan exits 0 with OK', async () => {
+      mockSpawn
+        .mockReturnValueOnce(makeProc('', 0))                        // docker cp
+        .mockReturnValueOnce(makeProc('/tmp/f.pdf: OK', 0))          // clamdscan clean
+        .mockReturnValueOnce(makeProc('', 0));                       // docker exec rm
+      const result = await service.scan(Buffer.from('clean'));
       expect(result.infected).toBe(false);
     });
 
-    it('returns infected with threat name when ClamAV finds malware', async () => {
-      simulateClamd('stream: Eicar-Test-Signature FOUND');
+    it('returns infected with threat when clamdscan exits 1 (FOUND)', async () => {
+      mockSpawn
+        .mockReturnValueOnce(makeProc('', 0))                                         // docker cp
+        .mockReturnValueOnce(makeProc('/tmp/f.pdf: Eicar-Test-Signature FOUND', 1))   // clamdscan infected
+        .mockReturnValueOnce(makeProc('', 0));                                        // docker exec rm
       const result = await service.scan(Buffer.from('eicar'));
       expect(result.infected).toBe(true);
       expect(result.threat).toContain('Eicar-Test-Signature');
@@ -60,15 +52,11 @@ describe('ScanService', () => {
   });
 
   describe('scan — ClamAV unavailable, VirusTotal fallback', () => {
-    it('falls back gracefully and returns not infected when VIRUSTOTAL_API_KEY is not set', async () => {
-      // Socket emits error → ClamAV fails → fallback to VT
-      mockSocket.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
-        if (event === 'error') setImmediate(() => (cb as (e: Error) => void)(new Error('ECONNREFUSED')));
-      });
-      mockSocket.connect.mockImplementation(() => {});
-
+    it('falls back gracefully when docker cp fails and VIRUSTOTAL_API_KEY not set', async () => {
+      // exit code 2 = docker not available / container missing → triggers fallback
+      mockSpawn
+        .mockReturnValueOnce(makeProc('', 2));   // docker cp fails
       delete process.env.VIRUSTOTAL_API_KEY;
-
       const result = await service.scan(Buffer.from('file'));
       expect(result.infected).toBe(false);
     });

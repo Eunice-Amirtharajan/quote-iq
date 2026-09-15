@@ -13,7 +13,6 @@ export class ModerationService {
 
   async moderate(text: string): Promise<ModerationResult> {
     if (!text) return { flagged: false, categories: [] };
-
     try {
       const response = await this.openai.moderations.create({ input: text });
       const result = response.results[0];

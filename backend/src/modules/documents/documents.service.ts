@@ -96,20 +96,13 @@ export class DocumentsService {
       return;
     }
 
-    // 2. Extract text
-    let text: string;
+    // 2. Extract text — fail-open: image-based or malformed PDFs yield empty text
+    // Manager can review the file manually at PENDING_REVIEW and reject if needed
+    let text = '';
     try {
       text = await this.extraction.extractText(buffer);
     } catch (err) {
-      this.logger.warn({ docId, err }, 'Text extraction failed');
-      await this.prisma.document.update({
-        where: { id: docId },
-        data: {
-          status: DocumentStatus.FAILED,
-          rejectedReason: 'Text extraction failed',
-        },
-      });
-      return;
+      this.logger.warn({ docId, err }, 'Text extraction failed — proceeding with empty text');
     }
 
     // 3. Moderation gate

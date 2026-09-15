@@ -60,6 +60,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^6.3.289",
     "prisma": "6.19.3",
     "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
@@ -114,7 +115,8 @@
     "testRegex": ".*\\.spec\\.ts$",
     "moduleNameMapper": {
       "^@nestjs/websockets$": "<rootDir>/../test/mocks/nestjs-websockets.mock.ts",
-      "^@nestjs/platform-socket.io$": "<rootDir>/../test/mocks/nestjs-platform-socket-io.mock.ts"
+      "^@nestjs/platform-socket.io$": "<rootDir>/../test/mocks/nestjs-platform-socket-io.mock.ts",
+      "^pdfjs-dist/legacy/build/pdf\\.mjs$": "<rootDir>/../test/mocks/pdfjs-dist.mock.ts"
     },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"

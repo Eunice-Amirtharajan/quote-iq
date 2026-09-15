@@ -1,10 +1,13 @@
 import { ExtractionService } from './extraction.service';
 
-jest.mock('pdf-parse', () =>
-  jest.fn().mockResolvedValue({ text: '  Sample extracted text  ', numpages: 1 }),
-);
+const mockGetTextContent = jest.fn();
+const mockGetPage = jest.fn().mockResolvedValue({ getTextContent: mockGetTextContent });
+const mockPdfDoc = { numPages: 2, getPage: mockGetPage };
+const mockGetDocument = jest.fn().mockReturnValue({ promise: Promise.resolve(mockPdfDoc) });
 
-import pdfParse from 'pdf-parse';
+jest.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
+  getDocument: (...args: unknown[]) => mockGetDocument(...args),
+}));
 
 describe('ExtractionService', () => {
   let service: ExtractionService;
@@ -12,17 +15,26 @@ describe('ExtractionService', () => {
   beforeEach(() => {
     service = new ExtractionService();
     jest.clearAllMocks();
+    mockGetDocument.mockReturnValue({ promise: Promise.resolve(mockPdfDoc) });
+    mockGetPage.mockResolvedValue({ getTextContent: mockGetTextContent });
   });
 
-  it('returns trimmed text from pdf-parse', async () => {
-    const result = await service.extractText(Buffer.from('fake-pdf'));
-    expect(result).toBe('Sample extracted text');
-    expect(pdfParse).toHaveBeenCalledWith(expect.any(Buffer), expect.objectContaining({ pagerender: expect.any(Function) }));
+  it('extracts and trims text from all pages', async () => {
+    mockGetTextContent
+      .mockResolvedValueOnce({ items: [{ str: 'Hello ' }, { str: 'World' }] })
+      .mockResolvedValueOnce({ items: [{ str: 'Page two' }] });
+
+    const result = await service.extractText(Buffer.from('%PDF-fake'));
+    expect(result).toBe('Hello  World\nPage two');
+    expect(mockGetDocument).toHaveBeenCalledWith({ data: expect.any(Uint8Array) });
   });
 
-  it('returns empty string and logs when pdf has no text', async () => {
-    (pdfParse as jest.Mock).mockResolvedValueOnce({ text: '   ', numpages: 1 });
-    const result = await service.extractText(Buffer.from('empty-pdf'));
+  it('returns empty string and logs when PDF has no text', async () => {
+    mockGetTextContent
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ items: [] });
+
+    const result = await service.extractText(Buffer.from('%PDF-empty'));
     expect(result).toBe('');
   });
 });
