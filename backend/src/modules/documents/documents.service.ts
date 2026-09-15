@@ -41,17 +41,26 @@ export class DocumentsService {
 
     const { key, url } = await this.storage.upload(file);
 
-    const doc = await this.prisma.document.create({
-      data: {
-        filename: file.originalname,
-        mimeType: file.mimetype,
-        sizeBytes: file.size,
-        storageKey: key,
-        storageUrl: url,
-        status: DocumentStatus.PENDING_SCAN,
-        uploadedById: uploader.id,
-      },
-    });
+    let doc: Awaited<ReturnType<typeof this.prisma.document.create>>;
+    try {
+      doc = await this.prisma.document.create({
+        data: {
+          filename: file.originalname,
+          mimeType: file.mimetype,
+          sizeBytes: file.size,
+          storageKey: key,
+          storageUrl: url,
+          status: DocumentStatus.PENDING_SCAN,
+          uploadedById: uploader.id,
+        },
+      });
+    } catch (err) {
+      // DB write failed after file was already uploaded — delete the orphaned file
+      void this.storage.delete(key).catch((deleteErr: unknown) =>
+        this.logger.error({ key, deleteErr }, 'Failed to clean up orphaned file after DB error'),
+      );
+      throw err;
+    }
 
     // Kick off async processing — does not block the HTTP response
     void this.processDocument(doc.id, file.buffer).catch((err: unknown) => {

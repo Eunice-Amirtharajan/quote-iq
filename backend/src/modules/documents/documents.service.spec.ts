@@ -132,6 +132,16 @@ describe('DocumentsService', () => {
       expect(mockStorage.upload).toHaveBeenCalledTimes(1);
       expect(mockPrisma.document.create).toHaveBeenCalledTimes(1);
     });
+
+    it('deletes orphaned file from storage when DB create fails', async () => {
+      mockPrisma.document.create.mockRejectedValue(new Error('DB connection lost'));
+      mockStorage.delete.mockResolvedValue(undefined);
+      const svc = makeService();
+      await expect(svc.uploadDocument(makeFile(), manager)).rejects.toThrow('DB connection lost');
+      // Give the void delete promise time to settle
+      await new Promise((r) => setImmediate(r));
+      expect(mockStorage.delete).toHaveBeenCalledWith('k/test.pdf');
+    });
   });
 
   describe('approveDocument', () => {
