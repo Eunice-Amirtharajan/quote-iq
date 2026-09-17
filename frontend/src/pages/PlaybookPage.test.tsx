@@ -168,4 +168,40 @@ describe("PlaybookPage", () => {
       await screen.findByText(/ask a sales manager/i),
     ).toBeInTheDocument();
   });
+
+  it("shows singular 'source' label when there is exactly 1 citation", async () => {
+    render_([
+      gateMock(true),
+      askMock("Single citation?", "One source answer.", [
+        { documentTitle: "Guide A", chunkIndex: 0, excerpt: "Excerpt A" },
+      ]),
+    ]);
+    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    await userEvent.type(input, "Single citation?");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+    expect(await screen.findByText(/show 1 source$/i)).toBeInTheDocument();
+  });
+
+  it("shows plural 'sources' label when there are multiple citations", async () => {
+    render_([
+      gateMock(true),
+      askMock("Multi citation?", "Two sources answer.", [
+        { documentTitle: "Guide A", chunkIndex: 0, excerpt: "Excerpt A" },
+        { documentTitle: "Guide B", chunkIndex: 1, excerpt: "Excerpt B" },
+      ]),
+    ]);
+    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    await userEvent.type(input, "Multi citation?");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+    expect(await screen.findByText(/show 2 sources/i)).toBeInTheDocument();
+  });
+
+  it("does not send when input is whitespace only", async () => {
+    render_([gateMock(true)]);
+    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    await userEvent.type(input, "   ");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+    // no user message should appear
+    expect(screen.queryByText("   ")).not.toBeInTheDocument();
+  });
 });

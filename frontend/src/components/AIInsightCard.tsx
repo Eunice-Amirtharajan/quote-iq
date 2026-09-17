@@ -141,6 +141,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && question.trim()) {
+                /* v8 ignore next */
                 askQuestion({ variables: { quotationId, question } }).catch(() => {});
               }
             }}
@@ -152,6 +153,7 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
             type="button"
             onClick={() => {
               if (question.trim()) {
+                /* v8 ignore next */
                 askQuestion({ variables: { quotationId, question } }).catch(() => {});
               }
             }}

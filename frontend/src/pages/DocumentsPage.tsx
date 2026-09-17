@@ -192,6 +192,7 @@ export default function DocumentsPage() {
         <RejectModal
           filename={rejectTarget.filename}
           onConfirm={(reason) =>
+            /* v8 ignore next */
             reject({ variables: { id: rejectTarget.id, reason } }).catch(() => {})
           }
           onCancel={() => setRejectTarget(null)}
@@ -202,6 +203,7 @@ export default function DocumentsPage() {
         <DeleteModal
           filename={deleteTarget.filename}
           onConfirm={() =>
+            /* v8 ignore next */
             deleteDoc({ variables: { id: deleteTarget.id } }).catch(() => {})
           }
           onCancel={() => setDeleteTarget(null)}

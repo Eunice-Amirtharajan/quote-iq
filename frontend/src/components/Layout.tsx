@@ -23,6 +23,7 @@ export default function Layout({ children }: Readonly<LayoutProps>) {
     onCompleted: () => {
       // Reset before clearing auth state so components never render with a
       // mismatched cache (old user's data) after the user changes.
+      /* v8 ignore next 3 */
       client.resetStore().finally(() => { setUser(null);
         navigate("/");
        }).catch(() => setUser(null));

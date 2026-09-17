@@ -220,4 +220,27 @@ describe("AIInsightCard", () => {
     const askBtn = screen.getByRole("button", { name: /^Ask$/ });
     expect(askBtn).toBeDisabled();
   });
+
+  it("displays answer when Enter is pressed in question input", async () => {
+    const mocksWithAnswer: MockLink.MockedResponse[] = [
+      ...successMock,
+      {
+        request: {
+          query: ASK_ABOUT_QUOTATION_MUTATION,
+          variables: { quotationId: "q-1", question: "Is it profitable?" },
+        },
+        result: {
+          data: { askAboutQuotation: { answer: "Yes, very profitable." } },
+        },
+      },
+    ];
+    renderCard(mockManager, mocksWithAnswer);
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    await screen.findByText("Strong deal with good client history.");
+    await userEvent.type(
+      screen.getByPlaceholderText(/e\.g\. Is the margin/i),
+      "Is it profitable?{Enter}",
+    );
+    expect(await screen.findByText("Yes, very profitable.")).toBeInTheDocument();
+  });
 });

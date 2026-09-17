@@ -242,4 +242,65 @@ describe("DocumentsPage", () => {
     import.meta.env.VITE_UPLOAD_ENABLED = original;
     vi.unstubAllGlobals();
   });
+
+  it("renders file size in MB for large files", async () => {
+    render_([docsMock([makeDoc({ sizeBytes: 2 * 1024 * 1024 })])]);
+    expect(await screen.findByText("2.0 MB")).toBeInTheDocument();
+  });
+
+  it("successful upload refetches document list", async () => {
+    const uploadedDoc = makeDoc({ status: "PENDING_SCAN" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+    );
+    const original = import.meta.env.VITE_UPLOAD_ENABLED;
+    import.meta.env.VITE_UPLOAD_ENABLED = "true";
+    render_([docsMock(), docsMock([uploadedDoc])]);
+    await screen.findByText("sales-playbook.pdf");
+    const input = document.querySelector("input[type=file]") as HTMLInputElement;
+    const file = new File(["pdf content"], "new.pdf", { type: "application/pdf" });
+    await userEvent.upload(input, file);
+    expect(await screen.findByText("Queued")).toBeInTheDocument();
+    import.meta.env.VITE_UPLOAD_ENABLED = original;
+    vi.unstubAllGlobals();
+  });
+
+  it("reject mutation error is swallowed gracefully", async () => {
+    const mocks: MockLink.MockedResponse[] = [
+      docsMock(),
+      {
+        request: { query: REJECT_DOCUMENT_MUTATION, variables: { id: "doc-1", reason: "Bad" } },
+        error: new Error("Network error"),
+      },
+    ];
+    render_(mocks);
+    await userEvent.click(await screen.findByRole("button", { name: /^reject$/i }));
+    await userEvent.type(screen.getByPlaceholderText(/reason for rejection/i), "Bad");
+    const modalRejectBtn = screen.getAllByRole("button", { name: /reject/i }).find(
+      (b) => b.closest(".fixed"),
+    )!;
+    await userEvent.click(modalRejectBtn);
+    // modal stays open since mutation failed — no crash
+    await waitFor(() =>
+      expect(screen.getByText(/reject document/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("delete mutation error is swallowed gracefully", async () => {
+    const mocks: MockLink.MockedResponse[] = [
+      docsMock(),
+      {
+        request: { query: DELETE_DOCUMENT_MUTATION, variables: { id: "doc-1" } },
+        error: new Error("Network error"),
+      },
+    ];
+    render_(mocks);
+    await userEvent.click(await screen.findByRole("button", { name: /delete document/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+    // modal stays open — no crash
+    await waitFor(() =>
+      expect(screen.getByText(/delete document\?/i)).toBeInTheDocument(),
+    );
+  });
 });
