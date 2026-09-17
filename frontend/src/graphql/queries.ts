@@ -162,3 +162,22 @@ export const CONVERSION_SCORES_QUERY = gql`
     }
   }
 `;
+
+export const DOCUMENTS_QUERY = gql`
+  query Documents {
+    documents {
+      id
+      filename
+      sizeBytes
+      status
+      rejectedReason
+      createdAt
+    }
+  }
+`;
+
+export const HAS_READY_DOCUMENTS_QUERY = gql`
+  query HasReadyDocuments {
+    hasReadyDocuments
+  }
+`;

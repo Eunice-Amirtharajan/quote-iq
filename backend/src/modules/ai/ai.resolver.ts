@@ -7,6 +7,7 @@ import {
   QuotationSummaryType,
   WinLossStatsType,
   LessonsLearnedAnswerType,
+  PlaybookAnswerType,
 } from './ai-insight.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -82,5 +83,16 @@ export class AIResolver {
     @Args('question') question: string,
   ): Promise<LessonsLearnedAnswerType> {
     return this.aiService.askLessonsLearned(question);
+  }
+
+  @Mutation(/* istanbul ignore next */ () => PlaybookAnswerType, {
+    description: 'Answer a free-text question using READY sales-playbook documents (available to Sales Reps and Managers)',
+  })
+  @UseGuards(RolesGuard)
+  @Roles(Role.SALES_REP, Role.SALES_MANAGER)
+  async askPlaybook(
+    @Args('question', { type: /* istanbul ignore next */ () => String }) question: string,
+  ): Promise<PlaybookAnswerType> {
+    return this.aiService.askPlaybook(question);
   }
 }

@@ -85,3 +85,40 @@ export const ASK_ABOUT_QUOTATION_MUTATION = gql`
     }
   }
 `;
+
+export const APPROVE_DOCUMENT_MUTATION = gql`
+  mutation ApproveDocument($id: String!) {
+    approveDocument(id: $id) {
+      id
+      status
+    }
+  }
+`;
+
+export const REJECT_DOCUMENT_MUTATION = gql`
+  mutation RejectDocument($id: String!, $reason: String!) {
+    rejectDocument(id: $id, reason: $reason) {
+      id
+      status
+    }
+  }
+`;
+
+export const ASK_PLAYBOOK_MUTATION = gql`
+  mutation AskPlaybook($question: String!) {
+    askPlaybook(question: $question) {
+      answer
+      citations {
+        documentTitle
+        chunkIndex
+        excerpt
+      }
+    }
+  }
+`;
+
+export const DELETE_DOCUMENT_MUTATION = gql`
+  mutation DeleteDocument($id: String!) {
+    deleteDocument(id: $id)
+  }
+`;

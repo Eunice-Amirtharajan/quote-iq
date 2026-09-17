@@ -7,6 +7,7 @@ import type { StorageService } from './storage.service';
 import type { ScanService } from './scan.service';
 import type { ExtractionService } from './extraction.service';
 import type { ModerationService } from './moderation.service';
+import type { AIService } from '../ai/ai.service';
 
 const PDF_HEADER = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
 
@@ -21,6 +22,9 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     findMany: jest.fn(),
+    findUnique: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
   },
   documentChunk: { create: jest.fn() },
   $transaction: jest.fn(),
@@ -43,6 +47,10 @@ const mockModeration: jest.Mocked<ModerationService> = {
   moderate: jest.fn(),
 } as unknown as jest.Mocked<ModerationService>;
 
+const mockAI: jest.Mocked<Pick<AIService, 'generateDocumentEmbeddings'>> = {
+  generateDocumentEmbeddings: jest.fn().mockResolvedValue(undefined),
+};
+
 const makeService = () =>
   new DocumentsService(
     mockPrisma as never,
@@ -50,6 +58,7 @@ const makeService = () =>
     mockScan,
     mockExtraction,
     mockModeration,
+    mockAI as never,
   );
 
 const manager: User = {
@@ -159,6 +168,15 @@ describe('DocumentsService', () => {
       );
       expect((result as { status: DocumentStatus }).status).toBe(DocumentStatus.READY);
     });
+
+    it('triggers embedding generation after approval', async () => {
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', status: DocumentStatus.READY });
+      const svc = makeService();
+      await svc.approveDocument('doc-1', manager);
+      // Give the void promise time to settle
+      await new Promise((r) => setImmediate(r));
+      expect(mockAI.generateDocumentEmbeddings).toHaveBeenCalledWith('doc-1');
+    });
   });
 
   describe('rejectDocument', () => {
@@ -176,6 +194,102 @@ describe('DocumentsService', () => {
           data: { status: DocumentStatus.REJECTED, rejectedReason: 'harmful content' },
         }),
       );
+    });
+  });
+
+  describe('deleteDocument', () => {
+    const docReady = {
+      id: 'doc-1',
+      status: DocumentStatus.READY,
+      storageKey: 'uploads/doc-1.pdf',
+    };
+
+    beforeEach(() => {
+      mockPrisma.document.findUnique.mockResolvedValue(docReady);
+      mockPrisma.document.delete.mockResolvedValue(docReady);
+      mockStorage.delete.mockResolvedValue(undefined);
+    });
+
+    it('throws ForbiddenException for SALES_REP', async () => {
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', rep)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('returns without error when document does not exist (idempotent)', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue(null);
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when document is SCANNING', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.SCANNING });
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('allows deletion of PENDING_SCAN document', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.PENDING_SCAN });
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+    });
+
+    it('allows deletion of PENDING_REVIEW document', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.PENDING_REVIEW });
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+    });
+
+    it('allows deletion of READY document', async () => {
+      const svc = makeService();
+      await svc.deleteDocument('doc-1', manager);
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+    });
+
+    it('calls storage.delete fire-and-forget after DB delete', async () => {
+      const svc = makeService();
+      await svc.deleteDocument('doc-1', manager);
+      await new Promise((r) => setImmediate(r));
+      expect(mockStorage.delete).toHaveBeenCalledWith('uploads/doc-1.pdf');
+    });
+
+    it('allows deletion of REJECTED document', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.REJECTED });
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalled();
+    });
+
+    it('allows deletion of FAILED document', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.FAILED });
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalled();
+    });
+  });
+
+  describe('hasReadyDocuments', () => {
+    it('returns true when count > 0', async () => {
+      mockPrisma.document.count.mockResolvedValue(3);
+      const svc = makeService();
+      expect(await svc.hasReadyDocuments()).toBe(true);
+    });
+
+    it('returns false when count is 0', async () => {
+      mockPrisma.document.count.mockResolvedValue(0);
+      const svc = makeService();
+      expect(await svc.hasReadyDocuments()).toBe(false);
+    });
+
+    it('queries only READY status', async () => {
+      mockPrisma.document.count.mockResolvedValue(1);
+      const svc = makeService();
+      await svc.hasReadyDocuments();
+      expect(mockPrisma.document.count).toHaveBeenCalledWith({
+        where: { status: DocumentStatus.READY },
+      });
     });
   });
 

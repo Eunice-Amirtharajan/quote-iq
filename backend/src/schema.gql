@@ -99,7 +99,15 @@ type Mutation {
 
   """Answer a free-text question about a specific quotation"""
   askAboutQuotation(question: String!, quotationId: ID!): QuotationAnswerType!
+
+  """
+  Answer a free-text question using READY sales-playbook documents (available to Sales Reps and Managers)
+  """
+  askPlaybook(question: String!): PlaybookAnswerType!
   createQuotation(input: CreateQuotationInput!): QuotationType!
+
+  """Delete a document and its chunks. Blocked while SCANNING."""
+  deleteDocument(id: String!): Boolean!
   deleteQuotation(id: ID!): Boolean!
   login(email: String!, password: String!): UserType!
   logout: Boolean!
@@ -111,6 +119,24 @@ type Mutation {
   rejectDocument(id: String!, reason: String!): DocumentType!
   updateQuotation(id: ID!, input: UpdateQuotationInput!): QuotationType!
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
+}
+
+"""Answer grounded in READY sales-playbook documents"""
+type PlaybookAnswerType {
+  answer: String!
+  citations: [PlaybookCitationType!]!
+}
+
+"""A single retrieved document chunk citation"""
+type PlaybookCitationType {
+  """Zero-based chunk index within the document"""
+  chunkIndex: Int!
+
+  """Document filename"""
+  documentTitle: String!
+
+  """Excerpt snippet from the chunk"""
+  excerpt: String!
 }
 
 """A public sales quotation with line items and calculated totals"""
@@ -154,6 +180,11 @@ type Query {
 
   """List all uploaded documents (managers only)"""
   documents: [DocumentType!]!
+
+  """
+  Returns true when at least one READY document exists — used to gate the Playbook feature
+  """
+  hasReadyDocuments: Boolean!
   me: UserType!
   quotation(id: ID!): QuotationType
   quotationByToken(token: String!): PublicQuotationType

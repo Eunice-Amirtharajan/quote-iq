@@ -72,7 +72,11 @@ const mockPrismaService = {
     update: jest.fn().mockResolvedValue({}),
     delete: jest.fn().mockResolvedValue({}),
   },
+  documentChunk: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   $queryRaw: jest.fn(),
+  $executeRaw: jest.fn().mockResolvedValue(1),
 };
 
 const mockLogger = {
@@ -163,6 +167,9 @@ describe('AIService', () => {
     jest.clearAllMocks();
     // Reset cache mock to null after each test so cache doesn't bleed between tests
     mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+    // Drain any unconsumed mockResolvedValueOnce values
+    mockCreate.mockResolvedValue(mockGroqResponse);
+    mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: Array(1536).fill(0.1) }] });
   });
 
   describe('generateQuotationSummary', () => {
@@ -983,6 +990,125 @@ describe('AIService', () => {
       await expect(
         service.askLessonsLearned('Any question?'),
       ).rejects.toThrow('Groq unavailable');
+    });
+  });
+
+  describe('generateDocumentEmbeddings', () => {
+    const mockChunks = [
+      { id: 'c-1', chunkIndex: 0, content: 'First chunk content about sales.' },
+      { id: 'c-2', chunkIndex: 1, content: 'Second chunk content about pricing.' },
+    ];
+
+    afterEach(() => {
+      mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: Array(1536).fill(0.1) }] });
+    });
+
+    it('calls OpenAI embeddings for each chunk and updates DB', async () => {
+      mockPrismaService.documentChunk.findMany.mockResolvedValue(mockChunks);
+
+      await service.generateDocumentEmbeddings('doc-1');
+
+      expect(mockEmbeddingsCreate).toHaveBeenCalledTimes(2);
+      expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+        model: 'text-embedding-3-small',
+        input: 'First chunk content about sales.',
+      });
+      expect(mockPrismaService.$executeRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('does nothing when document has no chunks', async () => {
+      mockPrismaService.documentChunk.findMany.mockResolvedValue([]);
+
+      await service.generateDocumentEmbeddings('doc-empty');
+
+      expect(mockEmbeddingsCreate).not.toHaveBeenCalled();
+      expect(mockPrismaService.$executeRaw).not.toHaveBeenCalled();
+    });
+
+    it('propagates OpenAI error when embedding fails', async () => {
+      mockPrismaService.documentChunk.findMany.mockResolvedValue(mockChunks);
+      mockEmbeddingsCreate.mockRejectedValue(new Error('OpenAI quota exceeded'));
+
+      await expect(service.generateDocumentEmbeddings('doc-1')).rejects.toThrow(
+        'OpenAI quota exceeded',
+      );
+    });
+  });
+
+  describe('askPlaybook', () => {
+    // >3 chunks so rerankChunks actually calls Groq (early-exit guard is chunks.length <= 3)
+    const mockDocChunks = [
+      { id: 'dc-1', documentId: 'doc-1', chunkIndex: 0, content: 'Playbook content about objection handling.', documentTitle: 'Sales Playbook Q1.pdf' },
+      { id: 'dc-2', documentId: 'doc-1', chunkIndex: 1, content: 'Playbook content about pricing strategy.', documentTitle: 'Sales Playbook Q1.pdf' },
+      { id: 'dc-3', documentId: 'doc-2', chunkIndex: 0, content: 'Competitor analysis content.', documentTitle: 'Competitor Guide.pdf' },
+      { id: 'dc-4', documentId: 'doc-2', chunkIndex: 1, content: 'Discount approval process overview.', documentTitle: 'Competitor Guide.pdf' },
+    ];
+
+    beforeEach(() => {
+      // vector search returns mockDocChunks; keyword search returns empty
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce(mockDocChunks)
+        .mockResolvedValueOnce([]);
+    });
+
+    it('returns answer and citations for a valid question', async () => {
+      // reranker is 1st Groq call (returns indices), LLM answer is 2nd
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Handle objections by focusing on value. (see [1])' } }] });
+
+      const result = await service.askPlaybook('How should I handle pricing objections?');
+
+      expect(result.answer).toContain('Handle objections');
+      expect(result.citations).toHaveLength(3);
+      expect(result.citations[0].documentTitle).toBe('Sales Playbook Q1.pdf');
+      expect(result.citations[0].chunkIndex).toBe(0);
+    });
+
+    it('returns grounded refusal when no chunks found', async () => {
+      mockPrismaService.$queryRaw.mockReset()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.askPlaybook('What is the capital of France?');
+
+      expect(result.answer).toContain('No relevant playbook content');
+      expect(result.citations).toHaveLength(0);
+    });
+
+    it('embeds the question with text-embedding-3-small', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer.' } }] });
+
+      await service.askPlaybook('How to upsell?');
+
+      expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+        model: 'text-embedding-3-small',
+        input: 'How to upsell?',
+      });
+    });
+
+    it('calls $queryRaw twice — vector search and keyword search', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer.' } }] });
+
+      await service.askPlaybook('What closing techniques work best?');
+
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws BadRequestException for blank question', async () => {
+      await expect(service.askPlaybook('   ')).rejects.toThrow('Please enter a question.');
+    });
+
+    it('falls back to top-3 slicing when reranker returns invalid JSON', async () => {
+      // reranker fails to parse → falls back to slice → LLM answer is 2nd call
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'not-valid-json' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer from chunks.' } }] });
+
+      const result = await service.askPlaybook('Best closing technique?');
+
+      expect(result.answer).toBe('Answer from chunks.');
+      expect(result.citations).toHaveLength(3);
     });
   });
 });

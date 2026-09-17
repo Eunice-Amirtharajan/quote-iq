@@ -27,7 +27,11 @@ import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
 import { getCorrelationId } from '../../common/correlation/correlation.store';
 import { randomBytes } from 'crypto';
 
-function generateTraceparent(): { traceparent: string; traceId: string; spanId: string } {
+function generateTraceparent(): {
+  traceparent: string;
+  traceId: string;
+  spanId: string;
+} {
   const traceId = randomBytes(16).toString('hex');
   const spanId = randomBytes(8).toString('hex');
   return { traceparent: `00-${traceId}-${spanId}-01`, traceId, spanId };

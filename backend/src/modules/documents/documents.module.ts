@@ -6,8 +6,10 @@ import { StorageService } from './storage.service';
 import { ScanService } from './scan.service';
 import { ExtractionService } from './extraction.service';
 import { ModerationService } from './moderation.service';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
+  imports: [AIModule],
   controllers: [DocumentsController],
   providers: [
     DocumentsService,

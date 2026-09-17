@@ -12,6 +12,7 @@ import { ExtractionService } from './extraction.service';
 import { ModerationService } from './moderation.service';
 import { DocumentStatus, Role } from '@prisma/client';
 import type { User } from '@prisma/client';
+import { AIService } from '../ai/ai.service';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = 'application/pdf';
@@ -27,6 +28,7 @@ export class DocumentsService {
     private readonly scan: ScanService,
     private readonly extraction: ExtractionService,
     private readonly moderation: ModerationService,
+    private readonly ai: AIService,
   ) {}
 
   async uploadDocument(
@@ -147,10 +149,17 @@ export class DocumentsService {
     if (approver.role !== Role.SALES_MANAGER) {
       throw new ForbiddenException('Only Sales Managers can approve documents');
     }
-    return this.prisma.document.update({
+    const doc = await this.prisma.document.update({
       where: { id: docId },
       data: { status: DocumentStatus.READY },
     });
+
+    // Kick off embedding generation asynchronously — does not block the response
+    void this.ai.generateDocumentEmbeddings(docId).catch((err: unknown) => {
+      this.logger.error({ docId, err }, 'Background embedding generation failed');
+    });
+
+    return doc;
   }
 
   async rejectDocument(
@@ -165,6 +174,31 @@ export class DocumentsService {
       where: { id: docId },
       data: { status: DocumentStatus.REJECTED, rejectedReason: reason },
     });
+  }
+
+  async deleteDocument(docId: string, deleter: User): Promise<void> {
+    if (deleter.role !== Role.SALES_MANAGER) {
+      throw new ForbiddenException('Only Sales Managers can delete documents');
+    }
+    const doc = await this.prisma.document.findUnique({ where: { id: docId } });
+    if (!doc) return; // already gone — idempotent
+    if (doc.status === DocumentStatus.SCANNING) {
+      throw new BadRequestException(
+        'Cannot delete a document while it is being scanned — try again in a moment',
+      );
+    }
+    // Cascade in DB removes DocumentChunk rows; then remove the file from storage
+    await this.prisma.document.delete({ where: { id: docId } });
+    void this.storage.delete(doc.storageKey).catch((err: unknown) =>
+      this.logger.error({ docId, storageKey: doc.storageKey, err }, 'Storage delete failed after DB delete'),
+    );
+  }
+
+  async hasReadyDocuments(): Promise<boolean> {
+    const count = await this.prisma.document.count({
+      where: { status: DocumentStatus.READY },
+    });
+    return count > 0;
   }
 
   async findAll(user: User) {

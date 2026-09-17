@@ -16,6 +16,8 @@ import QuotationsPage from "./pages/QuotationsPage";
 import QuotationDetailPage from "./pages/QuotationDetailPage";
 import WinLossPage from "./pages/WinLossPage";
 import PublicQuotePage from "./pages/PublicQuotePage";
+import DocumentsPage from "./pages/DocumentsPage";
+import PlaybookPage from "./pages/PlaybookPage";
 
 function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
@@ -74,6 +76,8 @@ function AppRoutes() {
                   element={<QuotationDetailRoute />}
                 />
                 <Route path="/winloss" element={<WinLossPage />} />
+                <Route path="/documents" element={<DocumentsPage />} />
+                <Route path="/playbook" element={<PlaybookPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>

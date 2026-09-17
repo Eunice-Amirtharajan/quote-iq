@@ -124,3 +124,28 @@ export class LessonsLearnedAnswerType {
   @Field(() => [String])
   sources!: string[];
 }
+
+@ObjectType({ description: 'A single retrieved document chunk citation' })
+export class PlaybookCitationType {
+  @Field(() => String, { description: 'Document filename' })
+  documentTitle!: string;
+
+  @Field(() => Int, {
+    description: 'Zero-based chunk index within the document',
+  })
+  chunkIndex!: number;
+
+  @Field(() => String, { description: 'Excerpt snippet from the chunk' })
+  excerpt!: string;
+}
+
+@ObjectType({
+  description: 'Answer grounded in READY sales-playbook documents',
+})
+export class PlaybookAnswerType {
+  @Field(() => String)
+  answer!: string;
+
+  @Field(() => [PlaybookCitationType])
+  citations!: PlaybookCitationType[];
+}

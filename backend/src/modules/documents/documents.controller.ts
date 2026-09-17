@@ -6,6 +6,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 /// <reference types="multer" />
@@ -35,6 +36,11 @@ export class DocumentsController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: User,
   ) {
+    if (process.env['ALLOW_UPLOAD'] !== 'true') {
+      throw new ForbiddenException(
+        'Document uploads are disabled in this deployment. This is a read-only demo.',
+      );
+    }
     return this.documentsService.uploadDocument(file, user);
   }
 }
