@@ -27,7 +27,7 @@ const askMock = (
 
 const render_ = (mocks: MockLink.MockedResponse[]) =>
   render(
-    <MockedProvider mocks={mocks} addTypename={false}>
+    <MockedProvider mocks={mocks}>
       <PlaybookPage />
     </MockedProvider>,
   );

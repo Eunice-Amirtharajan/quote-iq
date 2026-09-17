@@ -11,17 +11,26 @@ import {
 } from "../graphql/mutations";
 import type { MockLink } from "@apollo/client/testing";
 
-const makeDoc = (overrides: Partial<(typeof docs)[0]> = {}) => ({
+interface DocRow {
+  id: string;
+  filename: string;
+  sizeBytes: number;
+  status: "PENDING_SCAN" | "SCANNING" | "PENDING_REVIEW" | "READY" | "REJECTED" | "FAILED";
+  rejectedReason: string | null;
+  createdAt: string;
+}
+
+const makeDoc = (overrides: Partial<DocRow> = {}): DocRow => ({
   id: "doc-1",
   filename: "sales-playbook.pdf",
   sizeBytes: 102400,
-  status: "PENDING_REVIEW" as const,
+  status: "PENDING_REVIEW",
   rejectedReason: null,
   createdAt: "2026-09-10T10:00:00.000Z",
   ...overrides,
 });
 
-const docs = [makeDoc()];
+const docs: DocRow[] = [makeDoc()];
 
 const docsMock = (rows = docs): MockLink.MockedResponse => ({
   request: { query: DOCUMENTS_QUERY },
@@ -30,7 +39,7 @@ const docsMock = (rows = docs): MockLink.MockedResponse => ({
 
 const render_ = (mocks: MockLink.MockedResponse[]) =>
   render(
-    <MockedProvider mocks={mocks} addTypename={false}>
+    <MockedProvider mocks={mocks}>
       <DocumentsPage />
     </MockedProvider>,
   );

@@ -133,6 +133,7 @@
       "!**/seed-ci.ts",
       "!**/seed-rag.ts",
       "!**/seed-load-test.ts",
+      "!**/seed-documents.ts",
       "!**/apply-trgm-indexes.ts",
       "!**/explain-baseline.ts",
       "!**/cleanup-e2e-data.ts",

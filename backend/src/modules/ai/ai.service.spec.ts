@@ -75,6 +75,9 @@ const mockPrismaService = {
   documentChunk: {
     findMany: jest.fn().mockResolvedValue([]),
   },
+  document: {
+    count: jest.fn().mockResolvedValue(1),
+  },
   $queryRaw: jest.fn(),
   $executeRaw: jest.fn().mockResolvedValue(1),
 };
@@ -1045,6 +1048,8 @@ describe('AIService', () => {
     ];
 
     beforeEach(() => {
+      // gate: at least one READY document exists
+      mockPrismaService.document.count.mockResolvedValue(1);
       // vector search returns mockDocChunks; keyword search returns empty
       mockPrismaService.$queryRaw
         .mockResolvedValueOnce(mockDocChunks)
@@ -1098,6 +1103,13 @@ describe('AIService', () => {
 
     it('throws BadRequestException for blank question', async () => {
       await expect(service.askPlaybook('   ')).rejects.toThrow('Please enter a question.');
+    });
+
+    it('throws BadRequestException when no READY documents exist', async () => {
+      mockPrismaService.document.count.mockResolvedValueOnce(0);
+      await expect(service.askPlaybook('Any question?')).rejects.toThrow(
+        'No approved playbook documents are available yet',
+      );
     });
 
     it('falls back to top-3 slicing when reranker returns invalid JSON', async () => {
