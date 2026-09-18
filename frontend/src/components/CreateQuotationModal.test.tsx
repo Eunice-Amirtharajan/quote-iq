@@ -280,6 +280,47 @@ describe('CreateQuotationModal', () => {
     expect(taxInput).toHaveValue(0);
   });
 
+  it('shows validation error when unit price is 0', async () => {
+    const user = userEvent.setup();
+    renderModal([]);
+
+    await user.type(screen.getByPlaceholderText(/Software Development/i), 'Test');
+    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+
+    const descInputs = screen.getAllByPlaceholderText('Description');
+    await user.type(descInputs[0], 'Item');
+
+    const qtyInputs = screen.getAllByPlaceholderText('Qty');
+    await user.clear(qtyInputs[0]);
+    await user.type(qtyInputs[0], '1');
+
+    // leave unit price at 0 (default)
+    await user.click(screen.getByText('Create Quotation'));
+
+    expect(
+      screen.getByText('Unit price must be a number greater than 0.'),
+    ).toBeInTheDocument();
+  });
+
+  it('blocks e and E keys in quantity input', async () => {
+    const user = userEvent.setup();
+    renderModal([]);
+
+    const qtyInput = screen.getAllByPlaceholderText('Qty')[0];
+    await user.clear(qtyInput);
+    await user.type(qtyInput, 'e');
+    expect(qtyInput).toHaveValue(null);
+  });
+
+  it('blocks e and E keys in unit price input', async () => {
+    const user = userEvent.setup();
+    renderModal([]);
+
+    const priceInput = screen.getAllByPlaceholderText('0.00')[0];
+    await user.type(priceInput, 'e');
+    expect(priceInput).toHaveValue(null);
+  });
+
   it('shows red counter when notes reaches max length', () => {
     renderModal([]);
 
@@ -355,6 +396,28 @@ describe('CreateQuotationModal — edit mode', () => {
     expect(screen.getByText('Save Changes')).toBeInTheDocument();
   });
 
+  it('sorts multi-item quotation by sortOrder when pre-populating', () => {
+    const multiItemQuotation = {
+      ...existingQuotation,
+      items: [
+        { description: 'Second', quantity: 1, unitPrice: 100, sortOrder: 1 },
+        { description: 'First', quantity: 2, unitPrice: 200, sortOrder: 0 },
+      ],
+    };
+    render(
+      <MockedProvider mocks={[]}>
+        <CreateQuotationModal
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          quotation={multiItemQuotation}
+        />
+      </MockedProvider>,
+    );
+    const descInputs = screen.getAllByPlaceholderText('Description') as HTMLInputElement[];
+    expect(descInputs[0].value).toBe('First');
+    expect(descInputs[1].value).toBe('Second');
+  });
+
   it('calls updateQuotation and closes on save', async () => {
     const user = userEvent.setup();
     const mockOnClose = vi.fn();
@@ -369,5 +432,37 @@ describe('CreateQuotationModal — edit mode', () => {
     );
     await user.click(screen.getByText('Save Changes'));
     await waitFor(() => expect(mockOnClose).toHaveBeenCalled());
+  });
+
+  it('shows error message when updateQuotation mutation fails', async () => {
+    const user = userEvent.setup();
+    const updateErrorMock: MockLink.MockedResponse = {
+      request: {
+        query: UPDATE_QUOTATION_MUTATION,
+        variables: {
+          id: 'q-1',
+          input: {
+            title: 'Old Title',
+            version: 1,
+            clientName: 'Old Corp',
+            notes: 'Old notes',
+            taxRate: 0,
+            items: [{ description: 'Old Item', quantity: 1, unitPrice: 500 }],
+          },
+        },
+      },
+      error: new Error('Update failed'),
+    };
+    render(
+      <MockedProvider mocks={[updateErrorMock]}>
+        <CreateQuotationModal
+          onClose={vi.fn()}
+          onCreated={vi.fn()}
+          quotation={existingQuotation}
+        />
+      </MockedProvider>,
+    );
+    await user.click(screen.getByText('Save Changes'));
+    expect(await screen.findByText('Update failed')).toBeInTheDocument();
   });
 });
