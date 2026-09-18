@@ -49,7 +49,7 @@ test.describe('Async pipeline — Win Chance live push', () => {
 
     // --- Step 2: sign out, log in as manager, open the same detail page ---
     await page.click('button:has-text("Sign out")');
-    await page.waitForURL('/');
+    await page.waitForURL('/login');
     await login(page, 'marcus@quoteiq.com');
     await page.goto(detailUrl);
     await page.waitForURL(/\/quotations\/.+/);

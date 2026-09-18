@@ -10,7 +10,7 @@ async function login(page: Page, email: string) {
 
 async function logout(page: Page) {
   await page.click('button:has-text("Sign out")');
-  await page.waitForURL('/');
+  await page.waitForURL('/login');
 }
 
 function breadcrumbBadge(page: Page, status: string) {
