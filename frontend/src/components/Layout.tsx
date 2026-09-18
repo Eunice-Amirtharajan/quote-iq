@@ -22,7 +22,7 @@ export default function Layout({ children }: Readonly<LayoutProps>) {
   const [logout] = useMutation(LOGOUT_MUTATION, {
     onCompleted: () => {
       setUser(null);
-      navigate("/");
+      navigate("/login");
       /* v8 ignore next */
       void client.clearStore().catch(() => {});
     },

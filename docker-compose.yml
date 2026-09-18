@@ -54,22 +54,7 @@ services:
     depends_on:
       - prometheus
 
-  clamav:
-    image: clamav/clamav:stable
-    container_name: quoteiq-clamav
-    ports:
-      - "3310:3310"  # clamd TCP port
-    volumes:
-      - clamav_data:/var/lib/clamav
-    healthcheck:
-      test: ["CMD", "clamdcheck.sh"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 120s  # ClamAV takes ~2min to update virus definitions on first start
-
 volumes:
   rabbitmq_data:
   prometheus_data:
   grafana_data:
-  clamav_data:

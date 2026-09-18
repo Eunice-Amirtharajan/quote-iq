@@ -40,6 +40,6 @@ test.describe('Authentication', () => {
     await page.click('button:has-text("Sign in")');
     await expect(page).not.toHaveURL('/');
     await page.click('button:has-text("Sign out")');
-    await expect(page).toHaveURL('/');
+    await expect(page).toHaveURL('/login');
   });
 });
