@@ -700,8 +700,8 @@ describe("QuotationDetailPage", () => {
         result: {
           data: {
             similarQuotations: [
-              { id: "sq-1", title: "Cloud Migration", clientName: "Acme Corp", total: 12000, status: "APPROVED", score: 0.91 },
-              { id: "sq-2", title: "Support Contract", clientName: "Beta GmbH", total: 3500, status: "SENT", score: 0.76 },
+              { __typename: "SimilarQuotationType", id: "sq-1", title: "Cloud Migration", clientName: "Acme Corp", total: 12000, status: "APPROVED", score: 0.91 },
+              { __typename: "SimilarQuotationType", id: "sq-2", title: "Support Contract", clientName: "Beta GmbH", total: 3500, status: "SENT", score: 0.76 },
             ],
           },
         },
@@ -711,13 +711,7 @@ describe("QuotationDetailPage", () => {
         emptyHistoryMock,
         similarQuotationsMock,
       ];
-      render(
-        <AuthContext.Provider value={{ user: mockManager, setUser: mockSetUser }}>
-          <MockedProvider mocks={mocks} addTypename={false}>
-            <QuotationDetailPage id="q-1" onBack={mockOnBack} />
-          </MockedProvider>
-        </AuthContext.Provider>,
-      );
+      renderAs(mockManager, mocks);
       await screen.findByText("Enterprise License");
       expect(await screen.findByText("Similar Past Quotes")).toBeInTheDocument();
       expect(await screen.findByText("Cloud Migration")).toBeInTheDocument();

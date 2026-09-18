@@ -28,6 +28,8 @@ import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
 import OpenAI from 'openai';
 import { escapeXml } from '../../common/helper/helper';
+import { SpanStatusCode } from '@opentelemetry/api';
+import { tracer } from '../../common/tracing/tracer';
 
 const QuotationSummarySchema = z.object({
   summary: z.string(),
@@ -405,6 +407,22 @@ strong contradicting signals. Justify your reasoning.
    * Result is cached for 24 h as AIInsight(CONVERSION_SCORE).
    */
   async getConversionScore(quotationId: string): Promise<ConversionScoreType> {
+    return tracer.startActiveSpan('ai.getConversionScore', async (span) => {
+      span.setAttribute('quotation.id', quotationId);
+      try {
+        return await this._getConversionScore(quotationId);
+      } catch (err) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async _getConversionScore(
+    quotationId: string,
+  ): Promise<ConversionScoreType> {
     this.logger.info(
       `Fetching conversion score for: ${quotationId}`,
       AIService.name,
@@ -852,6 +870,23 @@ Answer in 2–4 sentences. Be direct and factual.`;
     quotationId: string,
     question: string,
   ): Promise<QuotationAnswerType> {
+    return tracer.startActiveSpan('ai.askAboutQuotation', async (span) => {
+      span.setAttribute('quotation.id', quotationId);
+      try {
+        return await this._askAboutQuotation(quotationId, question);
+      } catch (err) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async _askAboutQuotation(
+    quotationId: string,
+    question: string,
+  ): Promise<QuotationAnswerType> {
     const trimmed = this.validateQuestion(question);
 
     const quotation = await this.prisma.quotation.findFirst({
@@ -1150,6 +1185,19 @@ ${numbered}`;
   }
 
   async askPlaybook(question: string): Promise<PlaybookAnswerType> {
+    return tracer.startActiveSpan('ai.askPlaybook', async (span) => {
+      try {
+        return await this._askPlaybook(question);
+      } catch (err) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async _askPlaybook(question: string): Promise<PlaybookAnswerType> {
     const trimmed = this.validateQuestion(question);
 
     // Gate: reject early if no READY documents exist at all
@@ -1202,6 +1250,21 @@ ${context}
   }
 
   async askLessonsLearned(question: string): Promise<LessonsLearnedAnswerType> {
+    return tracer.startActiveSpan('ai.askLessonsLearned', async (span) => {
+      try {
+        return await this._askLessonsLearned(question);
+      } catch (err) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async _askLessonsLearned(
+    question: string,
+  ): Promise<LessonsLearnedAnswerType> {
     try {
       const trimmed = this.validateQuestion(question);
       const chunks = await this.searchLessonsLearned(trimmed);
@@ -1252,6 +1315,25 @@ ${context}
   }
 
   async generateQuotationEmbedding(quotationId: string): Promise<void> {
+    return tracer.startActiveSpan(
+      'ai.generateQuotationEmbedding',
+      async (span) => {
+        span.setAttribute('quotation.id', quotationId);
+        try {
+          return await this._generateQuotationEmbedding(quotationId);
+        } catch (err) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+          throw err;
+        } finally {
+          span.end();
+        }
+      },
+    );
+  }
+
+  private async _generateQuotationEmbedding(
+    quotationId: string,
+  ): Promise<void> {
     const quotation = await this.prisma.quotation.findUnique({
       where: { id: quotationId },
       include: { items: true },

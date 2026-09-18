@@ -66,7 +66,12 @@ describe('QuotationsService', () => {
         { provide: AppLogger, useValue: mockLogger },
         { provide: MailService, useValue: mockMailService },
         { provide: AmqpConnection, useValue: mockAmqpConnection },
-        { provide: AIService, useValue: { generateQuotationEmbedding: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: AIService,
+          useValue: {
+            generateQuotationEmbedding: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -508,11 +513,10 @@ describe('QuotationsService', () => {
         'quote.created',
         { quotationId: mockCreatedQuotation.id, createdById: mockUser.id },
         {
-          headers: {
+          headers: expect.objectContaining({
             'x-correlation-id': expect.any(String),
-            traceparent: expect.stringMatching(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/),
             'x-published-at': expect.any(Number),
-          },
+          }),
         },
       );
     });

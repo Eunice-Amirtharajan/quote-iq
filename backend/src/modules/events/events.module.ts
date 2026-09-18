@@ -12,7 +12,7 @@ export const DLQ = 'quoteiq.scoring.dlq';
   imports: [
     RabbitMQModule.forRootAsync({
       useFactory: () => ({
-        uri: process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672',
+        uri: process.env.RABBITMQ_URL,
         exchanges: [
           {
             name: EXCHANGE,

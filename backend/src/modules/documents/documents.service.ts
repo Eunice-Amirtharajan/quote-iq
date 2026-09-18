@@ -13,6 +13,8 @@ import { ModerationService } from './moderation.service';
 import { DocumentStatus, Role } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { AIService } from '../ai/ai.service';
+import { SpanStatusCode } from '@opentelemetry/api';
+import { tracer } from '../../common/tracing/tracer';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = 'application/pdf';
@@ -91,6 +93,20 @@ export class DocumentsService {
   }
 
   private async processDocument(docId: string, buffer: Buffer): Promise<void> {
+    return tracer.startActiveSpan('documents.processDocument', async (span) => {
+      span.setAttribute('document.id', docId);
+      try {
+        return await this._processDocument(docId, buffer);
+      } catch (err) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async _processDocument(docId: string, buffer: Buffer): Promise<void> {
     await this.prisma.document.update({
       where: { id: docId },
       data: { status: DocumentStatus.SCANNING },

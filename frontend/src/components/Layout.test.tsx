@@ -11,7 +11,7 @@ import { client } from "../lib/apollo";
 import type { MockLink } from "@apollo/client/testing";
 
 vi.mock("../lib/apollo", () => ({
-  client: { resetStore: vi.fn().mockResolvedValue(null) },
+  client: { clearStore: vi.fn().mockResolvedValue(null) },
 }));
 
 const mockSetUser = vi.fn();
@@ -109,7 +109,7 @@ describe("Layout", () => {
     expect(quotationsLink?.className).not.toContain("bg-gray-900");
   });
 
-  it("calls client.resetStore() then setUser(null) on logout", async () => {
+  it("calls setUser(null) then client.clearStore() on logout", async () => {
     const user = userEvent.setup();
     const mocks: MockLink.MockedResponse[] = [
       {
@@ -122,10 +122,6 @@ describe("Layout", () => {
     await user.click(screen.getByText("Sign out"));
 
     await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(null));
-
-    // resetStore must be called before setUser(null)
-    const resetOrder = (client.resetStore as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
-    const setUserOrder = mockSetUser.mock.invocationCallOrder[0];
-    expect(resetOrder).toBeLessThan(setUserOrder);
+    expect(client.clearStore).toHaveBeenCalled();
   });
 });

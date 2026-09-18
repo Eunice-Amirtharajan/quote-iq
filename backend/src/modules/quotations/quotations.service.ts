@@ -26,17 +26,8 @@ import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
 import { AIService } from '../ai/ai.service';
 import { getCorrelationId } from '../../common/correlation/correlation.store';
-import { randomBytes } from 'crypto';
-
-function generateTraceparent(): {
-  traceparent: string;
-  traceId: string;
-  spanId: string;
-} {
-  const traceId = randomBytes(16).toString('hex');
-  const spanId = randomBytes(8).toString('hex');
-  return { traceparent: `00-${traceId}-${spanId}-01`, traceId, spanId };
-}
+import { context, propagation, SpanStatusCode, trace } from '@opentelemetry/api';
+import { tracer } from '../../common/tracing/tracer';
 
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
@@ -314,8 +305,11 @@ export class QuotationsService {
       });
 
       const correlationId = getCorrelationId();
-      const { traceparent, traceId, spanId } = generateTraceparent();
       const publishStart = Date.now();
+      const span = tracer.startSpan('amqp.publish quote.created');
+      const carrier: Record<string, string> = {};
+      const spanContext = context.with(trace.setSpan(context.active(), span), () => context.active());
+      propagation.inject(spanContext, carrier);
       void this.amqp
         .publish(
           EXCHANGE,
@@ -324,24 +318,27 @@ export class QuotationsService {
           {
             headers: {
               'x-correlation-id': correlationId ?? '',
-              traceparent,
+              ...carrier,
               'x-published-at': publishStart,
             },
           },
         )
         .then(() => {
+          span.setStatus({ code: SpanStatusCode.OK });
           this.logger.info(
-            `Published quote.created — quotationId:${quotation.id} traceId:${traceId} spanId:${spanId} publishMs:${Date.now() - publishStart}`,
+            `Published quote.created — quotationId:${quotation.id} publishMs:${Date.now() - publishStart}`,
             QuotationsService.name,
           );
         })
-        .catch((err: unknown) =>
+        .catch((err: unknown) => {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
           this.logger.error(
             `Failed to publish quote.created for quotationId:${quotation.id}`,
             err instanceof Error ? err.stack : String(err),
             QuotationsService.name,
-          ),
-        );
+          );
+        })
+        .finally(() => span.end());
 
       return quotation;
     } catch (error) {

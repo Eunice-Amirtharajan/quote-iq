@@ -21,12 +21,10 @@ export default function Layout({ children }: Readonly<LayoutProps>) {
   const navigate = useNavigate();
   const [logout] = useMutation(LOGOUT_MUTATION, {
     onCompleted: () => {
-      // Reset before clearing auth state so components never render with a
-      // mismatched cache (old user's data) after the user changes.
-      /* v8 ignore next 3 */
-      client.resetStore().finally(() => { setUser(null);
-        navigate("/");
-       }).catch(() => setUser(null));
+      setUser(null);
+      navigate("/");
+      /* v8 ignore next */
+      void client.clearStore().catch(() => {});
     },
   });
   const visibleNav = NAV_ITEMS.filter((item) =>
