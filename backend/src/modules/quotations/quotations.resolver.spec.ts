@@ -84,30 +84,29 @@ describe('QuotationsResolver', () => {
 
   describe('quotation', () => {
     it('returns quotation by id for SALES_REP who owns it', async () => {
-      mockQuotationsService.findOwner.mockResolvedValue({
-        createdById: 'user-1',
-      });
       mockQuotationsService.findOne.mockResolvedValue(mockQuotation);
       const result = await resolver.quotation('q-1', mockUser);
-      expect(mockQuotationsService.findOwner).toHaveBeenCalledWith('q-1');
+      expect(mockQuotationsService.findOwner).not.toHaveBeenCalled();
+      expect(mockQuotationsService.findOne).toHaveBeenCalledWith('q-1');
       expect(result).toEqual(mockQuotation);
     });
 
     it('returns null when not found for SALES_REP', async () => {
-      mockQuotationsService.findOwner.mockResolvedValue(null);
+      mockQuotationsService.findOne.mockResolvedValue(null);
       const result = await resolver.quotation('q-999', mockUser);
       expect(result).toBeNull();
-      expect(mockQuotationsService.findOne).not.toHaveBeenCalled();
+      expect(mockQuotationsService.findOwner).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException when SALES_REP accesses another rep quotation', async () => {
-      mockQuotationsService.findOwner.mockResolvedValue({
+      mockQuotationsService.findOne.mockResolvedValue({
+        ...mockQuotation,
         createdById: 'user-999',
       });
       await expect(
         resolver.quotation('q-1', mockUser as UserType),
       ).rejects.toThrow('Forbidden');
-      expect(mockQuotationsService.findOne).not.toHaveBeenCalled();
+      expect(mockQuotationsService.findOwner).not.toHaveBeenCalled();
     });
 
     it('fetches full record directly for SALES_MANAGER without owner check', async () => {

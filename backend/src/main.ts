@@ -27,7 +27,11 @@ function assertEnvVariables(key: string) {
 async function bootstrap() {
   assertEnvVariables('JWT_SECRET');
   assertEnvVariables('GROQ_API_KEY');
+  assertEnvVariables('OPENAI_API_KEY');
   assertEnvVariables('DATABASE_URL');
+  assertEnvVariables('RABBITMQ_URL');
+  assertEnvVariables('SUPABASE_URL');
+  assertEnvVariables('SUPABASE_SERVICE_ROLE_KEY');
   assertEnvVariables('PORT');
   assertEnvVariables('NODE_ENV');
   assertEnvVariables('JWT_EXPIRES_IN');

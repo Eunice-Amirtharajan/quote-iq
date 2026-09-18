@@ -1085,10 +1085,13 @@ describe('AIService', () => {
       await service.generateDocumentEmbeddings('doc-1');
 
       expect(mockEmbeddingsCreate).toHaveBeenCalledTimes(2);
-      expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
-        model: 'text-embedding-3-small',
-        input: 'First chunk content about sales.',
-      });
+      expect(mockEmbeddingsCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'text-embedding-3-small',
+          input: 'First chunk content about sales.',
+        }),
+        expect.objectContaining({ signal: expect.anything() }),
+      );
       expect(mockPrismaService.$executeRaw).toHaveBeenCalledTimes(2);
     });
 
@@ -1106,7 +1109,7 @@ describe('AIService', () => {
       mockEmbeddingsCreate.mockRejectedValue(new Error('OpenAI quota exceeded'));
 
       await expect(service.generateDocumentEmbeddings('doc-1')).rejects.toThrow(
-        'OpenAI quota exceeded',
+        'Embedding failed for chunk 0 of document doc-1: OpenAI quota exceeded',
       );
     });
   });

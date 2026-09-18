@@ -92,7 +92,7 @@ describe('ScanService', () => {
   });
 
   describe('scan — VirusTotal analysis times out', () => {
-    it('returns clean when all 12 polls return queued status', async () => {
+    it('throws InternalServerErrorException when all 12 polls return queued status', async () => {
       jest.spyOn(global, 'setTimeout').mockImplementation((cb: () => void) => {
         cb();
         return 0 as unknown as ReturnType<typeof setTimeout>;
@@ -111,8 +111,9 @@ describe('ScanService', () => {
           }),
         } as Response) as typeof fetch;
 
-      const result = await service.scan(Buffer.from('file'));
-      expect(result.infected).toBe(false);
+      await expect(service.scan(Buffer.from('file'))).rejects.toThrow(
+        'Malware scan timed out — upload blocked',
+      );
       delete process.env.VIRUSTOTAL_API_KEY;
       jest.restoreAllMocks();
     }, 15000);

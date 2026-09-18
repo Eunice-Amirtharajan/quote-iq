@@ -56,6 +56,38 @@ const LessonsLearnedResponseSchema = z.object({
   citedEntries: z.array(z.string()),
 });
 
+const ConversionScoreSchema = z.object({
+  score: z.number(),
+  label: z.enum([
+    ConversionLabel.HIGH,
+    ConversionLabel.MEDIUM,
+    ConversionLabel.LOW,
+  ]),
+});
+
+const RepStatSchema = z.object({
+  repName: z.string(),
+  sent: z.number(),
+  approved: z.number(),
+  rejected: z.number(),
+  approvalRate: z.number(),
+});
+
+const BucketStatSchema = z.object({
+  bucket: z.string(),
+  total: z.number(),
+  approved: z.number(),
+  approvalRate: z.number(),
+});
+
+const WinLossStatsSchema = z.object({
+  approvalRate: z.number(),
+  avgApprovedDeal: z.number(),
+  avgRejectedDeal: z.number(),
+  byRep: z.array(RepStatSchema),
+  byDealSize: z.array(BucketStatSchema),
+});
+
 export type LessonsLearnedType = z.infer<typeof LessonsLearnedResponseSchema>;
 
 @Injectable()
@@ -219,11 +251,14 @@ strong contradicting signals. Justify your reasoning.
       const tier = model === primaryModel ? 'primary' : 'fallback';
       try {
         this.logger.info(`Trying Groq model: ${model}`, AIService.name);
-        const response = await this.groq.chat.completions.create({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3,
-        });
+        const response = await this.groq.chat.completions.create(
+          {
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3,
+          },
+          { signal: AbortSignal.timeout(25_000) },
+        );
         const text = response.choices[0]?.message?.content?.trim() ?? '';
         this.logger.info(
           `Groq response received from model: ${model}`,
@@ -237,7 +272,9 @@ strong contradicting signals. Justify your reasoning.
           (err.message.includes('503') ||
             err.message.includes('overloaded') ||
             err.message.includes('rate_limit') ||
-            err.message.includes('429'));
+            err.message.includes('429') ||
+            err.name === 'AbortError' ||
+            err.name === 'TimeoutError');
         this.logger.warn(
           `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
           AIService.name,
@@ -436,7 +473,11 @@ strong contradicting signals. Justify your reasoning.
       },
     });
     if (cached) {
-      return JSON.parse(cached.content) as ConversionScoreType;
+      try {
+        return ConversionScoreSchema.parse(JSON.parse(cached.content));
+      } catch {
+        await this.prisma.aIInsight.delete({ where: { id: cached.id } });
+      }
     }
 
     const quotation = await this.prisma.quotation.findFirst({
@@ -552,7 +593,11 @@ strong contradicting signals. Justify your reasoning.
       },
     });
     if (cached) {
-      return JSON.parse(cached.content) as WinLossStatsType;
+      try {
+        return WinLossStatsSchema.parse(JSON.parse(cached.content));
+      } catch {
+        await this.prisma.aIInsight.delete({ where: { id: cached.id } });
+      }
     }
 
     // Aggregate entirely in SQL — no full table scan into application memory
@@ -1039,18 +1084,31 @@ Answer in 2–4 sentences. Be direct and factual.`;
     });
     if (chunks.length === 0) return;
 
-    for (const chunk of chunks) {
-      const resp = await this.openAI.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: chunk.content,
-      });
-      const vector = '[' + resp.data[0].embedding.join(',') + ']';
-      await this.prisma.$executeRaw`
-        UPDATE "DocumentChunk"
-        SET embedding = ${vector}::vector
-        WHERE id = ${chunk.id}
-      `;
+    const CONCURRENCY = 5;
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      const batch = chunks.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        batch.map(async (chunk) => {
+          try {
+            const resp = await this.openAI.embeddings.create(
+              { model: 'text-embedding-3-small', input: chunk.content },
+              { signal: AbortSignal.timeout(10_000) },
+            );
+            const vector = '[' + resp.data[0].embedding.join(',') + ']';
+            await this.prisma.$executeRaw`
+              UPDATE "DocumentChunk"
+              SET embedding = ${vector}::vector
+              WHERE id = ${chunk.id}
+            `;
+          } catch (err) {
+            throw new InternalServerErrorException(
+              `Embedding failed for chunk ${chunk.chunkIndex} of document ${documentId}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }),
+      );
     }
+
     this.logger.info(
       `Embeddings generated for ${chunks.length} chunks of document ${documentId}`,
       AIService.name,

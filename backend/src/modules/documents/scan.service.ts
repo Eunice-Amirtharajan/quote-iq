@@ -62,7 +62,7 @@ export class ScanService {
       }
     }
 
-    this.logger.warn({ analysisId: data.id }, 'VirusTotal analysis timed out — treating as clean');
-    return { infected: false };
+    this.logger.warn({ analysisId: data.id }, 'VirusTotal analysis timed out — blocking upload');
+    throw new InternalServerErrorException('Malware scan timed out — upload blocked');
   }
 }

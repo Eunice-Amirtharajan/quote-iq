@@ -69,12 +69,12 @@ export class QuotationsResolver {
     @Args('id', { type: /* istanbul ignore next */ () => ID }) id: string,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType | null> {
-    if (user.role === Role.SALES_REP) {
-      const owner = await this.quotationsService.findOwner(id);
-      if (!owner) return null;
-      if (user.id !== owner.createdById) throw new ForbiddenException();
+    const quotation = await this.quotationsService.findOne(id);
+    if (!quotation) return null;
+    if (user.role === Role.SALES_REP && user.id !== quotation.createdById) {
+      throw new ForbiddenException();
     }
-    return this.quotationsService.findOne(id);
+    return quotation;
   }
 
   @Mutation(/* istanbul ignore next */ () => QuotationType)
