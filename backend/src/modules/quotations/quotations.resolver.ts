@@ -50,7 +50,12 @@ export class QuotationsResolver {
   ): Promise<QuotationType[]> {
     const end = this.resolverDuration.startTimer({ resolver: 'quotations' });
     try {
-      const result = await this.quotationsService.findAll(user, take, skip, filter);
+      const result = await this.quotationsService.findAll(
+        user,
+        take,
+        skip,
+        filter,
+      );
       end({ status: 'success' });
       return result;
     } catch (err) {
@@ -77,7 +82,9 @@ export class QuotationsResolver {
     @Args('input') input: CreateQuotationInput,
     @CurrentUser() user: UserType,
   ): Promise<QuotationType> {
-    const end = this.resolverDuration.startTimer({ resolver: 'createQuotation' });
+    const end = this.resolverDuration.startTimer({
+      resolver: 'createQuotation',
+    });
     try {
       const result = await this.quotationsService.create(input, user);
       end({ status: 'success' });

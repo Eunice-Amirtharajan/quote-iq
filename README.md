@@ -17,7 +17,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 | Auth | JWT in HttpOnly cookies · Role-based access control |
 | AI | OpenAI `text-embedding-3-small` · Groq API (Llama 3.3 70B) · Zod response validation |
 | Messaging | RabbitMQ (CloudAMQP — managed) · AMQP pub/sub with W3C trace context propagation |
-| Storage | Supabase Storage (PDF uploads) · ClamAV + VirusTotal malware scanning |
+| Storage | Supabase Storage (PDF uploads) . VirusTotal malware scanning |
 | Observability | OpenTelemetry SDK · Jaeger (local) / Grafana Cloud Tempo (production) · Prometheus + Grafana |
 | Infra | Railway (backend) · Vercel (frontend) · Neon DB (EU — Frankfurt) |
 
@@ -80,7 +80,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 
 ### RAG Knowledge Base (F1a — Playbook)
 - Sales Managers upload PDF playbook documents via the Documents page
-- Upload pipeline: PDF magic-byte validation → ClamAV malware scan → VirusTotal fallback → text extraction → OpenAI embedding → pgvector storage
+- Upload pipeline: PDF magic-byte validation → VirusTotal fallback → text extraction → OpenAI embedding → pgvector storage
 - Document lifecycle: PENDING_SCAN → SCANNING → PENDING_REVIEW → READY / REJECTED
 - `askPlaybook` and `askLessonsLearned` — natural language Q&A over the indexed document corpus; top-k cosine retrieval from `PlaybookChunk` table, answers grounded in retrieved passages
 - `ALLOW_UPLOAD` env var gates the upload endpoint; disabled in the public demo to prevent arbitrary uploads
@@ -113,8 +113,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 7. **Scoped NL Q&A** — `askAboutQuotation` uses the system/user message split to confine Groq strictly to one quotation's data; off-topic questions receive a fixed refusal without any additional DB query
 
 ### RAG Pipeline (F1a — Playbook / Lessons Learned)
-
-1. **Upload** — PDF validated (magic bytes + MIME), scanned (ClamAV → VirusTotal fallback), text extracted
+1. **Upload** — PDF validated (magic bytes + MIME), scanned (VirusTotal), text extracted
 2. **Chunk** — document split into overlapping chunks, each embedded with OpenAI `text-embedding-3-small`
 3. **Store** — embeddings stored in `DocumentChunk.embedding` (pgvector `vector(1536)`)
 4. **Retrieve** — `askPlaybook` / `askLessonsLearned` queries: cosine similarity search (`<=>` operator) over `DocumentChunk`, top-k passages fed into Groq context window
@@ -196,10 +195,6 @@ SUPABASE_SERVICE_ROLE_KEY=""
 # Document upload gate — set "true" only in trusted environments
 ALLOW_UPLOAD="false"
 
-# ClamAV malware scanner (docker-compose up clamav)
-CLAMD_HOST="127.0.0.1"
-CLAMD_PORT=3310
-
 # VirusTotal fallback — free tier at virustotal.com
 VIRUSTOTAL_API_KEY=""
 
@@ -262,7 +257,7 @@ quote-iq/
 │       │   ├── auth/        # JWT, HttpOnly cookie, passport-jwt
 │       │   ├── clients/     # Client entity (relational client management)
 │       │   ├── dashboard/   # Pipeline stats aggregation
-│       │   ├── documents/   # PDF upload, ClamAV/VirusTotal scan, extraction, embedding
+│       │   ├── documents/   # PDF upload, VirusTotal scan, extraction, embedding
 │       │   ├── events/      # RabbitMQ AMQP publisher (CloudAMQP)
 │       │   ├── gateway/     # WebSocket gateway — real-time push to frontend
 │       │   ├── queue-consumer/ # AMQP consumer, OTel trace extraction, embedding trigger

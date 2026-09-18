@@ -89,24 +89,38 @@ export class AIResolver {
   }
 
   @Mutation(/* istanbul ignore next */ () => PlaybookAnswerType, {
-    description: 'Answer a free-text question using READY sales-playbook documents (available to Sales Reps and Managers)',
+    description:
+      'Answer a free-text question using READY sales-playbook documents (available to Sales Reps and Managers)',
   })
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_REP, Role.SALES_MANAGER)
   async askPlaybook(
-    @Args('question', { type: /* istanbul ignore next */ () => String }) question: string,
+    @Args('question', { type: /* istanbul ignore next */ () => String })
+    question: string,
   ): Promise<PlaybookAnswerType> {
     return this.aiService.askPlaybook(question);
   }
 
   @Query(/* istanbul ignore next */ () => [SimilarQuotationType], {
-    description: 'Return similar past quotations using hybrid vector + keyword search with RRF fusion',
+    description:
+      'Return similar past quotations using hybrid vector + keyword search with RRF fusion',
   })
   async similarQuotations(
-    @Args('quotationId', { type: /* istanbul ignore next */ () => ID }) quotationId: string,
-    @Args('limit', { type: /* istanbul ignore next */ () => Number, nullable: true, defaultValue: 5 }) limit: number,
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
+    quotationId: string,
+    @Args('limit', {
+      type: /* istanbul ignore next */ () => Number,
+      nullable: true,
+      defaultValue: 5,
+    })
+    limit: number,
     @CurrentUser() user: UserType,
   ): Promise<SimilarQuotationType[]> {
-    return this.aiService.similarQuotations(quotationId, user.id, user.role, limit);
+    return this.aiService.similarQuotations(
+      quotationId,
+      user.id,
+      user.role,
+      limit,
+    );
   }
 }
