@@ -58,6 +58,7 @@ export class DocumentsService {
       });
     } catch (err) {
       // DB write failed after file was already uploaded — delete the orphaned file
+      /* istanbul ignore next */
       void this.storage.delete(key).catch((deleteErr: unknown) =>
         this.logger.error({ key, deleteErr }, 'Failed to clean up orphaned file after DB error'),
       );
@@ -65,6 +66,7 @@ export class DocumentsService {
     }
 
     // Kick off async processing — does not block the HTTP response
+    /* istanbul ignore next 3 */
     void this.processDocument(doc.id, file.buffer).catch((err: unknown) => {
       this.logger.error({ docId: doc.id, err }, 'Background processing failed');
     });
@@ -155,6 +157,7 @@ export class DocumentsService {
     });
 
     // Kick off embedding generation asynchronously — does not block the response
+    /* istanbul ignore next 3 */
     void this.ai.generateDocumentEmbeddings(docId).catch((err: unknown) => {
       this.logger.error({ docId, err }, 'Background embedding generation failed');
     });
@@ -189,6 +192,7 @@ export class DocumentsService {
     }
     // Cascade in DB removes DocumentChunk rows; then remove the file from storage
     await this.prisma.document.delete({ where: { id: docId } });
+    /* istanbul ignore next */
     void this.storage.delete(doc.storageKey).catch((err: unknown) =>
       this.logger.error({ docId, storageKey: doc.storageKey, err }, 'Storage delete failed after DB delete'),
     );

@@ -8,7 +8,10 @@ import {
   WinLossStatsType,
   LessonsLearnedAnswerType,
   PlaybookAnswerType,
+  SimilarQuotationType,
 } from './ai-insight.entity';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { UserType } from '../users/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -94,5 +97,16 @@ export class AIResolver {
     @Args('question', { type: /* istanbul ignore next */ () => String }) question: string,
   ): Promise<PlaybookAnswerType> {
     return this.aiService.askPlaybook(question);
+  }
+
+  @Query(/* istanbul ignore next */ () => [SimilarQuotationType], {
+    description: 'Return similar past quotations using hybrid vector + keyword search with RRF fusion',
+  })
+  async similarQuotations(
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID }) quotationId: string,
+    @Args('limit', { type: /* istanbul ignore next */ () => Number, nullable: true, defaultValue: 5 }) limit: number,
+    @CurrentUser() user: UserType,
+  ): Promise<SimilarQuotationType[]> {
+    return this.aiService.similarQuotations(quotationId, user.id, user.role, limit);
   }
 }

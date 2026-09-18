@@ -24,6 +24,7 @@ import { quoteApprovedTemplate } from '../../common/mail/templates/quote-approve
 import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejected';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
+import { AIService } from '../ai/ai.service';
 import { getCorrelationId } from '../../common/correlation/correlation.store';
 import { randomBytes } from 'crypto';
 
@@ -51,6 +52,7 @@ export class QuotationsService {
     private readonly logger: AppLogger,
     private readonly mailService: MailService,
     private readonly amqp: AmqpConnection,
+    private readonly aiService: AIService,
   ) {}
 
   // Calculate totals — stored at write time for consistency
@@ -414,6 +416,16 @@ export class QuotationsService {
       // status transition is already committed.
       void this.sendStatusEmail(quotation, status, note);
       await this.prisma.aIInsight.deleteMany({ where: { quotationId: id } });
+
+      // Regenerate embedding — outcome field in corpus text has changed
+      void this.aiService.generateQuotationEmbedding(id).catch((err: unknown) =>
+        this.logger.error(
+          `Failed to regenerate embedding on status change for quotationId:${id}`,
+          err instanceof Error ? err.stack : String(err),
+          QuotationsService.name,
+        ),
+      );
+
       return quotation;
     } catch (error) {
       if (!(error instanceof HttpException)) {

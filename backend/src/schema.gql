@@ -190,6 +190,11 @@ type Query {
   quotationByToken(token: String!): PublicQuotationType
   quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
   salesReps: [SalesRepSummaryType!]!
+
+  """
+  Return similar past quotations using hybrid vector + keyword search with RRF fusion
+  """
+  similarQuotations(limit: Float = 5, quotationId: ID!): [SimilarQuotationType!]!
   statusHistory(quotationId: ID!): [StatusHistoryType!]!
 
   """Aggregated win/loss analysis across all quotations"""
@@ -313,6 +318,18 @@ enum Role {
 type SalesRepSummaryType {
   id: ID!
   name: String!
+}
+
+"""A similar past quotation returned by hybrid search"""
+type SimilarQuotationType {
+  clientName: String!
+  id: ID!
+
+  """RRF fusion score (higher = more similar)"""
+  score: Float!
+  status: String!
+  title: String!
+  total: Float!
 }
 
 """A recorded status transition on a quotation"""

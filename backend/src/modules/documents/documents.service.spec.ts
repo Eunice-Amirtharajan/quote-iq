@@ -153,6 +153,50 @@ describe('DocumentsService', () => {
     });
   });
 
+  describe('processDocument (background pipeline)', () => {
+    const waitForBackground = () => new Promise<void>((r) => setImmediate(r));
+
+    it('marks document REJECTED when scan returns infected', async () => {
+      mockScan.scan.mockResolvedValue({ infected: true, threat: 'EICAR-Test' });
+      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', status: DocumentStatus.SCANNING });
+      const svc = makeService();
+      await svc.uploadDocument(makeFile(), manager);
+      await waitForBackground();
+      expect(mockPrisma.document.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: DocumentStatus.REJECTED,
+            rejectedReason: expect.stringContaining('EICAR-Test'),
+          }),
+        }),
+      );
+    });
+
+    it('proceeds with empty text when extraction throws', async () => {
+      mockExtraction.extractText.mockRejectedValue(new Error('PDF parse error'));
+      const svc = makeService();
+      await svc.uploadDocument(makeFile(), manager);
+      await waitForBackground();
+      // Moderation should still be called (with empty text)
+      expect(mockModeration.moderate).toHaveBeenCalledWith('');
+    });
+
+    it('marks document REJECTED when moderation flags content', async () => {
+      mockModeration.moderate.mockResolvedValue({ flagged: true, categories: ['violence', 'hate'] });
+      const svc = makeService();
+      await svc.uploadDocument(makeFile(), manager);
+      await waitForBackground();
+      expect(mockPrisma.document.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: DocumentStatus.REJECTED,
+            rejectedReason: expect.stringContaining('violence'),
+          }),
+        }),
+      );
+    });
+  });
+
   describe('approveDocument', () => {
     it('throws ForbiddenException for SALES_REP', async () => {
       const svc = makeService();

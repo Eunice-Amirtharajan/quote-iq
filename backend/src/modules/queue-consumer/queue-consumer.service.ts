@@ -50,10 +50,13 @@ export class QueueConsumerService {
 
       try {
         const result = await this.ai.getConversionScore(quotationId);
-        const processingMs = Date.now() - consumeStart;
         this.gateway.emitScoreReady(quotationId, result.score, result.label);
+        // Generate embedding for similar-quotes search — same message, second write.
+        // If this throws, the whole handler retries via Nack(false) → DLQ after MAX_RETRIES.
+        await this.ai.generateQuotationEmbedding(quotationId);
+        const processingMs = Date.now() - consumeStart;
         this.logger.info(
-          `Score computed and emitted — quotationId:${quotationId} processingMs:${processingMs} totalMs:${queueWaitMs + processingMs}`,
+          `Score computed, embedding upserted — quotationId:${quotationId} processingMs:${processingMs} totalMs:${queueWaitMs + processingMs}`,
           QueueConsumerService.name,
         );
       } catch (err) {

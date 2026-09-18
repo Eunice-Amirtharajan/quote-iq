@@ -181,3 +181,16 @@ export const HAS_READY_DOCUMENTS_QUERY = gql`
     hasReadyDocuments
   }
 `;
+
+export const SIMILAR_QUOTATIONS_QUERY = gql`
+  query SimilarQuotations($quotationId: ID!, $limit: Float) {
+    similarQuotations(quotationId: $quotationId, limit: $limit) {
+      id
+      title
+      clientName
+      total
+      status
+      score
+    }
+  }
+`;

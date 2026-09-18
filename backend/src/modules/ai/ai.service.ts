@@ -22,6 +22,7 @@ import {
   LessonsLearnedAnswerType,
   PlaybookAnswerType,
   PlaybookCitationType,
+  SimilarQuotationType,
 } from './ai-insight.entity';
 import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
@@ -1248,5 +1249,145 @@ ${context}
       );
       throw error;
     }
+  }
+
+  async generateQuotationEmbedding(quotationId: string): Promise<void> {
+    const quotation = await this.prisma.quotation.findUnique({
+      where: { id: quotationId },
+      include: { items: true },
+    });
+    if (!quotation) return;
+
+    const itemsText = quotation.items
+      .map((i) => `${i.description} x${i.quantity} @ ${i.unitPrice}`)
+      .join(', ');
+    const searchText = [
+      `title: ${quotation.title}`,
+      `client: ${quotation.clientName}`,
+      `items: ${itemsText}`,
+      `total: ${quotation.total}`,
+      `outcome: ${quotation.status}`,
+    ].join('\n');
+
+    const resp = await this.openAI.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: searchText,
+    });
+    const vector = '[' + resp.data[0].embedding.join(',') + ']';
+
+    await this.prisma.$executeRaw`
+      INSERT INTO "QuotationEmbedding" ("id", "quotationId", "searchText", "embedding", "updatedAt")
+      VALUES (gen_random_uuid(), ${quotationId}, ${searchText}, ${vector}::vector, now())
+      ON CONFLICT ("quotationId")
+      DO UPDATE SET "searchText" = EXCLUDED."searchText",
+                    "embedding"  = EXCLUDED."embedding",
+                    "updatedAt"  = now()
+    `;
+
+    this.logger.info(
+      `QuotationEmbedding upserted for quotationId: ${quotationId}`,
+      AIService.name,
+    );
+  }
+
+  async similarQuotations(
+    quotationId: string,
+    userId: string,
+    userRole: string,
+    limit = 5,
+  ): Promise<SimilarQuotationType[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{ embedding: string | null; searchText: string }>
+    >`
+      SELECT embedding::text, "searchText"
+      FROM "QuotationEmbedding"
+      WHERE "quotationId" = ${quotationId}
+      LIMIT 1
+    `;
+    if (rows.length === 0 || !rows[0].embedding) return [];
+
+    const vector = rows[0].embedding;
+    const searchText = rows[0].searchText;
+    const roleFilter =
+      userRole === 'SALES_MANAGER'
+        ? this.prisma.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM "Quotation"
+            WHERE id != ${quotationId}
+          `
+        : this.prisma.$queryRaw<Array<{ id: string }>>`
+            SELECT id FROM "Quotation"
+            WHERE id != ${quotationId}
+              AND "createdById" = ${userId}
+          `;
+
+    const scopedIds = (await roleFilter).map((r) => r.id);
+    if (scopedIds.length === 0) return [];
+
+    const [vectorResults, keywordResults] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ quotationId: string }>>`
+        SELECT qe."quotationId"
+        FROM "QuotationEmbedding" qe
+        WHERE qe."quotationId" = ANY(${scopedIds}::text[])
+        ORDER BY qe.embedding <=> ${vector}::vector
+        LIMIT 10
+      `,
+      this.prisma.$queryRaw<Array<{ quotationId: string; kw_score: number }>>`
+        SELECT qe."quotationId",
+               ts_rank(qe.search_tsv, plainto_tsquery('english', ${searchText})) AS kw_score
+        FROM "QuotationEmbedding" qe
+        WHERE qe."quotationId" = ANY(${scopedIds}::text[])
+          AND qe.search_tsv @@ plainto_tsquery('english', ${searchText})
+        ORDER BY kw_score DESC
+        LIMIT 10
+      `,
+    ]);
+
+    // RRF fusion
+    const scoreMap = new Map<string, number>();
+    vectorResults.forEach((r, i) => {
+      scoreMap.set(
+        r.quotationId,
+        (scoreMap.get(r.quotationId) ?? 0) + 1 / (60 + i),
+      );
+    });
+    keywordResults.forEach((r, i) => {
+      scoreMap.set(
+        r.quotationId,
+        (scoreMap.get(r.quotationId) ?? 0) + 1 / (60 + i),
+      );
+    });
+
+    const ranked = [...scoreMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit);
+
+    if (ranked.length === 0) return [];
+
+    const ids = ranked.map(([id]) => id);
+    const quotations = await this.prisma.quotation.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        title: true,
+        clientName: true,
+        total: true,
+        status: true,
+      },
+    });
+
+    const quotationMap = new Map(quotations.map((q) => [q.id, q]));
+    return ranked.flatMap(([id, score]) => {
+      const q = quotationMap.get(id);
+      if (!q) return [];
+      const result: SimilarQuotationType = {
+        id: q.id,
+        title: q.title,
+        clientName: q.clientName,
+        total: q.total,
+        status: String(q.status),
+        score,
+      };
+      return [result];
+    });
   }
 }

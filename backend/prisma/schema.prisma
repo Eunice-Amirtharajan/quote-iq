@@ -57,9 +57,10 @@ model Quotation {
   updatedAt       DateTime        @updatedAt
   createdById     String
   createdBy       User            @relation("CreatedBy", fields:[createdById], references:[id])
-  items           QuotationItem[]
-  statusHistory   StatusHistory[]
-  aiInsights      AIInsight[]
+  items              QuotationItem[]
+  statusHistory      StatusHistory[]
+  aiInsights         AIInsight[]
+  quotationEmbedding QuotationEmbedding?
 
   @@index([createdById])
   @@index([status])
@@ -151,4 +152,13 @@ model DocumentChunk {
   createdAt  DateTime @default(now())
 
   @@index([documentId])
+}
+
+model QuotationEmbedding {
+  id          String    @id @default(uuid())
+  quotationId String    @unique
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  searchText  String
+  embedding   Unsupported("vector(1536)")?
+  updatedAt   DateTime  @updatedAt
 }

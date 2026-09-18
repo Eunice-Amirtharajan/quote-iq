@@ -12,6 +12,7 @@ import { ScoreGateway } from '../gateway/score.gateway';
 
 const mockAIService = {
   getConversionScore: jest.fn(),
+  generateQuotationEmbedding: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockGateway = {
@@ -51,7 +52,7 @@ describe('QueueConsumerService', () => {
   });
 
   describe('onQuoteCreated — success path', () => {
-    it('calls getConversionScore, emits score.ready, and logs success', async () => {
+    it('calls getConversionScore, emits score.ready, generates embedding, and logs success', async () => {
       mockAIService.getConversionScore.mockResolvedValueOnce({
         score: 72,
         label: ConversionLabel.HIGH,
@@ -62,11 +63,35 @@ describe('QueueConsumerService', () => {
 
       expect(mockAIService.getConversionScore).toHaveBeenCalledWith('q-1');
       expect(mockGateway.emitScoreReady).toHaveBeenCalledWith('q-1', 72, ConversionLabel.HIGH);
+      expect(mockAIService.generateQuotationEmbedding).toHaveBeenCalledWith('q-1');
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Score computed and emitted'),
+        expect.stringContaining('Score computed, embedding upserted'),
         QueueConsumerService.name,
       );
       expect(result).toBeUndefined();
+    });
+
+    it('nacks when generateQuotationEmbedding fails — embedding failure triggers retry', async () => {
+      mockAIService.getConversionScore.mockResolvedValueOnce({
+        score: 55,
+        label: ConversionLabel.MEDIUM,
+      });
+      mockAIService.generateQuotationEmbedding.mockRejectedValueOnce(
+        new Error('OpenAI embedding API down'),
+      );
+
+      const result = await service.onQuoteCreated(
+        { quotationId: 'q-1', createdById: 'u-1' },
+        makeMsg(0),
+      );
+
+      expect(result).toBeInstanceOf(Nack);
+      expect((result as Nack).requeue).toBe(false);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to process quote.created'),
+        expect.any(String),
+        QueueConsumerService.name,
+      );
     });
   });
 

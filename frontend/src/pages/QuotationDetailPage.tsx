@@ -6,6 +6,7 @@ import {
   QUOTATIONS_QUERY,
   CONVERSION_SCORE_QUERY,
   STATUS_HISTORY_QUERY,
+  SIMILAR_QUOTATIONS_QUERY,
 } from "../graphql/queries";
 import {
   UPDATE_QUOTATION_STATUS_MUTATION,
@@ -365,6 +366,69 @@ function StatusActions({
   );
 }
 
+interface SimilarQuotation {
+  id: string;
+  title: string;
+  clientName: string;
+  total: number;
+  status: string;
+  score: number;
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  DRAFT: "bg-gray-100 text-gray-600",
+  SENT: "bg-blue-50 text-blue-600",
+  APPROVED: "bg-green-50 text-green-700",
+  REJECTED: "bg-red-50 text-red-600",
+};
+
+function SimilarQuotationsPanel({ quotationId }: Readonly<{ quotationId: string }>) {
+  const { data, loading } = useQuery<{ similarQuotations: SimilarQuotation[] }>(
+    SIMILAR_QUOTATIONS_QUERY,
+    { variables: { quotationId, limit: 5 }, fetchPolicy: "cache-and-network" },
+  );
+
+  const results = data?.similarQuotations ?? [];
+
+  if (loading && results.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-5">
+        <h3 className="text-sm font-medium text-gray-900 mb-3">Similar Past Quotes</h3>
+        <div className="animate-pulse space-y-2">
+          <div className="h-3 bg-gray-100 rounded w-3/4" />
+          <div className="h-3 bg-gray-100 rounded w-1/2" />
+        </div>
+      </div>
+    );
+  }
+
+  if (results.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <h3 className="text-sm font-medium text-gray-900 mb-3">Similar Past Quotes</h3>
+      <ul className="space-y-2">
+        {results.map((q) => (
+          <li key={q.id} className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-800 truncate">{q.title}</p>
+              <p className="text-xs text-gray-400 truncate">{q.clientName}</p>
+            </div>
+            <div className="flex flex-col items-end shrink-0 gap-1">
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_BADGE[q.status] ?? "bg-gray-100 text-gray-600"}`}>
+                {q.status.charAt(0) + q.status.slice(1).toLowerCase()}
+              </span>
+              <span className="text-xs text-gray-400">
+                €{q.total.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { user } = useAuth();
   const isManager = user?.role === "SALES_MANAGER";
@@ -596,6 +660,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
 
           <StatusTimeline quotationId={id} />
           <AIInsightCard quotationId={id} />
+          <SimilarQuotationsPanel quotationId={id} />
           {q.status === "SENT" && isManager && (
             <ConversionScoreCard quotationId={id} />
           )}

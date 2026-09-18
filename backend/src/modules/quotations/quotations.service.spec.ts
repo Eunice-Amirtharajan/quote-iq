@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { MailService } from '../../common/mail/mail.service';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import { AIService } from '../ai/ai.service';
 import { Role, User, QuotationStatus } from '@prisma/client';
 import {
   BadRequestException,
@@ -65,6 +66,7 @@ describe('QuotationsService', () => {
         { provide: AppLogger, useValue: mockLogger },
         { provide: MailService, useValue: mockMailService },
         { provide: AmqpConnection, useValue: mockAmqpConnection },
+        { provide: AIService, useValue: { generateQuotationEmbedding: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

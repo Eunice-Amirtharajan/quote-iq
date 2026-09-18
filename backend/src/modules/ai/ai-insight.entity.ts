@@ -149,3 +149,24 @@ export class PlaybookAnswerType {
   @Field(() => [PlaybookCitationType])
   citations!: PlaybookCitationType[];
 }
+
+@ObjectType({ description: 'A similar past quotation returned by hybrid search' })
+export class SimilarQuotationType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field(() => String)
+  title!: string;
+
+  @Field(() => String)
+  clientName!: string;
+
+  @Field(() => Float)
+  total!: number;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => Float, { description: 'RRF fusion score (higher = more similar)' })
+  score!: number;
+}
