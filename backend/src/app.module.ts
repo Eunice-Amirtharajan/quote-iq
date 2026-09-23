@@ -19,6 +19,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
 import { CorrelationIdMiddleware } from './common/correlation/correlation-id.middleware';
 import { MetricsModule } from './common/metrics/metrics.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { ClientsModule } from './modules/clients/clients.module';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
       {
         name: 'global',
         ttl: 60_000,
-        limit: 120,
+        limit: process.env.NODE_ENV === 'production' ? 120 : 2000,
       },
     ]),
     GraphQLModule.forRoot<ApolloDriverConfig>({
@@ -39,7 +40,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
       sortSchema: true,
       introspection: process.env.NODE_ENV !== 'production',
       playground: process.env.NODE_ENV !== 'production',
-      csrfPrevention: true,
+      csrfPrevention: false,
       formatError: (err: import('graphql').GraphQLFormattedError) => {
         const msg = err.message ?? '';
         const isDbDown =
@@ -72,6 +73,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
     GatewayModule,
     MetricsModule,
     DocumentsModule,
+    ClientsModule,
   ],
   providers: [
     {

@@ -1,8 +1,8 @@
 import { gql } from "@apollo/client";
 
 export const DASHBOARD_STATS_QUERY = gql`
-  query DashboardStats {
-    dashboardStats {
+  query DashboardStats($range: DateRangeInput) {
+    dashboardStats(range: $range) {
       totalQuotations
       totalSent
       totalApproved
@@ -10,6 +10,12 @@ export const DASHBOARD_STATS_QUERY = gql`
       conversionRate
       totalPipelineValue
       totalApprovedValue
+      avgDealSize
+      totalQuotationsTrend { delta pct direction }
+      conversionRateTrend  { delta pct direction }
+      totalPipelineValueTrend { delta pct direction }
+      totalApprovedValueTrend { delta pct direction }
+      avgDealSizeTrend { delta pct direction }
     }
   }
 `;
@@ -20,7 +26,7 @@ export const QUOTATIONS_QUERY = gql`
       id
       quotationNumber
       title
-      clientName
+      client { id name }
       status
       total
       createdAt
@@ -35,7 +41,7 @@ export const QUOTATION_QUERY = gql`
       quotationNumber
       version
       title
-      clientName
+      client { id name }
       status
       notes
       taxRate
@@ -110,6 +116,51 @@ export const WIN_LOSS_ANALYSIS_QUERY = gql`
         approved
         approvalRate
       }
+      byClient {
+        clientId
+        clientName
+        totalQuotes
+        approved
+        rejected
+        approvalRate
+        avgDealSize
+        totalRevenue
+      }
+    }
+  }
+`;
+
+export const CLIENTS_QUERY = gql`
+  query Clients($search: String) {
+    clients(search: $search) {
+      id
+      name
+      email
+    }
+  }
+`;
+
+export const CLIENTS_PAGE_QUERY = gql`
+  query ClientsPage($search: String, $skip: Int, $take: Int) {
+    clientsPage(search: $search, skip: $skip, take: $take) {
+      items {
+        id
+        name
+        email
+        createdAt
+      }
+      total
+    }
+  }
+`;
+
+export const QUOTATION_SNAPSHOTS_QUERY = gql`
+  query QuotationSnapshots($quotationId: ID!) {
+    quotationSnapshots(quotationId: $quotationId) {
+      id
+      quotationId
+      content
+      createdAt
     }
   }
 `;
@@ -135,6 +186,7 @@ export const QUOTATION_BY_TOKEN_QUERY = gql`
       quotationNumber
       title
       clientName
+      repName
       status
       notes
       taxRate

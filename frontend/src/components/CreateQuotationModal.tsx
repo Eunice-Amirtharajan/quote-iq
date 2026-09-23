@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { CREATE_QUOTATION_MUTATION, UPDATE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { QUOTATIONS_QUERY, QUOTATION_QUERY } from "../graphql/queries";
+import { useAuth } from "../hooks/useAuth";
+import ClientSelector from "./ClientSelector";
+import { sanitizeText } from "../utils/sanitize";
 
 interface LineItem {
   description: string;
@@ -13,7 +16,7 @@ interface ExistingQuotation {
   id: string;
   version: number;
   title: string;
-  clientName: string;
+  client: { id: string; name: string };
   notes: string | null;
   taxRate: number;
   items: { description: string; quantity: number; unitPrice: number; sortOrder: number }[];
@@ -26,14 +29,10 @@ interface Props {
 }
 
 const TITLE_MAX = 100;
-const CLIENT_MAX = 200;
 const DESC_MAX = 200;
 const NOTES_MAX = 500;
 const ITEMS_MAX = 10;
 const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
-
-// [^>]* is a negated class with no backtracking ambiguity; all inputs are capped by maxLength before this runs.
-const stripTags = (v: string) => v.replace(/<[^>]*>/g, ""); // NOSONAR
 
 function toLineItems(
   items: ExistingQuotation["items"],
@@ -53,9 +52,11 @@ export default function CreateQuotationModal({
   quotation,
 }: Readonly<Props>) {
   const isEdit = quotation != null;
+  const { user } = useAuth();
+  const canCreateClient = user?.role === "SALES_MANAGER";
 
   const [title, setTitle] = useState(quotation?.title ?? "");
-  const [clientName, setClientName] = useState(quotation?.clientName ?? "");
+  const [clientId, setClientId] = useState(quotation?.client?.id ?? "");
   const [notes, setNotes] = useState(quotation?.notes ?? "");
   const [taxRate, setTaxRate] = useState(String(quotation?.taxRate ?? 0));
   const [items, setItems] = useState<LineItem[]>(
@@ -102,8 +103,8 @@ export default function CreateQuotationModal({
     e.preventDefault();
     setFormError(null);
 
-    if (!clientName.trim()) {
-      setFormError("Please enter a client name.");
+    if (!clientId) {
+      setFormError("Please select or create a client.");
       return;
     }
     if (items.some((it) => !it.description.trim())) {
@@ -128,7 +129,7 @@ export default function CreateQuotationModal({
       return;
     }
 
-    const sanitizedNotes = stripTags(notes.trim()) || undefined;
+    const sanitizedNotes = sanitizeText(notes.trim()) || undefined;
     const parsedItems = items.map((it) => ({
       description: it.description.trim(),
       quantity: Number.parseInt(it.quantity, 10),
@@ -142,7 +143,7 @@ export default function CreateQuotationModal({
           input: {
             title: title.trim(),
             version: quotation.version,
-            clientName: stripTags(clientName.trim()),
+            clientId,
             notes: sanitizedNotes ?? null,
             taxRate: Number(taxRate),
             items: parsedItems,
@@ -154,7 +155,7 @@ export default function CreateQuotationModal({
         variables: {
           input: {
             title: title.trim(),
-            clientName: stripTags(clientName.trim()),
+            clientId,
             notes: sanitizedNotes,
             taxRate: Number(taxRate),
             items: parsedItems,
@@ -207,7 +208,7 @@ export default function CreateQuotationModal({
               type="text"
               value={title}
               onChange={(e) =>
-                setTitle(stripTags(e.target.value).slice(0, TITLE_MAX))
+                setTitle(sanitizeText(e.target.value).slice(0, TITLE_MAX))
               }
               maxLength={TITLE_MAX}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
@@ -215,29 +216,12 @@ export default function CreateQuotationModal({
             />
           </div>
 
-          {/* Client Name */}
+          {/* Client */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="clientName" className="text-xs font-medium text-gray-700">
-                Client <span className="text-red-500">*</span>
-              </label>
-              <span
-                className={`text-xs ${clientName.length >= CLIENT_MAX ? "text-red-500" : "text-gray-400"}`}
-              >
-                {clientName.length}/{CLIENT_MAX}
-              </span>
-            </div>
-            <input
-              id="clientName"
-              type="text"
-              value={clientName}
-              onChange={(e) =>
-                setClientName(stripTags(e.target.value).slice(0, CLIENT_MAX))
-              }
-              maxLength={CLIENT_MAX}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-              placeholder="e.g. Acme Corp"
-            />
+            <label htmlFor="clientSelector" className="block text-xs font-medium text-gray-700 mb-1">
+              Client <span className="text-red-500">*</span>
+            </label>
+            <ClientSelector value={clientId} onChange={setClientId} canCreate={canCreateClient} />
           </div>
 
           {/* Tax rate */}
@@ -280,68 +264,66 @@ export default function CreateQuotationModal({
             </div>
             <div className="space-y-2">
               {items.map((item, idx) => (
-                <div key={`item-${idx}`} /* NOSONAR */ className="grid grid-cols-12 gap-2 items-center">
+                <div key={`item-${idx}`} /* NOSONAR */ className="space-y-2">
+                  {/* Description — always full width */}
                   <input
                     type="text"
                     value={item.description}
                     onChange={(e) =>
-                      updateItem(
-                        idx,
-                        "description",
-                        stripTags(e.target.value).slice(0, DESC_MAX),
-                      )
+                      updateItem(idx, "description", sanitizeText(e.target.value).slice(0, DESC_MAX))
                     }
                     maxLength={DESC_MAX}
                     placeholder="Description"
-                    className="col-span-6 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={item.quantity}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, "");
-                      updateItem(idx, "quantity", v);
-                    }}
-                    onKeyDown={(e) => {
-                      if (["e", "E", "+", "-", ".", ","].includes(e.key))
-                        e.preventDefault();
-                    }}
-                    min="1"
-                    step="1"
-                    placeholder="Qty"
-                    className="col-span-2 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                  />
-                  <div className="col-span-3 flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-gray-900 overflow-hidden">
-                    <span className="px-2 text-sm text-gray-400 bg-gray-50 border-r border-gray-200 select-none">
-                      €
-                    </span>
+                  {/* Qty + Price + Remove — side by side */}
+                  <div className="flex gap-2 items-center">
                     <input
                       type="number"
-                      inputMode="decimal"
-                      value={item.unitPrice}
-                      onChange={(e) =>
-                        updateItem(idx, "unitPrice", e.target.value)
-                      }
+                      inputMode="numeric"
+                      value={item.quantity}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, "");
+                        updateItem(idx, "quantity", v);
+                      }}
                       onKeyDown={(e) => {
-                        if (["e", "E", "+", "-"].includes(e.key))
+                        if (["e", "E", "+", "-", ".", ","].includes(e.key))
                           e.preventDefault();
                       }}
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      className="flex-1 px-2 py-2 text-sm focus:outline-none bg-white"
+                      min="1"
+                      step="1"
+                      placeholder="Qty"
+                      className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                     />
+                    <div className="flex-1 flex items-center border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-gray-900 overflow-hidden">
+                      <span className="px-2 text-sm text-gray-400 bg-gray-50 border-r border-gray-200 select-none">
+                        €
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={item.unitPrice}
+                        onChange={(e) => updateItem(idx, "unitPrice", e.target.value)}
+                        onKeyDown={(e) => {
+                          if (["e", "E", "+", "-"].includes(e.key))
+                            e.preventDefault();
+                        }}
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="flex-1 px-2 py-2 text-sm focus:outline-none bg-white"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      disabled={items.length === 1}
+                      aria-label="Remove item"
+                      className="shrink-0 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg leading-none px-1"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(idx)}
-                    disabled={items.length === 1}
-                    aria-label="Remove item"
-                    className="col-span-1 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-30 text-lg leading-none"
-                  >
-                    ×
-                  </button>
                 </div>
               ))}
             </div>
@@ -363,7 +345,7 @@ export default function CreateQuotationModal({
               id="notes"
               value={notes}
               onChange={(e) =>
-                setNotes(stripTags(e.target.value).slice(0, NOTES_MAX))
+                setNotes(sanitizeText(e.target.value).slice(0, NOTES_MAX))
               }
               rows={3}
               maxLength={NOTES_MAX}

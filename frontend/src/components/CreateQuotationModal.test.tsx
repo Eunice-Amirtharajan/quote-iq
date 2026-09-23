@@ -3,32 +3,52 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import CreateQuotationModal from './CreateQuotationModal';
-import { QUOTATIONS_QUERY, QUOTATION_QUERY } from '../graphql/queries';
+import { QUOTATIONS_QUERY, QUOTATION_QUERY, CLIENTS_QUERY } from '../graphql/queries';
 import { CREATE_QUOTATION_MUTATION, UPDATE_QUOTATION_MUTATION } from '../graphql/mutations';
-import type { MockLink } from '@apollo/client/testing';
+
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { id: 'u-1', name: 'Anna Manager', email: 'anna@example.com', role: 'SALES_MANAGER' },
+    setUser: vi.fn(),
+  }),
+}));
+
+const CLIENT_ACME = { __typename: 'ClientType', id: 'c-1', name: 'Acme Corp', email: null };
+const CLIENT_OLD = { __typename: 'ClientType', id: 'c-2', name: 'Old Corp', email: null };
+
+const clientsMock = {
+  request: { query: CLIENTS_QUERY },
+  result: { data: { clients: [CLIENT_ACME, CLIENT_OLD] } },
+};
+
+// Provide extra copies so tests that re-render don't exhaust the mock
+const clientsMockExtra = {
+  request: { query: CLIENTS_QUERY },
+  result: { data: { clients: [CLIENT_ACME, CLIENT_OLD] } },
+};
 
 const createdQuotation = {
   id: 'q-new',
   quotationNumber: 'QT-2026-0099',
   title: 'New Service',
-  clientName: 'Acme Corp',
+  client: { id: 'c-1', name: 'Acme Corp' },
   status: 'DRAFT',
   total: 1190,
   createdAt: new Date().toISOString(),
 };
 
-const quotationsMock: MockLink.MockedResponse = {
+const quotationsMock = {
   request: { query: QUOTATIONS_QUERY, variables: { filter: undefined } },
   result: { data: { quotations: [] } },
 };
 
-const createMock: MockLink.MockedResponse = {
+const createMock = {
   request: {
     query: CREATE_QUOTATION_MUTATION,
     variables: {
       input: {
         title: 'New Service',
-        clientName: 'Acme Corp',
+        clientId: 'c-1',
         notes: undefined,
         taxRate: 0,
         items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
@@ -38,13 +58,13 @@ const createMock: MockLink.MockedResponse = {
   result: { data: { createQuotation: createdQuotation } },
 };
 
-const createErrorMock: MockLink.MockedResponse = {
+const createErrorMock = {
   request: {
     query: CREATE_QUOTATION_MUTATION,
     variables: {
       input: {
         title: 'New Service',
-        clientName: 'Acme Corp',
+        clientId: 'c-1',
         notes: undefined,
         taxRate: 0,
         items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
@@ -57,12 +77,20 @@ const createErrorMock: MockLink.MockedResponse = {
 const mockOnClose = vi.fn();
 const mockOnCreated = vi.fn();
 
-function renderModal(mocks: MockLink.MockedResponse[]) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderModal(mocks: any[]) {
   return render(
-    <MockedProvider mocks={mocks}>
+    <MockedProvider mocks={[clientsMock, ...mocks]}>
       <CreateQuotationModal onClose={mockOnClose} onCreated={mockOnCreated} />
     </MockedProvider>,
   );
+}
+
+async function selectClient(user: ReturnType<typeof userEvent.setup>, clientName: string) {
+  const clientInput = screen.getByPlaceholderText(/Search or create a client/i);
+  await user.click(clientInput);
+  await screen.findByRole('listbox');
+  await user.click(screen.getByRole('option', { name: clientName }));
 }
 
 describe('CreateQuotationModal', () => {
@@ -75,10 +103,10 @@ describe('CreateQuotationModal', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders form fields', () => {
+  it('renders form fields including client selector', () => {
     renderModal([]);
     expect(screen.getByPlaceholderText(/Software Development/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Acme Corp/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Search or create a client/i)).toBeInTheDocument();
   });
 
   it('calls onClose when Cancel is clicked', async () => {
@@ -95,14 +123,14 @@ describe('CreateQuotationModal', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('shows validation error when no client name entered on submit', async () => {
+  it('shows validation error when no client selected on submit', async () => {
     const user = userEvent.setup();
     renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
     await user.click(screen.getByText('Create Quotation'));
 
-    expect(screen.getByText('Please enter a client name.')).toBeInTheDocument();
+    expect(screen.getByText('Please select or create a client.')).toBeInTheDocument();
   });
 
   it('shows validation error when line item description is empty', async () => {
@@ -110,7 +138,7 @@ describe('CreateQuotationModal', () => {
     renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+    await selectClient(user, 'Acme Corp');
     await user.click(screen.getByText('Create Quotation'));
 
     expect(
@@ -123,7 +151,7 @@ describe('CreateQuotationModal', () => {
     renderModal([createMock, quotationsMock]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+    await selectClient(user, 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Consulting');
@@ -147,7 +175,7 @@ describe('CreateQuotationModal', () => {
     renderModal([createErrorMock]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+    await selectClient(user, 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Consulting');
@@ -169,7 +197,7 @@ describe('CreateQuotationModal', () => {
     renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'Test');
-    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+    await selectClient(user, 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Item');
@@ -189,13 +217,13 @@ describe('CreateQuotationModal', () => {
 
   it('submits with notes filled in', async () => {
     const user = userEvent.setup();
-    const createWithNotesMock: MockLink.MockedResponse = {
+    const createWithNotesMock = {
       request: {
         query: CREATE_QUOTATION_MUTATION,
         variables: {
           input: {
             title: 'New Service',
-            clientName: 'Acme Corp',
+            clientId: 'c-1',
             notes: 'Some notes',
             taxRate: 0,
             items: [{ description: 'Consulting', quantity: 1, unitPrice: 1000 }],
@@ -207,7 +235,7 @@ describe('CreateQuotationModal', () => {
     renderModal([createWithNotesMock, quotationsMock]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
-    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+    await selectClient(user, 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Consulting');
@@ -285,7 +313,7 @@ describe('CreateQuotationModal', () => {
     renderModal([]);
 
     await user.type(screen.getByPlaceholderText(/Software Development/i), 'Test');
-    await user.type(screen.getByPlaceholderText(/Acme Corp/i), 'Acme Corp');
+    await selectClient(user, 'Acme Corp');
 
     const descInputs = screen.getAllByPlaceholderText('Description');
     await user.type(descInputs[0], 'Item');
@@ -342,14 +370,14 @@ describe('CreateQuotationModal — edit mode', () => {
   const existingQuotation = {
     id: 'q-1',
     title: 'Old Title',
-    clientName: 'Old Corp',
+    client: { id: 'c-2', name: 'Old Corp' },
     notes: 'Old notes',
     taxRate: 0,
     version: 1,
     items: [{ description: 'Old Item', quantity: 1, unitPrice: 500, sortOrder: 0 }],
   };
 
-  const updateMock: MockLink.MockedResponse = {
+  const updateMock = {
     request: {
       query: UPDATE_QUOTATION_MUTATION,
       variables: {
@@ -357,7 +385,7 @@ describe('CreateQuotationModal — edit mode', () => {
         input: {
           title: 'Old Title',
           version: 1,
-          clientName: 'Old Corp',
+          clientId: 'c-2',
           notes: 'Old notes',
           taxRate: 0,
           items: [{ description: 'Old Item', quantity: 1, unitPrice: 500 }],
@@ -367,14 +395,15 @@ describe('CreateQuotationModal — edit mode', () => {
     result: { data: { updateQuotation: { id: 'q-1', title: 'Old Title' } } },
   };
 
-  const quotationRefetchMock: MockLink.MockedResponse = {
+  const quotationRefetchMock = {
     request: { query: QUOTATION_QUERY, variables: { id: 'q-1' } },
     result: { data: { quotation: null } },
   };
 
-  function renderEditModal(mocks: MockLink.MockedResponse[]) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function renderEditModal(mocks: any[]) {
     return render(
-      <MockedProvider mocks={mocks}>
+      <MockedProvider mocks={[clientsMock, clientsMockExtra, ...mocks]}>
         <CreateQuotationModal
           onClose={vi.fn()}
           onCreated={vi.fn()}
@@ -390,7 +419,6 @@ describe('CreateQuotationModal — edit mode', () => {
     renderEditModal([]);
     expect(screen.getByRole('dialog', { name: 'Edit quotation' })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Old Title')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Old Corp')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Old notes')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Old Item')).toBeInTheDocument();
     expect(screen.getByText('Save Changes')).toBeInTheDocument();
@@ -405,7 +433,7 @@ describe('CreateQuotationModal — edit mode', () => {
       ],
     };
     render(
-      <MockedProvider mocks={[]}>
+      <MockedProvider mocks={[clientsMock]}>
         <CreateQuotationModal
           onClose={vi.fn()}
           onCreated={vi.fn()}
@@ -422,7 +450,7 @@ describe('CreateQuotationModal — edit mode', () => {
     const user = userEvent.setup();
     const mockOnClose = vi.fn();
     render(
-      <MockedProvider mocks={[updateMock, quotationRefetchMock]}>
+      <MockedProvider mocks={[clientsMock, clientsMockExtra, updateMock, quotationRefetchMock]}>
         <CreateQuotationModal
           onClose={mockOnClose}
           onCreated={vi.fn()}
@@ -436,7 +464,7 @@ describe('CreateQuotationModal — edit mode', () => {
 
   it('shows error message when updateQuotation mutation fails', async () => {
     const user = userEvent.setup();
-    const updateErrorMock: MockLink.MockedResponse = {
+    const updateErrorMock = {
       request: {
         query: UPDATE_QUOTATION_MUTATION,
         variables: {
@@ -444,7 +472,7 @@ describe('CreateQuotationModal — edit mode', () => {
           input: {
             title: 'Old Title',
             version: 1,
-            clientName: 'Old Corp',
+            clientId: 'c-2',
             notes: 'Old notes',
             taxRate: 0,
             items: [{ description: 'Old Item', quantity: 1, unitPrice: 500 }],
@@ -454,7 +482,7 @@ describe('CreateQuotationModal — edit mode', () => {
       error: new Error('Update failed'),
     };
     render(
-      <MockedProvider mocks={[updateErrorMock]}>
+      <MockedProvider mocks={[clientsMock, clientsMockExtra, updateErrorMock]}>
         <CreateQuotationModal
           onClose={vi.fn()}
           onCreated={vi.fn()}

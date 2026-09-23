@@ -38,12 +38,24 @@ model User {
   documents     Document[]      @relation("UploadedDocuments")
 }
 
+model Client {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  email      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  quotations Quotation[]
+
+  @@index([name])
+}
+
 model Quotation {
   id              String          @id @default(uuid())
   publicToken     String          @unique @default(uuid())
   quotationNumber String          @unique
   title           String
-  clientName      String
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id])
   status          QuotationStatus @default(DRAFT)
   notes           String?
   taxRate         Float           @default(0)
@@ -61,8 +73,10 @@ model Quotation {
   statusHistory      StatusHistory[]
   aiInsights         AIInsight[]
   quotationEmbedding QuotationEmbedding?
+  snapshots          QuotationSnapshot[]
 
   @@index([createdById])
+  @@index([clientId])
   @@index([status])
   @@index([createdById, status])
 }
@@ -152,6 +166,16 @@ model DocumentChunk {
   createdAt  DateTime @default(now())
 
   @@index([documentId])
+}
+
+model QuotationSnapshot {
+  id              String    @id @default(uuid())
+  quotationId     String
+  quotation       Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  content         Json
+  createdAt       DateTime  @default(now())
+
+  @@index([quotationId])
 }
 
 model QuotationEmbedding {

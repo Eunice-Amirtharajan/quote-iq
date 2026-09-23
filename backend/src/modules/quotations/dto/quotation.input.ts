@@ -1,4 +1,4 @@
-import { InputType, Field, Float, Int } from '@nestjs/graphql';
+import { InputType, Field, Float, Int, ID } from '@nestjs/graphql';
 import { QuotationStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 
@@ -44,8 +44,8 @@ export class CreateQuotationInput {
   @Field(() => String)
   title!: string;
 
-  @Field(() => String)
-  clientName!: string;
+  @Field(() => ID)
+  clientId!: string;
 
   @Field(() => String, { nullable: true })
   notes?: string;
@@ -74,8 +74,8 @@ export class UpdateQuotationInput {
   @Field(() => Int)
   version!: number;
 
-  @Field(() => String, { nullable: true })
-  clientName?: string;
+  @Field(() => ID, { nullable: true })
+  clientId?: string;
 
   @Field(() => String, { nullable: true })
   notes?: string;

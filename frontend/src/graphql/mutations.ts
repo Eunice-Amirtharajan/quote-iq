@@ -26,7 +26,17 @@ export const CREATE_QUOTATION_MUTATION = gql`
       status
       total
       createdAt
-      clientName
+      client { id name }
+    }
+  }
+`;
+
+export const CREATE_CLIENT_MUTATION = gql`
+  mutation CreateClient($name: String!, $email: String) {
+    createClient(name: $name, email: $email) {
+      id
+      name
+      email
     }
   }
 `;
@@ -53,7 +63,7 @@ export const UPDATE_QUOTATION_MUTATION = gql`
       quotationNumber
       version
       title
-      clientName
+      client { id name }
       status
       notes
       taxRate
@@ -120,5 +130,11 @@ export const ASK_PLAYBOOK_MUTATION = gql`
 export const DELETE_DOCUMENT_MUTATION = gql`
   mutation DeleteDocument($id: String!) {
     deleteDocument(id: $id)
+  }
+`;
+
+export const DELETE_CLIENT_MUTATION = gql`
+  mutation DeleteClient($id: ID!) {
+    deleteClient(id: $id)
   }
 `;
