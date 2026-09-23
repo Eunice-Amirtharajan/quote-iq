@@ -312,7 +312,7 @@ describe('QuotationsPage', () => {
       const user = userEvent.setup();
       renderAsManager(managerSuccessMock);
       await screen.findAllByText('Enterprise License');
-      const repInput = screen.getByPlaceholderText('All reps');
+      const repInput = await screen.findByPlaceholderText('All reps');
       await user.click(repInput);
       expect(await screen.findByRole('button', { name: 'Anna Schmidt' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Ben Müller' })).toBeInTheDocument();
@@ -335,7 +335,7 @@ describe('QuotationsPage', () => {
       ];
       renderAsManager(repFilterMock);
       await screen.findAllByText('Enterprise License');
-      const repInput = screen.getByPlaceholderText('All reps');
+      const repInput = await screen.findByPlaceholderText('All reps');
       await user.click(repInput);
       await user.click(await screen.findByRole('button', { name: 'Anna Schmidt' }));
 
