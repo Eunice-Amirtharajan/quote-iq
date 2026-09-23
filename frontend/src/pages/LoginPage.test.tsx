@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import { MockedProvider } from "@apollo/client/testing/react";
 import LoginPage from "./LoginPage";
@@ -15,11 +16,13 @@ const mockSetUser = vi.fn();
 
 const renderLoginPage = (mocks: MockLink.MockedResponse[] = []) => {
   return render(
-    <MockedProvider mocks={mocks}>
-      <AuthContext.Provider value={{ user: null, setUser: mockSetUser }}>
-        <LoginPage />
-      </AuthContext.Provider>
-    </MockedProvider>,
+    <MemoryRouter>
+      <MockedProvider mocks={mocks}>
+        <AuthContext.Provider value={{ user: null, setUser: mockSetUser }}>
+          <LoginPage />
+        </AuthContext.Provider>
+      </MockedProvider>
+    </MemoryRouter>,
   );
 };
 

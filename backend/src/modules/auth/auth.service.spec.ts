@@ -7,6 +7,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
 import { AppLogger } from '../../common/logger/logger.service';
+import { TokenStoreService } from '../../common/token-store/token-store.service';
+import { MailService } from '../../common/mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { Response } from 'express';
 
@@ -43,6 +45,8 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: AppLogger, useValue: mockLogger },
+        { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+        { provide: MailService, useValue: { sendMail: jest.fn() } },
       ],
     }).compile();
 

@@ -19,24 +19,37 @@ function breadcrumbBadge(page: Page, status: string) {
     .locator(`span:has-text("${status}")`);
 }
 
+async function selectSeededClient(page: Page, searchText: string) {
+  const clientInput = page.locator('input[placeholder*="a client"]');
+  await clientInput.click();
+  // Wait for CLIENTS_QUERY to load — listbox appears once data arrives
+  await expect(page.locator('ul[role="listbox"]')).toBeVisible({ timeout: 10_000 });
+  // pressSequentially keeps focus on the element while typing each character,
+  // triggering React's onChange reliably without any implicit mouse actions
+  await clientInput.pressSequentially(searchText, { delay: 50 });
+  await expect(page.locator('li[role="option"]').first()).toBeVisible({ timeout: 10_000 });
+  await page.locator('li[role="option"]').first().click();
+  await expect(page.locator('ul[role="listbox"]')).not.toBeVisible();
+}
+
 test.describe('Quote status workflow', () => {
   test('full DRAFT → SENT → APPROVED workflow', async ({ page }) => {
     const quotationTitle = `Status-Test-${Date.now()}`;
 
-    // --- Step 1: rep creates a DRAFT ---
+    // --- Step 1: rep creates a DRAFT using a seeded client ---
     await login(page, 'anna@quoteiq.com');
     await page.goto('/quotations');
     await page.click('button:has-text("New Quotation")');
+    await page.waitForSelector('input[placeholder*="Software Development"]');
     await page.fill('input[placeholder*="Software Development"]', quotationTitle);
 
-    // ClientSelector: type a new client name and pick "Create ..." from the dropdown
-    await page.fill('input[placeholder*="Search or create a client"]', 'Status Test Client');
-    await page.click('li[role="option"]:has-text("Create")');
+    await selectSeededClient(page, 'Bauer');
 
     await page.fill('input[placeholder="Description"]', 'Status workflow test');
     await page.fill('input[placeholder="Qty"]', '1');
     await page.fill('input[placeholder="0.00"]', '100');
     await page.click('button:has-text("Create Quotation")');
+    await expect(page.locator('button:has-text("Create Quotation")')).not.toBeVisible();
     await expect(page.locator(`text=${quotationTitle}`)).toBeVisible();
 
     // --- Step 2: rep opens detail and submits for approval ---

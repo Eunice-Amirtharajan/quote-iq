@@ -21,15 +21,19 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
   const [creating, setCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data } = useQuery<{ clients: Client[] }>(CLIENTS_QUERY);
-  const clients = data?.clients ?? [];
+  const search = inputValue.trim() || undefined;
+  const { data, previousData, loading } = useQuery<{ clients: Client[] }>(CLIENTS_QUERY, {
+    variables: { search },
+  });
+  // Fall back to previousData while a new search query is in-flight
+  const clients = (data ?? previousData)?.clients ?? [];
 
   const selectedClient = clients.find((c) => c.id === value) ?? null;
 
   const [createClient] = useMutation<{ createClient: Client }>(
     CREATE_CLIENT_MUTATION,
     {
-      refetchQueries: [{ query: CLIENTS_QUERY }],
+      refetchQueries: [{ query: CLIENTS_QUERY, variables: { search } }],
     },
   );
 
@@ -40,11 +44,8 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
     }
   }, [selectedClient, open]);
 
-  const filtered = inputValue.trim()
-    ? clients.filter((c) =>
-        c.name.toLowerCase().includes(inputValue.toLowerCase()),
-      )
-    : clients;
+  // Server-side search: results already filtered by the backend
+  const filtered = clients;
 
   const exactMatch = clients.find(
     (c) => c.name.toLowerCase() === inputValue.trim().toLowerCase(),
@@ -113,7 +114,7 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
         }}
       />
 
-      {open && (filtered.length > 0 || showCreate) && (
+      {open && (loading || filtered.length > 0 || showCreate) && (
         <ul
           role="listbox"
           className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto text-sm"
