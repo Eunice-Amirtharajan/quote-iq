@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
+import { NetworkStatus } from "@apollo/client";
+import { sanitizeText } from "../utils/sanitize";
 import { DOCUMENTS_QUERY } from "../graphql/queries";
 import {
   APPROVE_DOCUMENT_MUTATION,
@@ -72,9 +74,10 @@ function RejectModal({ filename, onConfirm, onCancel }: Readonly<RejectModalProp
         <textarea
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-gray-900"
           rows={3}
+          maxLength={500}
           placeholder="Reason for rejection…"
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => setReason(sanitizeText(e.target.value).slice(0, 500))}
         />
         <div className="flex justify-end gap-2 mt-4">
           <button
@@ -138,22 +141,27 @@ export default function DocumentsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Document | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
 
-  const { data, loading, error, refetch } = useQuery<{ documents: Document[] }>(
+  const { data, previousData, loading, networkStatus, error, refetch } = useQuery<{ documents: Document[] }>(
     DOCUMENTS_QUERY,
-    { fetchPolicy: "network-only" },
+    { fetchPolicy: "network-only", notifyOnNetworkStatusChange: true },
   );
+  const initialLoading = loading && networkStatus === NetworkStatus.loading;
 
   const [approve] = useMutation(APPROVE_DOCUMENT_MUTATION, {
     onCompleted: () => refetch(),
+    onError: (e) => setMutationError(e.message),
   });
   const [reject] = useMutation(REJECT_DOCUMENT_MUTATION, {
     onCompleted: () => { setRejectTarget(null); refetch(); },
+    onError: (e) => setMutationError(e.message),
   });
   const [deleteDoc] = useMutation(DELETE_DOCUMENT_MUTATION, {
     onCompleted: () => { setDeleteTarget(null); refetch(); },
+    onError: (e) => { setDeleteTarget(null); setMutationError(e.message); },
   });
 
   async function handleUpload(file: File) {
@@ -184,7 +192,8 @@ export default function DocumentsPage() {
   }
 
   const uploadEnabled = import.meta.env.VITE_UPLOAD_ENABLED === "true";
-  const docs = data?.documents ?? [];
+  // Keep showing stale rows during a background refetch so the table doesn't flicker out
+  const docs = (data ?? previousData)?.documents ?? [];
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -249,7 +258,21 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {loading && (
+      {mutationError && (
+        <div className="mb-4 bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-4">
+          <span>{mutationError}</span>
+          <button
+            type="button"
+            onClick={() => setMutationError(null)}
+            className="shrink-0 text-red-400 hover:text-red-600"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {initialLoading && (
         <div className="flex items-center justify-center h-48">
           <p className="text-gray-400 text-sm">Loading…</p>
         </div>
@@ -261,7 +284,7 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {!loading && !error && docs.length === 0 && (
+      {!initialLoading && !error && docs.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-center">
           <p className="text-gray-400 text-sm">No documents yet.</p>
           <p className="text-gray-300 text-xs mt-1">
@@ -325,7 +348,7 @@ export default function DocumentsPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setRejectTarget(doc)}
+                            onClick={() => { setMutationError(null); setRejectTarget(doc); }}
                             className="px-3 py-1 text-xs border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
                           >
                             Reject
@@ -334,14 +357,10 @@ export default function DocumentsPage() {
                       )}
                       <button
                         type="button"
-                        disabled={doc.status === "SCANNING"}
-                        title={
-                          doc.status === "SCANNING"
-                            ? "Cannot delete while scanning — try again in a moment"
-                            : "Delete document"
-                        }
-                        onClick={() => setDeleteTarget(doc)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        title="Delete document"
+                        onClick={() => { setMutationError(null); setDeleteTarget(doc); }}
+                        disabled={doc.status === 'SCANNING'}
+                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label="Delete document"
                       >
                         <svg

@@ -298,9 +298,9 @@ describe("DocumentsPage", () => {
     render_(mocks);
     await userEvent.click(await screen.findByRole("button", { name: /delete document/i }));
     await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-    // modal stays open — no crash
+    // modal closes and page does not crash
     await waitFor(() =>
-      expect(screen.getByText(/delete document\?/i)).toBeInTheDocument(),
+      expect(screen.queryByText(/delete document\?/i)).not.toBeInTheDocument(),
     );
   });
 });

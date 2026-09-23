@@ -34,6 +34,10 @@ const mockPrismaService = {
   aIInsight: {
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
+  quotationSnapshot: {
+    create: jest.fn().mockResolvedValue({}),
+    findMany: jest.fn().mockResolvedValue([]),
+  },
   user: {
     findMany: jest.fn(),
   },
@@ -173,7 +177,7 @@ describe('QuotationsService', () => {
       );
     });
 
-    it('applies search filter across title, quotationNumber, and clientName', async () => {
+    it('applies search filter across title, quotationNumber, and client name', async () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_MANAGER), 20, 0, {
         search: 'enterprise',
@@ -264,7 +268,8 @@ describe('QuotationsService', () => {
       const mockQuotation = {
         quotationNumber: 'q-1',
         title: 'Test',
-        clientName: 'Client',
+        client: { name: 'Client' },
+        createdBy: { name: 'Rep Name' },
         status: 'DRAFT',
         notes: 'Some notes',
         taxRate: 10,
@@ -285,7 +290,7 @@ describe('QuotationsService', () => {
       };
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       const result = await service.findByToken('token-1');
-      expect(result).toEqual(mockQuotation);
+      expect(result).toEqual({ ...mockQuotation, clientName: 'Client', repName: 'Rep Name' });
     });
 
     it('returns null when not found', async () => {
@@ -406,9 +411,11 @@ describe('QuotationsService', () => {
       sortOrder: 0,
     };
 
+    const CLIENT_UUID = '11111111-1111-1111-1111-111111111111';
+
     const mockInput = {
       title: 'Enterprise License',
-      clientName: 'Hans Bauer',
+      clientId: CLIENT_UUID,
       taxRate: 19,
       notes: 'Annual license',
       items: [
@@ -563,26 +570,25 @@ describe('QuotationsService', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
-    it('throws BadRequestException when clientName contains only HTML tags', async () => {
+    it('throws BadRequestException when clientId is not a valid UUID', async () => {
       await expect(
-        service.create({ ...mockInput, clientName: '<b></b>' }, mockUser),
+        service.create({ ...mockInput, clientId: 'not-a-uuid' }, mockUser),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when clientName exceeds 200 characters', async () => {
+    it('throws BadRequestException when clientId is missing', async () => {
       await expect(
-        service.create({ ...mockInput, clientName: 'A'.repeat(201) }, mockUser),
+        service.create({ ...mockInput, clientId: '' }, mockUser),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('strips HTML tags from clientName before saving', async () => {
-      await service.create(
-        { ...mockInput, clientName: '<b>Hans Bauer</b>' },
-        mockUser,
-      );
+    it('uses clientId scalar FK when creating', async () => {
+      await service.create(mockInput, mockUser);
       expect(mockPrismaService.quotation.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ clientName: 'Hans Bauer' }),
+          data: expect.objectContaining({
+            clientId: CLIENT_UUID,
+          }),
         }),
       );
     });
@@ -684,7 +690,7 @@ describe('QuotationsService', () => {
     const draftQuotation = {
       id: 'q-1',
       quotationNumber: 'QT-2026-0001',
-      clientName: 'Acme Corp',
+      client: { name: 'Acme Corp' },
       status: QuotationStatus.DRAFT,
       title: 'Test',
       total: 5000,
@@ -699,7 +705,7 @@ describe('QuotationsService', () => {
     const richQuotation = {
       id: 'q-1',
       quotationNumber: 'QT-2026-0001',
-      clientName: 'Acme Corp',
+      client: { name: 'Acme Corp' },
       status: QuotationStatus.SENT,
       createdBy,
     };
@@ -967,6 +973,29 @@ describe('QuotationsService', () => {
         where: { quotationId: 'q-1' },
       });
     });
+
+    it('skips email when createdBy is null on the updated quotation', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+      mockPrismaService.quotation.update.mockResolvedValue({
+        ...sentQuotation,
+        createdBy: null,
+      });
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.SENT,
+        undefined,
+        'user-1',
+        Role.SALES_REP,
+      );
+
+      expect(mockMailService.sendMail).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('createdBy missing'),
+        QuotationsService.name,
+      );
+    });
   });
 
   describe('non-Error throws (branch coverage for String(error) path)', () => {
@@ -1027,7 +1056,7 @@ describe('QuotationsService', () => {
         service.create(
           {
             title: 'T',
-            clientName: 'Hans Bauer',
+            clientId: '11111111-1111-1111-1111-111111111111',
             taxRate: 0,
             items: [
               { description: 'X', quantity: 1, unitPrice: 10, sortOrder: 0 },
@@ -1123,11 +1152,19 @@ describe('QuotationsService', () => {
       createdById: 'user-1',
       taxRate: 0,
     };
-    const currentVersion = { version: 1 };
+    const currentVersion = {
+      version: 1,
+      title: 'Original Title',
+      clientId: '11111111-1111-1111-1111-111111111111',
+      notes: null,
+      taxRate: 0,
+    };
+    const CLIENT_UPDATE_UUID = '22222222-2222-2222-2222-222222222222';
+
     const updatedQuotation = {
       id: 'q-1',
       title: 'Updated Title',
-      clientName: 'Updated Corp',
+      client: { id: CLIENT_UPDATE_UUID, name: 'Updated Corp' },
       status: QuotationStatus.DRAFT,
       version: 2,
       items: [],
@@ -1135,17 +1172,18 @@ describe('QuotationsService', () => {
     };
 
     beforeEach(() => {
-      // findFirst call order: validateUpdatePermissions → version check
+      // findFirst call order: validateUpdatePermissions → version check (now also fetches snapshot fields)
       mockPrismaService.quotation.findFirst
         .mockResolvedValueOnce(draftOwned)
         .mockResolvedValueOnce(currentVersion);
+      mockPrismaService.quotationItem.findMany.mockResolvedValue([]);
       mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
     });
 
     it('calls update with version increment and correct fields', async () => {
       await service.update(
         'q-1',
-        { title: 'Updated Title', clientName: 'Updated Corp', version: 1 },
+        { title: 'Updated Title', clientId: CLIENT_UPDATE_UUID, version: 1 },
         'user-1',
       );
       expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
@@ -1153,7 +1191,7 @@ describe('QuotationsService', () => {
           where: { id: 'q-1' },
           data: expect.objectContaining({
             title: 'Updated Title',
-            clientName: 'Updated Corp',
+            client: { connect: { id: CLIENT_UPDATE_UUID } },
             version: { increment: 1 },
           }),
         }),
@@ -1163,7 +1201,7 @@ describe('QuotationsService', () => {
     it('returns the updated quotation', async () => {
       const result = await service.update(
         'q-1',
-        { title: 'Updated Title', clientName: 'Updated Corp', version: 1 },
+        { title: 'Updated Title', clientId: CLIENT_UPDATE_UUID, version: 1 },
         'user-1',
       );
       expect(result).toEqual(updatedQuotation);
@@ -1282,7 +1320,7 @@ describe('QuotationsService', () => {
     it('writes a DRAFT→DRAFT history entry with changed fields note on update', async () => {
       await service.update(
         'q-1',
-        { title: 'Updated Title', clientName: 'Updated Corp', version: 1 },
+        { title: 'Updated Title', clientId: CLIENT_UPDATE_UUID, version: 1 },
         'user-1',
       );
       expect(mockPrismaService.statusHistory.create).toHaveBeenCalledWith({
@@ -1296,14 +1334,14 @@ describe('QuotationsService', () => {
       });
     });
 
-    it('throws BadRequestException when clientName exceeds 200 characters on update', async () => {
+    it('throws BadRequestException when clientId is not a valid UUID on update', async () => {
       mockPrismaService.quotation.findFirst
         .mockReset()
         .mockResolvedValueOnce(draftOwned);
       await expect(
         service.update(
           'q-1',
-          { clientName: 'A'.repeat(201), version: 1 },
+          { clientId: 'not-a-uuid', version: 1 },
           'user-1',
         ),
       ).rejects.toThrow(BadRequestException);
@@ -1381,6 +1419,57 @@ describe('QuotationsService', () => {
           'user-1',
         ),
       ).rejects.toThrow('Item unit price must be greater than 0');
+    });
+  });
+
+  describe('findSnapshots', () => {
+    const mockSnapshot = {
+      id: 'snap-1',
+      quotationId: 'q-1',
+      content: { title: 'Test', total: 5000 },
+      createdAt: new Date('2026-09-01T10:00:00.000Z'),
+    };
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockReset();
+    });
+
+    it('returns snapshots for a SALES_MANAGER without ownership check', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockPrismaService as any).quotationSnapshot.findMany.mockResolvedValue([mockSnapshot]);
+
+      const result = await service.findSnapshots('q-1', 'mgr-1', Role.SALES_MANAGER);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('snap-1');
+      expect(result[0].content).toBe(JSON.stringify(mockSnapshot.content));
+      expect(mockPrismaService.quotation.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('returns snapshots for a SALES_REP who owns the quotation', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce({ createdById: 'user-1' });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mockPrismaService as any).quotationSnapshot.findMany.mockResolvedValueOnce([mockSnapshot]);
+
+      const result = await service.findSnapshots('q-1', 'user-1', Role.SALES_REP);
+
+      expect(result).toHaveLength(1);
+    });
+
+    it('throws ForbiddenException when SALES_REP does not own the quotation', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce({ createdById: 'other-user' });
+
+      await expect(
+        service.findSnapshots('q-1', 'user-1', Role.SALES_REP),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when quotation does not exist for SALES_REP', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        service.findSnapshots('q-999', 'user-1', Role.SALES_REP),
+      ).rejects.toThrow('Quotation q-999 not found');
     });
   });
 });

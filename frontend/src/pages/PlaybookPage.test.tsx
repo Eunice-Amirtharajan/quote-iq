@@ -41,32 +41,32 @@ describe("PlaybookPage", () => {
   it("shows empty state when no ready documents exist", async () => {
     render_([gateMock(false)]);
     expect(await screen.findByText(/no playbook documents available yet/i)).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/ask about the sales playbook/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/How do I handle a price objection/i)).not.toBeInTheDocument();
   });
 
   it("shows chat UI when ready documents exist", async () => {
     render_([gateMock(true)]);
     expect(
-      await screen.findByPlaceholderText(/ask about the sales playbook/i),
+      await screen.findByPlaceholderText(/How do I handle a price objection/i),
     ).toBeInTheDocument();
   });
 
   it("shows prompt hint in empty chat", async () => {
     render_([gateMock(true)]);
-    await screen.findByPlaceholderText(/ask about the sales playbook/i);
-    expect(screen.getByText(/ask the playbook anything/i)).toBeInTheDocument();
+    await screen.findByPlaceholderText(/How do I handle a price objection/i);
+    expect(screen.getByText(/what would you like to know/i)).toBeInTheDocument();
   });
 
   it("Send button is disabled when input is empty", async () => {
     render_([gateMock(true)]);
-    await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    await screen.findByPlaceholderText(/How do I handle a price objection/i);
     expect(screen.getByRole("button", { name: /send/i })).toBeDisabled();
   });
 
   it("Send button is enabled when input has text", async () => {
     render_([gateMock(true)]);
     await userEvent.type(
-      await screen.findByPlaceholderText(/ask about the sales playbook/i),
+      await screen.findByPlaceholderText(/How do I handle a price objection/i),
       "Hello",
     );
     expect(screen.getByRole("button", { name: /send/i })).not.toBeDisabled();
@@ -77,7 +77,7 @@ describe("PlaybookPage", () => {
       gateMock(true),
       askMock("How do I handle objections?", "Focus on value, not price."),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "How do I handle objections?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     expect(await screen.findByText("How do I handle objections?")).toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("PlaybookPage", () => {
       gateMock(true),
       askMock("Quick question?", "Quick answer."),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "Quick question?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     expect(input).toHaveValue("");
@@ -103,7 +103,7 @@ describe("PlaybookPage", () => {
         error: new Error("AI service down"),
       },
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "Bad question?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("PlaybookPage", () => {
         { documentTitle: "Pricing Guide", chunkIndex: 3, excerpt: "Discounts above 15%..." },
       ]),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "What's the discount policy?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     expect(await screen.findByText(/show 1 source/i)).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe("PlaybookPage", () => {
         { documentTitle: "Pricing Guide", chunkIndex: 3, excerpt: "Discounts above 15%..." },
       ]),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "What's the discount policy?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     const toggle = await screen.findByText(/show 1 source/i);
@@ -145,7 +145,7 @@ describe("PlaybookPage", () => {
       gateMock(true),
       askMock("General question?", "General answer.", []),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "General question?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     await screen.findByText("General answer.");
@@ -157,7 +157,7 @@ describe("PlaybookPage", () => {
       gateMock(true),
       askMock("Enter key test?", "Works!"),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "Enter key test?{Enter}");
     expect(await screen.findByText("Works!")).toBeInTheDocument();
   });
@@ -176,7 +176,7 @@ describe("PlaybookPage", () => {
         { documentTitle: "Guide A", chunkIndex: 0, excerpt: "Excerpt A" },
       ]),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "Single citation?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     expect(await screen.findByText(/show 1 source$/i)).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe("PlaybookPage", () => {
         { documentTitle: "Guide B", chunkIndex: 1, excerpt: "Excerpt B" },
       ]),
     ]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "Multi citation?");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     expect(await screen.findByText(/show 2 sources/i)).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe("PlaybookPage", () => {
 
   it("does not send when input is whitespace only", async () => {
     render_([gateMock(true)]);
-    const input = await screen.findByPlaceholderText(/ask about the sales playbook/i);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
     await userEvent.type(input, "   ");
     await userEvent.click(screen.getByRole("button", { name: /send/i }));
     // no user message should appear

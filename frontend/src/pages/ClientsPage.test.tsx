@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { vi } from 'vitest';
 import ClientsPage from './ClientsPage';
-import { CLIENTS_QUERY, CLIENTS_PAGE_QUERY } from '../graphql/queries';
+import { CLIENTS_PAGE_QUERY } from '../graphql/queries';
 import { CREATE_CLIENT_MUTATION, DELETE_CLIENT_MUTATION } from '../graphql/mutations';
 
 const CLIENT_A = { __typename: 'ClientType', id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', createdAt: '2026-01-01T00:00:00.000Z' };
