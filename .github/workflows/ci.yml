@@ -203,12 +203,20 @@ jobs:
           CORS_ORIGIN: http://localhost:5173
           JWT_EXPIRES_IN: 7d
           RABBITMQ_URL: amqp://guest:guest@localhost:5672
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_SERVICE_ROLE_KEY: test-supabase-key
+          MAIL_HOST: sandbox.smtp.mailtrap.io
+          MAIL_PORT: 2525
+          MAIL_USER: test
+          MAIL_PASS: test
+          MAIL_FROM: noreply@quoteiq.cc
 
       - name: Wait for backend
         run: |
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:4000/health && break
-            sleep 2
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:4000/health && echo "Backend ready" && break
+            echo "Waiting for backend... attempt $i"
+            sleep 3
           done
 
       - name: Run Playwright tests
