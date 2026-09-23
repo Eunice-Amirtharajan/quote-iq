@@ -20,6 +20,7 @@ import { CorrelationIdMiddleware } from './common/correlation/correlation-id.mid
 import { MetricsModule } from './common/metrics/metrics.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { TokenStoreModule } from './common/token-store/token-store.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { ClientsModule } from './modules/clients/clients.module';
     MetricsModule,
     DocumentsModule,
     ClientsModule,
+    TokenStoreModule,
   ],
   providers: [
     {

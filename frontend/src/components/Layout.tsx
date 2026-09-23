@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { label: "Win/Loss", to: "/winloss", roles: ["SALES_MANAGER"] },
   { label: "Documents", to: "/documents", roles: ["SALES_MANAGER"] },
   { label: "Playbook", to: "/playbook", roles: ["SALES_REP", "SALES_MANAGER"] },
+  { label: "Users", to: "/users", roles: ["SALES_MANAGER"] },
 ];
 
 interface LayoutProps {

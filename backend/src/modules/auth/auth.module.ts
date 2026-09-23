@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthResolver } from './auth.resolver';
 import { JwtStrategy } from './jwt.strategy';
+import { MailModule } from '../../common/mail/mail.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { JwtStrategy } from './jwt.strategy';
         },
       }),
     }),
+    MailModule,
   ],
   providers: [AuthService, AuthResolver, JwtStrategy],
   exports: [AuthService],

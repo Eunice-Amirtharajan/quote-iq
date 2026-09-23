@@ -1,11 +1,12 @@
 jest.mock('bcrypt', () => ({
   compare: jest.fn(),
+  hash: jest.fn(),
 }));
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { AppLogger } from '../../common/logger/logger.service';
 import { TokenStoreService } from '../../common/token-store/token-store.service';
 import { MailService } from '../../common/mail/mail.service';
@@ -16,6 +17,9 @@ const mockPrismaService = {
   user: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
   },
 };
 
@@ -254,5 +258,234 @@ describe('AuthService', () => {
 
     expect(() => service.logout(errorResponse)).toThrow('Cookie error');
     expect(mockLogger.error).toHaveBeenCalled();
+  });
+
+  describe('inviteUser', () => {
+    let tokenStore: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
+    let mailService: { sendMail: jest.Mock };
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: AppLogger, useValue: mockLogger },
+          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          { provide: MailService, useValue: { sendMail: jest.fn() } },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+      tokenStore = module.get(TokenStoreService);
+      mailService = module.get(MailService);
+    });
+
+    it('creates user, stores token, and sends invite email', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue({ id: 'u-new', name: 'Alice', email: 'alice@test.com', role: 'SALES_REP' });
+
+      const result = await service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any);
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
+        data: { name: 'Alice', email: 'alice@test.com', role: 'SALES_REP', password: null },
+      });
+      expect(tokenStore.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^invite:/),
+        'u-new',
+        expect.any(Number),
+      );
+      expect(mailService.sendMail).toHaveBeenCalledWith(
+        'alice@test.com',
+        expect.stringContaining('invited'),
+        expect.any(String),
+      );
+    });
+
+    it('throws BadRequestException when email already exists', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-existing' });
+
+      await expect(service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any))
+        .rejects.toThrow(BadRequestException);
+
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('acceptInvite', () => {
+    let tokenStore: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: AppLogger, useValue: mockLogger },
+          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          { provide: MailService, useValue: { sendMail: jest.fn() } },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+      tokenStore = module.get(TokenStoreService);
+    });
+
+    it('sets password and deletes token on valid invite token', async () => {
+      tokenStore.get.mockResolvedValue('u-123');
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      const result = await service.acceptInvite('valid-token', 'newpassword');
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-123' },
+        data: { password: 'hashed-pw' },
+      });
+      expect(tokenStore.del).toHaveBeenCalledWith('invite:valid-token');
+    });
+
+    it('throws BadRequestException when invite token is invalid', async () => {
+      tokenStore.get.mockResolvedValue(null);
+
+      await expect(service.acceptInvite('bad-token', 'newpassword'))
+        .rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('requestPasswordReset', () => {
+    let tokenStore: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
+    let mailService: { sendMail: jest.Mock };
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: AppLogger, useValue: mockLogger },
+          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          { provide: MailService, useValue: { sendMail: jest.fn() } },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+      tokenStore = module.get(TokenStoreService);
+      mailService = module.get(MailService);
+    });
+
+    it('stores reset token and sends email for valid user with password', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-1', email: 'user@test.com', password: 'hashed' });
+
+      await service.requestPasswordReset('user@test.com');
+
+      expect(tokenStore.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^reset:/),
+        'u-1',
+        expect.any(Number),
+      );
+      expect(mailService.sendMail).toHaveBeenCalledWith(
+        'user@test.com',
+        expect.stringContaining('Reset'),
+        expect.any(String),
+      );
+    });
+
+    it('returns silently when email does not exist (no enumeration)', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+
+      await expect(service.requestPasswordReset('nobody@test.com')).resolves.toBeUndefined();
+      expect(tokenStore.set).not.toHaveBeenCalled();
+    });
+
+    it('returns silently when user has no password (invited user, not yet activated)', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-1', email: 'user@test.com', password: null });
+
+      await expect(service.requestPasswordReset('user@test.com')).resolves.toBeUndefined();
+      expect(tokenStore.set).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resetPassword', () => {
+    let tokenStore: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: AppLogger, useValue: mockLogger },
+          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          { provide: MailService, useValue: { sendMail: jest.fn() } },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+      tokenStore = module.get(TokenStoreService);
+    });
+
+    it('updates password and deletes token on valid reset token', async () => {
+      tokenStore.get.mockResolvedValue('u-1');
+      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed');
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      const result = await service.resetPassword('valid-reset-token', 'newpassword');
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+        data: { password: 'new-hashed' },
+      });
+      expect(tokenStore.del).toHaveBeenCalledWith('reset:valid-reset-token');
+    });
+
+    it('throws BadRequestException when reset token is invalid', async () => {
+      tokenStore.get.mockResolvedValue(null);
+
+      await expect(service.resetPassword('bad-token', 'newpassword'))
+        .rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getUserById', () => {
+    it('returns user when found', async () => {
+      const mockUser = { id: 'u-1', name: 'Alice', email: 'alice@test.com', role: 'SALES_REP' };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+
+      const result = await service.getUserById('u-1');
+
+      expect(result).toEqual(mockUser);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({ where: { id: 'u-1' } });
+    });
+
+    it('throws NotFoundException when user not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.getUserById('nonexistent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('listUsers', () => {
+    it('returns all users ordered by name', async () => {
+      const users = [
+        { id: 'u-1', name: 'Alice' },
+        { id: 'u-2', name: 'Bob' },
+      ];
+      mockPrismaService.user.findMany.mockResolvedValue(users);
+
+      const result = await service.listUsers();
+
+      expect(result).toEqual(users);
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({ orderBy: { name: 'asc' } });
+    });
+
+    it('returns empty array when no users exist', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue([]);
+      const result = await service.listUsers();
+      expect(result).toEqual([]);
+    });
   });
 });

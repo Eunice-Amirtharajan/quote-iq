@@ -14,7 +14,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 | Frontend | React 18 · TypeScript · Tailwind CSS · Apollo Client |
 | Backend | NestJS · GraphQL (Apollo Server, code-first) · Prisma ORM |
 | Database | PostgreSQL (Neon DB — serverless, WebSocket driver) · pgvector extension |
-| Auth | JWT in HttpOnly cookies · Role-based access control |
+| Auth | JWT in HttpOnly cookies · Role-based access control · Redis (ioredis) invite/reset token store |
 | AI | OpenAI `text-embedding-3-small` · Groq API (Llama 3.3 70B) · Zod response validation |
 | Messaging | RabbitMQ (CloudAMQP — managed) · AMQP pub/sub with W3C trace context propagation |
 | Storage | Supabase Storage (PDF uploads) . VirusTotal malware scanning |
@@ -40,6 +40,8 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 **RabbitMQ (CloudAMQP) for async embedding** — F2 quotation embedding is triggered asynchronously via AMQP so it never blocks the GraphQL create/update response. A separate `QueueConsumerModule` processes the `quote.created` / `quote.updated` events and calls `AIService.generateQuotationEmbedding()`. W3C traceparent headers (`traceparent`, `tracestate`) are injected into AMQP message headers via `propagation.inject()` so distributed traces span across the publish/consume boundary.
 
 **Railway over Render** — Railway supports Docker-based deploys which gives full control over the runtime environment, and has better free-tier reliability than Render (no spin-down on inactivity).
+
+**Redis (ioredis) for invite and password-reset tokens** — Short-lived, security-sensitive tokens need automatic expiry and one-time-use semantics, which Redis TTL handles atomically. Storing them as `User` table columns would require a scheduled cleanup job, mix ephemeral security state into the domain model, and can't atomically expire. `ioredis` is used (not Upstash) because this is a long-running TCP server — a persistent connection is more efficient than Upstash's HTTP-per-call model. An in-memory `Map` fallback runs when `REDIS_URL` is absent (local dev / CI), with a logged warning.
 
 ---
 
@@ -88,6 +90,13 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 - `QueueConsumerModule` consumes the event and generates an OpenAI embedding for the quotation, stored in `QuotationEmbedding` (pgvector)
 - W3C trace context propagated across the AMQP boundary via `propagation.inject()` / `propagation.extract()` — single distributed trace spans publish + consume
 - Real-time status updates pushed to the frontend via WebSocket (`GatewayModule`)
+
+### User Management (Invite + Password Reset)
+- Sales Managers invite new users from the Users page — invite email sent via Mailtrap, link contains a 256-bit random token
+- Invited users land on `/invite/:token` to set their password; the token is validated against Redis and deleted on use (one-time-use)
+- Forgot password flow: request page (`/reset-password`) accepts an email address, always responds with "check your email" — never reveals whether the address is registered (anti-enumeration)
+- Password reset link (`/reset-password/:token`) validates the Redis token (1 h TTL) and updates the password
+- `TokenStoreService` abstracts Redis vs in-memory behind a `set/get/del` interface — `@Global()` NestJS module, one import in `AppModule`
 
 ### Dashboard & Observability
 - Manager dashboard with pipeline stats, conversion rate, and approved value
@@ -146,6 +155,24 @@ npm install
 npm run dev
 ```
 
+### Local Redis (optional — for invite and password-reset token storage)
+
+```bash
+docker compose up redis
+```
+
+Then set `REDIS_URL=redis://localhost:6379` in `backend/.env`. Without this, the in-memory fallback is used (tokens lost on restart — fine for dev).
+
+Inspect keys during development:
+```bash
+docker exec -it quoteiq-redis redis-cli
+> KEYS *           # list all token keys
+> TTL invite:<tok> # seconds remaining on an invite token
+> GET invite:<tok> # userId the token maps to
+```
+
+---
+
 ### Local RabbitMQ + Jaeger (optional — for F2 and OTel)
 
 ```bash
@@ -189,6 +216,15 @@ RABBITMQ_URL="amqp://guest:guest@localhost:5672"
 # Supabase Storage — PDF upload destination
 SUPABASE_URL=""
 SUPABASE_SERVICE_ROLE_KEY=""
+
+# Redis — token store for invite and password-reset flows
+# Redis Cloud free tier (30 MB, no HA, no persistence) is sufficient for short-lived tokens.
+# Connection string format: redis://default:<password>@<host>:<port>
+# If not set, an in-memory Map is used (tokens lost on restart — dev only).
+REDIS_URL=""
+
+# App URL — used to construct invite and password-reset links in emails
+APP_URL="http://localhost:5173"
 
 # Document upload gate — set "true" only in trusted environments
 ALLOW_UPLOAD="false"
@@ -248,7 +284,9 @@ quote-iq/
 │       │   ├── decorators/  # @CurrentUser, @Roles
 │       │   ├── guards/      # JwtAuthGuard, RolesGuard, GqlThrottlerGuard
 │       │   ├── logger/      # Winston logger with correlation-ID injection
+│       │   ├── mail/        # Nodemailer MailService + HTML email templates
 │       │   ├── metrics/     # Prometheus Histogram + Counter providers
+│       │   ├── token-store/ # TokenStoreService — Redis (ioredis) + in-memory fallback
 │       │   └── tracing/     # tracer.ts — shared OTel tracer singleton
 │       ├── modules/
 │       │   ├── ai/          # Groq + OpenAI integration, hybrid recommendation, RAG Q&A, OTel spans

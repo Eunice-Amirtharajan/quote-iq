@@ -210,6 +210,7 @@ jobs:
           MAIL_USER: test
           MAIL_PASS: test
           MAIL_FROM: noreply@quoteiq.cc
+          APP_URL: http://localhost:5173
 
       - name: Wait for backend
         run: |

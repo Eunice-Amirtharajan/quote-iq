@@ -246,3 +246,15 @@ export const SIMILAR_QUOTATIONS_QUERY = gql`
     }
   }
 `;
+
+export const USERS_QUERY = gql`
+  query Users {
+    users {
+      id
+      name
+      email
+      role
+      createdAt
+    }
+  }
+`;

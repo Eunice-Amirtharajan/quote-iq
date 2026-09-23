@@ -139,6 +139,8 @@ type LessonsLearnedAnswerType {
 }
 
 type Mutation {
+  acceptInvite(password: String!, token: String!): Boolean!
+
   """Approve a document for RAG use"""
   approveDocument(id: String!): DocumentType!
 
@@ -156,6 +158,7 @@ type Mutation {
   """Delete a document and its chunks."""
   deleteDocument(id: String!): Boolean!
   deleteQuotation(id: ID!): Boolean!
+  inviteUser(email: String!, name: String!, role: Role!): Boolean!
   login(email: String!, password: String!): UserType!
   logout: Boolean!
 
@@ -164,6 +167,8 @@ type Mutation {
 
   """Reject a document and record the reason"""
   rejectDocument(id: String!, reason: String!): DocumentType!
+  requestPasswordReset(email: String!): Boolean!
+  resetPassword(password: String!, token: String!): Boolean!
   updateQuotation(id: ID!, input: UpdateQuotationInput!): QuotationType!
   updateQuotationStatus(id: ID!, input: UpdateQuotationStatusInput!): QuotationType!
 }
@@ -250,6 +255,7 @@ type Query {
   """
   similarQuotations(limit: Float = 5, quotationId: ID!): [SimilarQuotationType!]!
   statusHistory(quotationId: ID!): [StatusHistoryType!]!
+  users: [UserType!]!
 
   """Aggregated win/loss analysis across all quotations"""
   winLossAnalysis: WinLossStatsType!

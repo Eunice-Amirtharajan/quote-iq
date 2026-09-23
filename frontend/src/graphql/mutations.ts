@@ -138,3 +138,27 @@ export const DELETE_CLIENT_MUTATION = gql`
     deleteClient(id: $id)
   }
 `;
+
+export const INVITE_USER_MUTATION = gql`
+  mutation InviteUser($name: String!, $email: String!, $role: Role!) {
+    inviteUser(name: $name, email: $email, role: $role)
+  }
+`;
+
+export const ACCEPT_INVITE_MUTATION = gql`
+  mutation AcceptInvite($token: String!, $password: String!) {
+    acceptInvite(token: $token, password: $password)
+  }
+`;
+
+export const REQUEST_PASSWORD_RESET_MUTATION = gql`
+  mutation RequestPasswordReset($email: String!) {
+    requestPasswordReset(email: $email)
+  }
+`;
+
+export const RESET_PASSWORD_MUTATION = gql`
+  mutation ResetPassword($token: String!, $password: String!) {
+    resetPassword(token: $token, password: $password)
+  }
+`;

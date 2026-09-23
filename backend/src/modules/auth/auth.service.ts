@@ -1,12 +1,32 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService, withDbRetry } from '../../prisma/prisma.service';
 import { Response } from 'express';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'node:crypto';
 import { AppLogger } from '../../common/logger/logger.service';
 import type { User } from '@prisma/client';
 import { Role } from '@prisma/client';
 import ms, { StringValue } from 'ms';
+import { TokenStoreService } from '../../common/token-store/token-store.service';
+import { MailService } from '../../common/mail/mail.service';
+import {
+  inviteEmailHtml,
+  passwordResetEmailHtml,
+} from '../../common/mail/mail.templates';
+
+const INVITE_TTL = 60 * 60 * 24; // 24 hours
+const RESET_TTL = 60 * 60; // 1 hour
+const BCRYPT_ROUNDS = 12;
+
+function generateToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
 
 @Injectable()
 export class AuthService {
@@ -14,6 +34,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly logger: AppLogger,
+    private readonly tokenStore: TokenStoreService,
+    private readonly mailService: MailService,
   ) {}
 
   async login(email: string, password: string, res: Response): Promise<User> {
@@ -22,17 +44,17 @@ export class AuthService {
       () => this.prisma.user.findFirst({ where: { email } }),
       this.logger,
     );
-    if (!user) {
-      this.logger.warn(`Login failed — user not found`, AuthService.name);
+    if (!user?.password) {
+      this.logger.warn(
+        `Login failed — user not found or no password set`,
+        AuthService.name,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
-      this.logger.warn(
-        `Login failed — wrong password`,
-        AuthService.name,
-      );
+      this.logger.warn(`Login failed — wrong password`, AuthService.name);
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -91,5 +113,93 @@ export class AuthService {
       );
       throw error;
     }
+  }
+
+  async inviteUser(name: string, email: string, role: Role): Promise<boolean> {
+    const existing = await this.prisma.user.findFirst({ where: { email } });
+    if (existing)
+      throw new BadRequestException('A user with that email already exists');
+
+    const user = await this.prisma.user.create({
+      data: { name, email, role, password: null },
+    });
+
+    const token = generateToken();
+    await this.tokenStore.set(`invite:${token}`, user.id, INVITE_TTL);
+
+    const appUrl = process.env.APP_URL ?? 'http://localhost:5173';
+    this.mailService.sendMail(
+      email,
+      "You've been invited to QuoteIQ",
+      inviteEmailHtml(name, `${appUrl}/invite/${token}`),
+    );
+
+    this.logger.info(`Invite sent — userId: ${user.id}`, AuthService.name);
+    return true;
+  }
+
+  async acceptInvite(token: string, password: string): Promise<boolean> {
+    const userId = await this.tokenStore.get(`invite:${token}`);
+    if (!userId)
+      throw new BadRequestException('Invalid or expired invite link');
+
+    const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    await this.tokenStore.del(`invite:${token}`);
+    this.logger.info(`Invite accepted — userId: ${userId}`, AuthService.name);
+    return true;
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({ where: { email } });
+    // Always return without error — never reveal whether an email exists
+    if (!user?.password) return;
+
+    const token = generateToken();
+    await this.tokenStore.set(`reset:${token}`, user.id, RESET_TTL);
+
+    const appUrl = process.env.APP_URL ?? 'http://localhost:5173';
+    this.mailService.sendMail(
+      email,
+      'Reset your QuoteIQ password',
+      passwordResetEmailHtml(`${appUrl}/reset-password/${token}`),
+    );
+
+    this.logger.info(
+      `Password reset requested — userId: ${user.id}`,
+      AuthService.name,
+    );
+  }
+
+  async resetPassword(token: string, password: string): Promise<boolean> {
+    const userId = await this.tokenStore.get(`reset:${token}`);
+    if (!userId) throw new BadRequestException('Invalid or expired reset link');
+
+    const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    await this.tokenStore.del(`reset:${token}`);
+    this.logger.info(
+      `Password reset completed — userId: ${userId}`,
+      AuthService.name,
+    );
+    return true;
+  }
+
+  async getUserById(id: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async listUsers(): Promise<User[]> {
+    return this.prisma.user.findMany({ orderBy: { name: 'asc' } });
   }
 }

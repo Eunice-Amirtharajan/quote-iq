@@ -19,6 +19,10 @@ import PublicQuotePage from "./pages/PublicQuotePage";
 import DocumentsPage from "./pages/DocumentsPage";
 import PlaybookPage from "./pages/PlaybookPage";
 import ClientsPage from "./pages/ClientsPage";
+import UsersPage from "./pages/UsersPage";
+import AcceptInvitePage from "./pages/AcceptInvitePage";
+import RequestPasswordResetPage from "./pages/RequestPasswordResetPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
@@ -62,6 +66,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/invite/:token" element={<AcceptInvitePage />} />
+      <Route path="/reset-password" element={<RequestPasswordResetPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
       <Route path="/view-quotation/:token" element={<PublicQuotePage />} />
       <Route
         path="*"
@@ -77,6 +84,7 @@ function AppRoutes() {
                   element={<QuotationDetailRoute />}
                 />
                 <Route path="/clients" element={<ClientsPage />} />
+                <Route path="/users" element={<UsersPage />} />
                 <Route path="/winloss" element={<WinLossPage />} />
                 <Route path="/documents" element={<DocumentsPage />} />
                 <Route path="/playbook" element={<PlaybookPage />} />
