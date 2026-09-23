@@ -12,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { z, ZodError } from 'zod';
 import {
+  ClientStatType,
   ConversionLabel,
   ConversionScoreType,
   Recommendation,
@@ -80,12 +81,24 @@ const BucketStatSchema = z.object({
   approvalRate: z.number(),
 });
 
+const ClientStatSchema = z.object({
+  clientId: z.string(),
+  clientName: z.string(),
+  totalQuotes: z.number(),
+  approved: z.number(),
+  rejected: z.number(),
+  approvalRate: z.number(),
+  avgDealSize: z.number(),
+  totalRevenue: z.number(),
+});
+
 const WinLossStatsSchema = z.object({
   approvalRate: z.number(),
   avgApprovedDeal: z.number(),
   avgRejectedDeal: z.number(),
   byRep: z.array(RepStatSchema),
   byDealSize: z.array(BucketStatSchema),
+  byClient: z.array(ClientStatSchema),
 });
 
 export type LessonsLearnedType = z.infer<typeof LessonsLearnedResponseSchema>;
@@ -172,7 +185,9 @@ export class AIService implements OnModuleInit {
     const escapedTitle = escapeXml(quotation.title);
     const notes = quotation.notes ? `- Notes: ${quotation.notes}` : '';
     const escapedNotes = escapeXml(notes);
-    const escapedClientName = escapeXml(quotation.clientName);
+    const escapedClientName = escapeXml(
+      (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
+    );
     return `
 You are a sales intelligence assistant. Analyse this quotation and provide a structured assessment.
 
@@ -316,7 +331,7 @@ strong contradicting signals. Justify your reasoning.
 
     const quotation = await this.prisma.quotation.findFirst({
       where: { id: quotationId },
-      include: { items: true, createdBy: true },
+      include: { items: true, createdBy: true, client: true },
     });
 
     if (!quotation) {
@@ -327,13 +342,9 @@ strong contradicting signals. Justify your reasoning.
       throw new InternalServerErrorException(`Quotation has missing relations`);
     }
 
-    // History by matching clientName (case-insensitive) across all quotations
     const clientHistory = await this.prisma.quotation.findMany({
       where: {
-        clientName: {
-          equals: quotation.clientName,
-          mode: 'insensitive',
-        },
+        clientId: quotation.clientId,
         id: { not: quotationId },
         createdAt: { lt: quotation.createdAt },
       },
@@ -489,7 +500,7 @@ strong contradicting signals. Justify your reasoning.
 
     const history = await this.prisma.quotation.findMany({
       where: {
-        clientName: { equals: quotation.clientName, mode: 'insensitive' },
+        clientId: quotation.clientId,
         id: { not: quotationId },
         createdAt: { lt: quotation.createdAt },
       },
@@ -736,12 +747,93 @@ strong contradicting signals. Justify your reasoning.
       };
     });
 
+    // By client — grouped in SQL, one row per (clientId, status)
+    const clientRowsRaw = await this.prisma.quotation.groupBy({
+      by: ['clientId', 'status'],
+      where: {
+        status: {
+          in: [QuotationStatus.APPROVED, QuotationStatus.REJECTED, QuotationStatus.SENT],
+        },
+      },
+      _count: { _all: true },
+      _sum: { total: true },
+      _avg: { total: true },
+    });
+    type ClientRow = {
+      clientId: string;
+      status: string;
+      _count: { _all: number };
+      _sum: { total: number | null };
+      _avg: { total: number | null };
+    };
+    const clientRows = clientRowsRaw as unknown as ClientRow[];
+
+    const clientIds = [...new Set(clientRows.map((r) => r.clientId))];
+    const clientRecords = await this.prisma.client.findMany({
+      where: { id: { in: clientIds } },
+      select: { id: true, name: true },
+    });
+    const clientNameMap = Object.fromEntries(
+      clientRecords.map((c: { id: string; name: string }) => [c.id, c.name]),
+    );
+
+    type ClientAggEntry = {
+      clientName: string;
+      totalQuotes: number;
+      approved: number;
+      rejected: number;
+      totalRevenue: number;
+      allTotals: number[];
+    };
+    const clientAgg = new Map<string, ClientAggEntry>();
+    for (const row of clientRows) {
+      if (!clientAgg.has(row.clientId)) {
+        clientAgg.set(row.clientId, {
+          clientName: clientNameMap[row.clientId] ?? 'Unknown',
+          totalQuotes: 0,
+          approved: 0,
+          rejected: 0,
+          totalRevenue: 0,
+          allTotals: [],
+        });
+      }
+      const entry = clientAgg.get(row.clientId)!;
+      entry.totalQuotes += row._count._all;
+      if (row._sum.total != null) entry.allTotals.push(row._sum.total);
+      if (row.status === QuotationStatus.APPROVED) {
+        entry.approved += row._count._all;
+        entry.totalRevenue += row._sum.total ?? 0;
+      }
+      if (row.status === QuotationStatus.REJECTED) {
+        entry.rejected += row._count._all;
+      }
+    }
+    const byClient: ClientStatType[] = [...clientAgg.entries()]
+      .map(([clientId, e]) => ({
+        clientId,
+        clientName: e.clientName,
+        totalQuotes: e.totalQuotes,
+        approved: e.approved,
+        rejected: e.rejected,
+        approvalRate:
+          e.approved + e.rejected > 0
+            ? Math.round((e.approved / (e.approved + e.rejected)) * 1000) / 10
+            : 0,
+        avgDealSize:
+          e.allTotals.length > 0
+            ? Math.round(e.allTotals.reduce((s, v) => s + v, 0) / e.allTotals.length)
+            : 0,
+        totalRevenue: Math.round(e.totalRevenue),
+      }))
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
     const result: WinLossStatsType = {
       approvalRate,
       avgApprovedDeal,
       avgRejectedDeal,
       byRep,
       byDealSize,
+      byClient,
     };
 
     // Prisma cannot use null in a compound unique key lookup, so we manage
@@ -784,6 +876,34 @@ strong contradicting signals. Justify your reasoning.
       throw new BadRequestException('Please enter a question.');
     }
     return trimmed;
+  }
+
+  /**
+   * Cheap intent classifier — one Groq call with the smallest model, max 1 output token.
+   * Answers only: does the user intend to ask a genuine question, or is this noise?
+   * Domain-agnostic by design: "Hi", "thanks", "test 123", gibberish → N.
+   * "What is ROI?", "How do I handle objections?" → Y regardless of topic.
+   * Saves the full embedding + rerank + answer pipeline for real questions only.
+   */
+  private async isGenuineQuestion(question: string): Promise<boolean> {
+    const response = await this.groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      max_tokens: 1,
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an intent classifier. Answer only "Y" or "N".
+Is the user's message a genuine question or information request?
+Answer "N" for: greetings (hi, hello, hey), acknowledgements (thanks, ok, great),
+test messages (test, 123, asdf), single words with no question intent, or gibberish.
+Answer "Y" for: any real question, even short ones like "What is ROI?" or "How?".`,
+        },
+        { role: 'user', content: question },
+      ],
+    });
+    const verdict = response.choices[0]?.message?.content?.trim().toUpperCase();
+    return verdict === 'Y';
   }
 
   private calculateDealVsAverage(
@@ -836,7 +956,9 @@ Client history (last ${clientHistory.length} deals, excluding this one):
     clientHistoryBlock: string,
   ): string {
     const escapedTitle = escapeXml(quotation.title);
-    const escapedClientName = escapeXml(quotation.clientName);
+    const escapedClientName = escapeXml(
+      (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
+    );
     const quoteNotes = quotation.notes ? `Notes: ${quotation.notes}` : '';
     const escapedNotes = escapeXml(quoteNotes);
 
@@ -934,9 +1056,16 @@ Answer in 2–4 sentences. Be direct and factual.`;
   ): Promise<QuotationAnswerType> {
     const trimmed = this.validateQuestion(question);
 
+    const genuine = await this.isGenuineQuestion(trimmed);
+    if (!genuine) {
+      throw new BadRequestException(
+        'Please ask a question related to this quotation.',
+      );
+    }
+
     const quotation = await this.prisma.quotation.findFirst({
       where: { id: quotationId },
-      include: { items: true, createdBy: true },
+      include: { items: true, createdBy: true, client: true },
     });
     if (!quotation) {
       throw new NotFoundException(`Quotation ${quotationId} not found`);
@@ -944,11 +1073,11 @@ Answer in 2–4 sentences. Be direct and factual.`;
 
     const clientHistory = await this.prisma.quotation.findMany({
       where: {
-        clientName: { equals: quotation.clientName, mode: 'insensitive' },
+        clientId: quotation.clientId,
         id: { not: quotationId },
         createdAt: { lt: quotation.createdAt },
       },
-      include: { items: true, createdBy: true },
+      include: { items: true, createdBy: true, client: true },
       orderBy: { createdAt: 'desc' },
       take: 5,
     });
@@ -1115,15 +1244,16 @@ Answer in 2–4 sentences. Be direct and factual.`;
     );
   }
 
-  private async searchDocumentChunks(query: string): Promise<
-    Array<{
+  private async searchDocumentChunks(query: string): Promise<{
+    chunks: Array<{
       id: string;
       documentId: string;
       chunkIndex: number;
       content: string;
       documentTitle: string;
-    }>
-  > {
+    }>;
+    bestDistance: number;
+  }> {
     const embeddingResponse = await this.openAI.embeddings.create({
       model: 'text-embedding-3-small',
       input: query,
@@ -1138,9 +1268,12 @@ Answer in 2–4 sentences. Be direct and factual.`;
           chunkIndex: number;
           content: string;
           documentTitle: string;
+          distance: number;
         }>
       >`
-        SELECT dc.id, dc."documentId", dc."chunkIndex", dc.content, d.filename AS "documentTitle"
+        SELECT dc.id, dc."documentId", dc."chunkIndex", dc.content,
+               d.filename AS "documentTitle",
+               (dc.embedding <=> ${vector}::vector) AS distance
         FROM "DocumentChunk" dc
         JOIN "Document" d ON d.id = dc."documentId"
         WHERE d.status = 'READY'
@@ -1165,13 +1298,24 @@ Answer in 2–4 sentences. Be direct and factual.`;
       `,
     ]);
 
+    // Cosine distance of the closest chunk — 0 = identical, 2 = opposite.
+    // Values above ~0.7 mean no meaningful overlap with the corpus.
+    const bestDistance = vectorResults.length > 0 ? vectorResults[0].distance : 2;
+
+    type ChunkRow = {
+      id: string;
+      documentId: string;
+      chunkIndex: number;
+      content: string;
+      documentTitle: string;
+    };
+
     // RRF fusion
-    const scoreMap = new Map<
-      string,
-      { chunk: (typeof vectorResults)[0]; score: number }
-    >();
+    const scoreMap = new Map<string, { chunk: ChunkRow; score: number }>();
     vectorResults.forEach((r, i) => {
-      scoreMap.set(r.id, { chunk: r, score: 1 / (60 + i) });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { distance, ...row } = r;
+      scoreMap.set(r.id, { chunk: row, score: 1 / (60 + i) });
     });
     keywordResults.forEach((r, i) => {
       const existing = scoreMap.get(r.id);
@@ -1183,10 +1327,12 @@ Answer in 2–4 sentences. Be direct and factual.`;
       }
     });
 
-    return [...scoreMap.values()]
+    const chunks = [...scoreMap.values()]
       .sort((a, b) => b.score - a.score)
       .slice(0, 8)
       .map((v) => v.chunk);
+
+    return { chunks, bestDistance };
   }
 
   private async rerankChunks(
@@ -1268,10 +1414,14 @@ ${numbered}`;
       );
     }
 
-    const topChunks = await this.searchDocumentChunks(trimmed);
-    if (topChunks.length === 0) {
+    const { chunks: topChunks, bestDistance } =
+      await this.searchDocumentChunks(trimmed);
+
+    // Cosine distance > 0.7 means even the closest chunk has little overlap with the question.
+    // Skip the rerank + LLM call — the corpus does not contain relevant content.
+    if (bestDistance > 0.7 || topChunks.length === 0) {
       return {
-        answer: 'No relevant playbook content found to answer this question.',
+        answer: 'I could not find a relevant answer in the uploaded playbook documents.',
         citations: [],
       };
     }
@@ -1325,6 +1475,14 @@ ${context}
   ): Promise<LessonsLearnedAnswerType> {
     try {
       const trimmed = this.validateQuestion(question);
+
+      const genuine = await this.isGenuineQuestion(trimmed);
+      if (!genuine) {
+        throw new BadRequestException(
+          'Please ask a question related to engineering lessons learned.',
+        );
+      }
+
       const chunks = await this.searchLessonsLearned(trimmed);
       if (chunks.length === 0) {
         return {
@@ -1394,7 +1552,7 @@ ${context}
   ): Promise<void> {
     const quotation = await this.prisma.quotation.findUnique({
       where: { id: quotationId },
-      include: { items: true },
+      include: { items: true, client: true },
     });
     if (!quotation) return;
 
@@ -1403,7 +1561,7 @@ ${context}
       .join(', ');
     const searchText = [
       `title: ${quotation.title}`,
-      `client: ${quotation.clientName}`,
+      `client: ${(quotation as unknown as { client?: { name: string } }).client?.name ?? ''}`,
       `items: ${itemsText}`,
       `total: ${quotation.total}`,
       `outcome: ${quotation.status}`,
@@ -1509,7 +1667,7 @@ ${context}
       select: {
         id: true,
         title: true,
-        clientName: true,
+        client: { select: { name: true } },
         total: true,
         status: true,
       },
@@ -1522,7 +1680,7 @@ ${context}
       const result: SimilarQuotationType = {
         id: q.id,
         title: q.title,
-        clientName: q.clientName,
+        clientName: (q as unknown as { client?: { name: string } }).client?.name ?? '',
         total: q.total,
         status: String(q.status),
         score,

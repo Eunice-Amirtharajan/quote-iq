@@ -1,4 +1,25 @@
-import { ObjectType, Field, Int, Float } from '@nestjs/graphql';
+import { ObjectType, Field, Int, Float, InputType } from '@nestjs/graphql';
+
+@InputType()
+export class DateRangeInput {
+  @Field(() => String, { nullable: true, description: 'ISO-8601 start date (inclusive)' })
+  from?: string;
+
+  @Field(() => String, { nullable: true, description: 'ISO-8601 end date (inclusive)' })
+  to?: string;
+}
+
+@ObjectType()
+export class TrendIndicator {
+  @Field(() => Float, { description: 'Absolute change vs previous equivalent period' })
+  delta!: number;
+
+  @Field(() => Float, { description: 'Percentage change vs previous equivalent period' })
+  pct!: number;
+
+  @Field(() => String, { description: 'up | down | flat' })
+  direction!: string;
+}
 
 @ObjectType({ description: 'Aggregated pipeline statistics for the dashboard' })
 export class DashboardStatsType {
@@ -22,4 +43,23 @@ export class DashboardStatsType {
 
   @Field(() => Float, { description: 'Total value of all APPROVED quotations' })
   totalApprovedValue!: number;
+
+  @Field(() => Float, { description: 'Average deal size across approved quotations' })
+  avgDealSize!: number;
+
+  // Trend indicators — null when there is no previous period to compare against
+  @Field(() => TrendIndicator, { nullable: true })
+  totalQuotationsTrend?: TrendIndicator | null;
+
+  @Field(() => TrendIndicator, { nullable: true })
+  conversionRateTrend?: TrendIndicator | null;
+
+  @Field(() => TrendIndicator, { nullable: true })
+  totalPipelineValueTrend?: TrendIndicator | null;
+
+  @Field(() => TrendIndicator, { nullable: true })
+  totalApprovedValueTrend?: TrendIndicator | null;
+
+  @Field(() => TrendIndicator, { nullable: true })
+  avgDealSizeTrend?: TrendIndicator | null;
 }

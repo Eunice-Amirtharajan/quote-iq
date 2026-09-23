@@ -47,8 +47,6 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 These are deliberate scope decisions for a portfolio build, not oversights.
 
-**No Client entity** — `clientName` is a free-text field rather than a relational `Client` model. The differentiator here is the quoting intelligence (rules engine, LLM validation, Zod safety, prompt injection guards), not CRM breadth.
-
 **Email notifications via Mailtrap** — Status transitions fire transactional emails: DRAFT→SENT notifies all Sales Managers, SENT→APPROVED/REJECTED notifies the rep. Delivered via Nodemailer + [Mailtrap Email Sandbox](https://mailtrap.io) (catches all outgoing mail in a safe inbox — no real emails sent). In production this would swap to a live SMTP provider (SendGrid, Resend, etc.) by updating the `MAIL_*` env vars.
 
 **No GDPR data subject flows** — There are no "export my data" or "delete my account" self-service endpoints. Data deletion is covered structurally (cascade deletes on all related records) but a full Article 17/20 implementation is out of scope.
@@ -60,12 +58,12 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 ## Features
 
 ### Quotation Management
-- Sales reps create quotations with a free-text client name and line items with tax calculation
+- Sales reps create quotations by selecting or creating a client via the `ClientSelector` combobox (search existing clients or create on-the-fly), then adding line items with tax calculation
 - Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
 - Status workflow: DRAFT → SENT (rep submits for approval) → APPROVED / REJECTED (manager)
 - Role-based transition enforcement — SALES_REP cannot approve or reject (blocked at service layer)
 - Full audit trail via `StatusHistory` — creation, every edit (fields changed listed in note), and every status transition logged with actor and timestamp; timeline visible on quotation detail
-- Quotation list filtering — status dropdown + debounced search (title, number, client name) with input sanitization (trim + 100-char cap at both frontend and backend)
+- Quotation list filtering — status dropdown + debounced search (title, number, client name via JOIN) with input sanitization
 - Quotation list pagination — "Load more" appends the next page (20 per page, `take`/`skip` at API level)
 - Edit quotation (DRAFT only) — reuses create modal with pre-populated fields, rep ownership enforced
 
@@ -76,7 +74,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 - Conversion likelihood score badge on SENT quotations (0–100, HIGH/MEDIUM/LOW) — deterministic, cached 24h
 - Natural language Q&A on quotation detail — ask free-text questions about a specific quotation; Groq answers in 2–4 sentences scoped strictly to that quotation's data
 - Similar-quotes panel — semantic search finds past quotations with the nearest embedding; retrieval is hybrid (cosine similarity + keyword BM25 fallback)
-- Win/loss analysis page — overall approval rate, avg deal sizes, breakdown by rep and deal-size bucket (`<5k`, `5k–20k`, `>20k`), cached 1h
+- Win/loss analysis page — overall approval rate, avg deal sizes, breakdown by rep, by client (relational FK grouping), and by deal-size bucket (`<5k`, `5k–20k`, `>20k`), cached 1h
 
 ### RAG Knowledge Base (F1a — Playbook)
 - Sales Managers upload PDF playbook documents via the Documents page
@@ -108,7 +106,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 2. **Groq** receives the structured data plus the computed recommendation as an anchor — it can read unstructured signals (notes, line item descriptions) and override the rules, but only to upgrade or provide nuance
 3. **Hard override** — if rules say RECONSIDER, that verdict is locked regardless of Groq output. Structured data cannot be overridden by qualitative reads
 4. **Zod validates** every AI response before it's used — TypeScript types don't protect at runtime
-5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
+5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name from `client.name`) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
 6. **Self-healing fallback** — if the primary model (Llama 3.3 70B) is overloaded, the service automatically retries with Llama 3.1 8B then Mixtral 8x7B
 7. **Scoped NL Q&A** — `askAboutQuotation` uses the system/user message split to confine Groq strictly to one quotation's data; off-topic questions receive a fixed refusal without any additional DB query
 
@@ -219,7 +217,7 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 
 | Role | Access |
 |---|---|
-| SALES_REP | Own quotations only. Can create (with free-text client name) and submit DRAFT → SENT for manager approval |
+| SALES_REP | Own quotations only. Can create quotations (select/create client via combobox) and submit DRAFT → SENT for manager approval |
 | SALES_MANAGER | Full team visibility. Can approve/reject SENT quotations. Access to all AI features, dashboard, documents, and win/loss page |
 
 ---
@@ -230,7 +228,7 @@ VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on 
 npx prisma db seed
 ```
 
-Creates two roles (SALES_MANAGER and SALES_REP), three demo users (one manager, two sales reps), and sample quotations with varied client names, statuses, and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
+Creates two roles (SALES_MANAGER and SALES_REP), three demo users (one manager, two sales reps), four seed clients (Bauer Logistics GmbH, Vogel Digital AG, Fischer Tech Solutions, Richter Manufacturing), and sample quotations with varied statuses and amounts. The seed password is controlled by `SEED_PASSWORD` in `.env` — defaults to `password123` if not set.
 
 ---
 
@@ -242,7 +240,7 @@ quote-iq/
 ├── backend/
 │   ├── prisma/
 │   │   ├── migrations/
-│   │   ├── schema.prisma   # 9 models: User, Quotation, QuotationItem, StatusHistory,
+│   │   ├── schema.prisma   # 10 models: User, Client, Quotation, QuotationItem, StatusHistory,
 │   │   └── seed.ts         #   AIInsight, PlaybookChunk, Document, DocumentChunk, QuotationEmbedding
 │   └── src/
 │       ├── common/

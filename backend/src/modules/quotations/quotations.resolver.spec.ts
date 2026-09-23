@@ -30,7 +30,7 @@ const mockQuotation = {
   id: 'q-1',
   quotationNumber: 'QT-2026-0001',
   title: 'Enterprise License',
-  clientName: 'Hans Bauer',
+  client: { id: 'c-1', name: 'Hans Bauer' },
   status: QuotationStatus.DRAFT,
   total: 7140,
   createdById: 'user-1',
@@ -129,7 +129,7 @@ describe('QuotationsResolver', () => {
     it('creates and returns quotation', async () => {
       const input = {
         title: 'New Quote',
-        clientName: 'Hans Bauer',
+        clientId: 'c-1',
         taxRate: 19,
         items: [],
       };
@@ -148,7 +148,7 @@ describe('QuotationsResolver', () => {
       const manager = { ...mockUser, role: Role.SALES_MANAGER };
       const input = {
         title: 'Manager Quote',
-        clientName: 'Another Client',
+        clientId: 'c-2',
         taxRate: 0,
         items: [],
       };

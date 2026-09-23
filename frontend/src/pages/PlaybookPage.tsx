@@ -114,7 +114,7 @@ export default function PlaybookPage() {
         <div className="mb-4">
           <h1 className="text-xl font-semibold text-gray-900">Sales Playbook</h1>
           <p className="text-sm text-gray-400 mt-0.5">
-            Ask anything about your approved playbook documents
+            Ask about objection handling, pricing strategy, discount policy, competitor positioning, and more
           </p>
         </div>
         <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-gray-200 rounded-xl bg-gray-50">
@@ -135,7 +135,7 @@ export default function PlaybookPage() {
       <div className="mb-4">
         <h1 className="text-xl font-semibold text-gray-900">Sales Playbook</h1>
         <p className="text-sm text-gray-400 mt-0.5">
-          Ask anything about your approved playbook documents
+          Ask about objection handling, pricing strategy, discount policy, competitor positioning, and more
         </p>
       </div>
 
@@ -146,10 +146,24 @@ export default function PlaybookPage() {
             <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
               <span className="text-xl">📖</span>
             </div>
-            <p className="text-sm text-gray-500 font-medium">Ask the playbook anything</p>
-            <p className="text-xs text-gray-300 mt-1 max-w-xs">
-              e.g. "How should I handle pricing objections?" or "What's our standard discount policy?"
-            </p>
+            <p className="text-sm text-gray-500 font-medium">What would you like to know?</p>
+            <div className="mt-3 flex flex-col gap-1.5 text-left max-w-xs">
+              {[
+                "How should I handle a prospect pushing back on price?",
+                "What discount levels require manager approval?",
+                "How do we position against [competitor]?",
+                "What's the recommended follow-up cadence after a demo?",
+              ].map((hint) => (
+                <button
+                  key={hint}
+                  type="button"
+                  onClick={() => setInput(hint)}
+                  className="text-xs text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-left px-3 py-1.5 rounded-lg transition-colors border border-gray-100"
+                >
+                  {hint}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -190,7 +204,7 @@ export default function PlaybookPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend().catch(() => {}); } }}
-          placeholder="Ask about the sales playbook…"
+          placeholder="e.g. How do I handle a price objection?"
           className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
           disabled={loading}
         />

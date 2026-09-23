@@ -45,7 +45,7 @@ export class DocumentsResolver {
     return this.documentsService.rejectDocument(id, reason, user) as Promise<DocumentType>;
   }
 
-  @Mutation(() => Boolean, { description: 'Delete a document and its chunks. Blocked while SCANNING.' })
+  @Mutation(() => Boolean, { description: 'Delete a document and its chunks.' })
   @Roles(Role.SALES_MANAGER)
   async deleteDocument(
     @Args('id') id: string,

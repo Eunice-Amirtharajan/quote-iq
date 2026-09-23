@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useQuery, useMutation } from "@apollo/client/react";
+import { useQuery, useMutation, useApolloClient } from "@apollo/client/react";
 import { useScoreSocket } from "../hooks/useScoreSocket";
 import {
   QUOTATION_QUERY,
@@ -7,6 +7,7 @@ import {
   CONVERSION_SCORE_QUERY,
   STATUS_HISTORY_QUERY,
   SIMILAR_QUOTATIONS_QUERY,
+  QUOTATION_SNAPSHOTS_QUERY,
 } from "../graphql/queries";
 import {
   UPDATE_QUOTATION_STATUS_MUTATION,
@@ -37,7 +38,7 @@ interface QuotationDetail {
   taxAmount: number;
   total: number;
   createdAt: string;
-  clientName: string;
+  client: { id: string; name: string };
   publicToken: string;
   createdBy: {
     id: string;
@@ -369,7 +370,7 @@ function StatusActions({
 interface SimilarQuotation {
   id: string;
   title: string;
-  clientName: string;
+  clientName: string; // derived field on SimilarQuotationType (returned from backend)
   total: number;
   status: string;
   score: number;
@@ -429,9 +430,150 @@ function SimilarQuotationsPanel({ quotationId }: Readonly<{ quotationId: string 
   );
 }
 
+interface SnapshotContent {
+  version: number;
+  title?: string;
+  clientId?: string;
+  notes?: string | null;
+  taxRate?: number;
+  items?: { description: string; quantity: number; unitPrice: number; lineTotal: number; sortOrder: number }[];
+}
+
+interface Snapshot {
+  id: string;
+  quotationId: string;
+  content: string;
+  createdAt: string;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Title",
+  clientId: "Client",
+  notes: "Notes",
+  taxRate: "Tax rate",
+  items: "Line items",
+};
+
+function diffSnapshots(
+  prev: SnapshotContent,
+  next: SnapshotContent,
+): { field: string; label: string; before: string; after: string }[] {
+  const diffs: { field: string; label: string; before: string; after: string }[] = [];
+  const fields: (keyof SnapshotContent)[] = ["title", "clientId", "notes", "taxRate", "items"];
+
+  for (const f of fields) {
+    const before = JSON.stringify(prev[f] ?? null);
+    const after = JSON.stringify(next[f] ?? null);
+    if (before !== after) {
+      const fmt = (v: string) => {
+        if (f === "taxRate") return `${JSON.parse(v) ?? 0}%`;
+        if (f === "items") {
+          const arr: { description: string; quantity: number; unitPrice: number }[] = JSON.parse(v) ?? [];
+          return arr.map((i) => `${i.description} × ${i.quantity} @ €${i.unitPrice}`).join("; ") || "—";
+        }
+        return JSON.parse(v) ?? "—";
+      };
+      diffs.push({ field: f, label: FIELD_LABELS[f] ?? f, before: fmt(before), after: fmt(after) });
+    }
+  }
+  return diffs;
+}
+
+function VersionHistory({ quotationId }: Readonly<{ quotationId: string }>) {
+  const [open, setOpen] = useState(false);
+  const { data, loading } = useQuery<{ quotationSnapshots: Snapshot[] }>(
+    QUOTATION_SNAPSHOTS_QUERY,
+    { variables: { quotationId }, skip: !open, fetchPolicy: "cache-and-network" },
+  );
+
+  const snapshots = data?.quotationSnapshots ?? [];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-sm font-medium text-gray-900 hover:bg-gray-50 rounded-xl transition-colors"
+      >
+        <span>Version history</span>
+        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-100 px-5 pb-5">
+          {loading && (
+            <p className="text-xs text-gray-400 pt-4 animate-pulse">Loading…</p>
+          )}
+
+          {!loading && snapshots.length === 0 && (
+            <p className="text-xs text-gray-400 pt-4">
+              No edits recorded yet. Snapshots are saved whenever a draft is updated.
+            </p>
+          )}
+
+          {!loading && snapshots.length > 0 && (
+            <ol className="mt-4 space-y-5">
+              {snapshots.map((snap, idx) => {
+                // Snapshots arrive newest-first (desc). Each snapshot captures the
+                // state BEFORE a save, so it represents vN being replaced by vN+1.
+                const before: SnapshotContent = JSON.parse(snap.content);
+                // The snapshot at idx+1 is the one created just before this one
+                // (older), so diffing older→newer gives us what changed in this edit.
+                const older: SnapshotContent | null =
+                  idx < snapshots.length - 1
+                    ? JSON.parse(snapshots[idx + 1].content)
+                    : null;
+                const diffs = older ? diffSnapshots(older, before) : [];
+                const toVersion = before.version + 1;
+
+                return (
+                  <li key={snap.id} className="border-l-2 border-gray-100 pl-4">
+                    <p className="text-xs font-medium text-gray-700">
+                      v{toVersion}{" "}
+                      <span className="font-normal text-gray-400">
+                        ·{" "}
+                        {new Date(snap.createdAt).toLocaleDateString("en-DE", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </p>
+
+                    {!older && (
+                      <p className="text-xs text-gray-400 mt-1">First edit — no prior version to compare</p>
+                    )}
+
+                    {older && diffs.length === 0 && (
+                      <p className="text-xs text-gray-400 mt-1">No field changes detected</p>
+                    )}
+
+                    {diffs.map((d) => (
+                      <div key={d.field} className="mt-2">
+                        <p className="text-xs font-medium text-gray-500">{d.label}</p>
+                        <div className="text-xs text-red-500 bg-red-50 rounded px-2 py-1 mt-0.5 line-clamp-2">
+                          − {String(d.before)}
+                        </div>
+                        <div className="text-xs text-green-700 bg-green-50 rounded px-2 py-1 mt-0.5 line-clamp-2">
+                          + {String(d.after)}
+                        </div>
+                      </div>
+                    ))}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
   const { user } = useAuth();
   const isManager = user?.role === "SALES_MANAGER";
+  const apolloClient = useApolloClient();
   const [showEdit, setShowEdit] = useState(false);
   const [showCopyConfirmation, setShowCopyConfirmation] = useState(false);
   const { data, loading, error, refetch } = useQuery<{
@@ -492,7 +634,7 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             id: q.id,
             version: q.version,
             title: q.title,
-            clientName: q.clientName,
+            client: q.client,
             notes: q.notes ?? null,
             taxRate: q.taxRate,
             items: q.items,
@@ -500,6 +642,9 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
           onClose={() => {
             setShowEdit(false);
             refetch();
+            void apolloClient.refetchQueries({
+              include: [QUOTATION_SNAPSHOTS_QUERY],
+            });
           }}
           onCreated={() => setShowEdit(false)}
         />
@@ -523,9 +668,9 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Left — main content */}
-        <div className="col-span-2 space-y-6">
+        <div className="md:col-span-2 space-y-6">
           {/* Line items */}
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
@@ -654,11 +799,12 @@ export default function QuotationDetailPage({ id, onBack }: Readonly<Props>) {
             <h3 className="text-sm font-medium text-gray-900 mb-4">Client</h3>
             <div>
               <p className="text-xs text-gray-400">Name</p>
-              <p className="text-sm text-gray-700">{q.clientName}</p>
+              <p className="text-sm text-gray-700">{q.client.name}</p>
             </div>
           </div>
 
           <StatusTimeline quotationId={id} />
+          <VersionHistory quotationId={id} />
           <AIInsightCard quotationId={id} />
           <SimilarQuotationsPanel quotationId={id} />
           {q.status === "SENT" && isManager && (

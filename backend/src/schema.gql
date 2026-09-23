@@ -14,6 +14,35 @@ type BucketStatType {
   total: Int!
 }
 
+"""Approval and revenue stats for a single client"""
+type ClientStatType {
+  approvalRate: Float!
+  approved: Int!
+
+  """Average deal size across all quotes"""
+  avgDealSize: Float!
+  clientId: ID!
+  clientName: String!
+  rejected: Int!
+  totalQuotes: Int!
+
+  """Sum of approved quote totals"""
+  totalRevenue: Float!
+}
+
+"""A client organisation associated with quotations"""
+type ClientType {
+  createdAt: DateTime!
+  email: String
+  id: ID!
+  name: String!
+}
+
+type ClientsPageType {
+  items: [ClientType!]!
+  total: Int!
+}
+
 enum ConversionLabel {
   HIGH
   LOW
@@ -31,7 +60,7 @@ type ConversionScoreType {
 }
 
 input CreateQuotationInput {
-  clientName: String!
+  clientId: ID!
   items: [QuotationItemInput!]!
   notes: String
   taxRate: Float
@@ -40,26 +69,42 @@ input CreateQuotationInput {
 
 """Aggregated pipeline statistics for the dashboard"""
 type DashboardStatsType {
+  """Average deal size across approved quotations"""
+  avgDealSize: Float!
+  avgDealSizeTrend: TrendIndicator
+
   """Approval rate as percentage e.g. 33.3"""
   conversionRate: Float!
+  conversionRateTrend: TrendIndicator
 
   """Quotations that were approved"""
   totalApproved: Int!
 
   """Total value of all APPROVED quotations"""
   totalApprovedValue: Float!
+  totalApprovedValueTrend: TrendIndicator
 
   """Total value of all SENT quotations"""
   totalPipelineValue: Float!
+  totalPipelineValueTrend: TrendIndicator
 
   """Total number of quotations"""
   totalQuotations: Int!
+  totalQuotationsTrend: TrendIndicator
 
   """Quotations that were rejected"""
   totalRejected: Int!
 
   """Quotations currently in SENT status"""
   totalSent: Int!
+}
+
+input DateRangeInput {
+  """ISO-8601 start date (inclusive)"""
+  from: String
+
+  """ISO-8601 end date (inclusive)"""
+  to: String
 }
 
 """
@@ -104,9 +149,11 @@ type Mutation {
   Answer a free-text question using READY sales-playbook documents (available to Sales Reps and Managers)
   """
   askPlaybook(question: String!): PlaybookAnswerType!
+  createClient(email: String, name: String!): ClientType!
   createQuotation(input: CreateQuotationInput!): QuotationType!
+  deleteClient(id: ID!): Boolean!
 
-  """Delete a document and its chunks. Blocked while SCANNING."""
+  """Delete a document and its chunks."""
   deleteDocument(id: String!): Boolean!
   deleteQuotation(id: ID!): Boolean!
   login(email: String!, password: String!): UserType!
@@ -141,7 +188,7 @@ type PlaybookCitationType {
 
 """A public sales quotation with line items and calculated totals"""
 type PublicQuotationType {
-  """Free-text client name"""
+  """Client name for public display"""
   clientName: String!
   items: [QuotationItemType!]!
 
@@ -150,6 +197,9 @@ type PublicQuotationType {
 
   """Auto-generated number e.g. QT-2026-0001"""
   quotationNumber: String!
+
+  """Rep display name for public display"""
+  repName: String!
 
   """Current status in the pipeline"""
   status: QuotationStatus!
@@ -172,11 +222,14 @@ type PublicQuotationType {
 
 type Query {
   askLessonsLearned(question: String!): LessonsLearnedAnswerType!
+  client(id: ID!): ClientType
+  clients(search: String): [ClientType!]!
+  clientsPage(search: String, skip: Int, take: Int): ClientsPageType!
 
   """Deterministic conversion likelihood score for a quotation"""
   conversionScore(quotationId: ID!): ConversionScoreType!
   conversionScores(quotationIds: [ID!]!): [ConversionScoreType!]!
-  dashboardStats: DashboardStatsType!
+  dashboardStats(range: DateRangeInput): DashboardStatsType!
 
   """List all uploaded documents (managers only)"""
   documents: [DocumentType!]!
@@ -188,6 +241,7 @@ type Query {
   me: UserType!
   quotation(id: ID!): QuotationType
   quotationByToken(token: String!): PublicQuotationType
+  quotationSnapshots(quotationId: ID!): [QuotationSnapshotType!]!
   quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
   salesReps: [SalesRepSummaryType!]!
 
@@ -228,6 +282,16 @@ type QuotationItemType {
   unitPrice: Float!
 }
 
+type QuotationSnapshotType {
+  """
+  JSON-encoded state of the quotation before this edit (title, clientId, notes, taxRate, items)
+  """
+  content: String!
+  createdAt: String!
+  id: ID!
+  quotationId: String!
+}
+
 enum QuotationStatus {
   APPROVED
   DRAFT
@@ -252,8 +316,8 @@ type QuotationSummaryType {
 
 """A sales quotation with line items and calculated totals"""
 type QuotationType {
-  """Free-text client name"""
-  clientName: String!
+  """Associated client"""
+  client: ClientType!
 
   """Creation timestamp"""
   createdAt: DateTime!
@@ -351,8 +415,19 @@ type StatusHistoryType {
   toStatus: QuotationStatus!
 }
 
+type TrendIndicator {
+  """Absolute change vs previous equivalent period"""
+  delta: Float!
+
+  """up | down | flat"""
+  direction: String!
+
+  """Percentage change vs previous equivalent period"""
+  pct: Float!
+}
+
 input UpdateQuotationInput {
-  clientName: String
+  clientId: ID
   items: [QuotationItemInput!]
   notes: String
   taxRate: Float
@@ -396,6 +471,7 @@ type WinLossStatsType {
 
   """Average deal size of rejected quotations"""
   avgRejectedDeal: Float!
+  byClient: [ClientStatType!]!
   byDealSize: [BucketStatType!]!
   byRep: [RepStatType!]!
 }

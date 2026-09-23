@@ -266,10 +266,25 @@ describe('DocumentsService', () => {
       expect(mockPrisma.document.delete).not.toHaveBeenCalled();
     });
 
-    it('throws BadRequestException when document is SCANNING', async () => {
-      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.SCANNING });
+    it('throws BadRequestException when document is SCANNING and scan started recently', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({
+        ...docReady,
+        status: DocumentStatus.SCANNING,
+        updatedAt: new Date(), // just now — scan is active
+      });
       const svc = makeService();
       await expect(svc.deleteDocument('doc-1', manager)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('allows deletion of SCANNING document when scan has been running for over 10 minutes (orphaned)', async () => {
+      mockPrisma.document.findUnique.mockResolvedValue({
+        ...docReady,
+        status: DocumentStatus.SCANNING,
+        updatedAt: new Date(Date.now() - 11 * 60 * 1000), // 11 min ago — stale
+      });
+      const svc = makeService();
+      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
     });
 
     it('allows deletion of PENDING_SCAN document', async () => {

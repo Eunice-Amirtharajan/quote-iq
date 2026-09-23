@@ -28,7 +28,11 @@ test.describe('Quote status workflow', () => {
     await page.goto('/quotations');
     await page.click('button:has-text("New Quotation")');
     await page.fill('input[placeholder*="Software Development"]', quotationTitle);
-    await page.fill('input[placeholder*="Acme Corp"]', 'Status Test Client');
+
+    // ClientSelector: type a new client name and pick "Create ..." from the dropdown
+    await page.fill('input[placeholder*="Search or create a client"]', 'Status Test Client');
+    await page.click('li[role="option"]:has-text("Create")');
+
     await page.fill('input[placeholder="Description"]', 'Status workflow test');
     await page.fill('input[placeholder="Qty"]', '1');
     await page.fill('input[placeholder="0.00"]', '100');

@@ -92,6 +92,33 @@ export class QuotationAnswerType {
   answer!: string;
 }
 
+@ObjectType({ description: 'Approval and revenue stats for a single client' })
+export class ClientStatType {
+  @Field(() => ID)
+  clientId!: string;
+
+  @Field(() => String)
+  clientName!: string;
+
+  @Field(() => Int)
+  totalQuotes!: number;
+
+  @Field(() => Int)
+  approved!: number;
+
+  @Field(() => Int)
+  rejected!: number;
+
+  @Field(() => Float)
+  approvalRate!: number;
+
+  @Field(() => Float, { description: 'Average deal size across all quotes' })
+  avgDealSize!: number;
+
+  @Field(() => Float, { description: 'Sum of approved quote totals' })
+  totalRevenue!: number;
+}
+
 @ObjectType({
   description: 'Aggregated win/loss analysis across all quotations',
 })
@@ -114,6 +141,9 @@ export class WinLossStatsType {
 
   @Field(() => [BucketStatType])
   byDealSize!: BucketStatType[];
+
+  @Field(() => [ClientStatType])
+  byClient!: ClientStatType[];
 }
 
 @ObjectType()

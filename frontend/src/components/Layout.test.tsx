@@ -53,7 +53,7 @@ describe("Layout", () => {
 
   it("renders the QuoteIQ brand name", () => {
     renderLayout(mockManager);
-    expect(screen.getByText("QuoteIQ")).toBeInTheDocument();
+    expect(screen.getAllByText("QuoteIQ").length).toBeGreaterThan(0);
   });
 
   it("renders user name and role", () => {
@@ -123,5 +123,70 @@ describe("Layout", () => {
 
     await waitFor(() => expect(mockSetUser).toHaveBeenCalledWith(null));
     expect(client.clearStore).toHaveBeenCalled();
+  });
+
+  describe("mobile hamburger menu", () => {
+    it("renders the hamburger open-menu button", () => {
+      renderLayout(mockManager);
+      expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();
+    });
+
+    it("renders the mobile brand label", () => {
+      renderLayout(mockManager);
+      // The sidebar title and the mobile top-bar label are both in the DOM
+      const labels = screen.getAllByText("QuoteIQ");
+      expect(labels.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("opens the sidebar when the hamburger button is clicked", async () => {
+      const user = userEvent.setup();
+      renderLayout(mockManager);
+      const aside = screen.getByRole("complementary");
+      // Initially hidden (translate-x-full class applied)
+      expect(aside.className).toContain("-translate-x-full");
+      await user.click(screen.getByRole("button", { name: "Open menu" }));
+      expect(aside.className).toContain("translate-x-0");
+      expect(aside.className).not.toContain("-translate-x-full");
+    });
+
+    it("closes the sidebar via the in-sidebar close button", async () => {
+      const user = userEvent.setup();
+      renderLayout(mockManager);
+      await user.click(screen.getByRole("button", { name: "Open menu" }));
+      const closeBtn = screen.getByRole("button", { name: "Close menu" });
+      await user.click(closeBtn);
+      const aside = screen.getByRole("complementary");
+      expect(aside.className).toContain("-translate-x-full");
+    });
+
+    it("renders the backdrop overlay when sidebar is open", async () => {
+      const user = userEvent.setup();
+      renderLayout(mockManager);
+      expect(screen.queryByRole("presentation")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Open menu" }));
+      // The overlay div has aria-hidden="true" — query by its bg class
+      const overlay = document.querySelector(".bg-black\\/40");
+      expect(overlay).toBeInTheDocument();
+    });
+
+    it("closes the sidebar when the backdrop overlay is clicked", async () => {
+      const user = userEvent.setup();
+      renderLayout(mockManager);
+      await user.click(screen.getByRole("button", { name: "Open menu" }));
+      const overlay = document.querySelector(".bg-black\\/40") as HTMLElement;
+      await user.click(overlay);
+      const aside = screen.getByRole("complementary");
+      expect(aside.className).toContain("-translate-x-full");
+    });
+
+    it("closes the sidebar when a nav link is clicked", async () => {
+      const user = userEvent.setup();
+      renderLayout(mockManager, [], { initialEntries: ["/quotations"] });
+      await user.click(screen.getByRole("button", { name: "Open menu" }));
+      const aside = screen.getByRole("complementary");
+      expect(aside.className).toContain("translate-x-0");
+      await user.click(screen.getByRole("link", { name: "Quotations" }));
+      expect(aside.className).toContain("-translate-x-full");
+    });
   });
 });

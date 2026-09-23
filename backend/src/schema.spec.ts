@@ -21,7 +21,7 @@ describe('GraphQL schema contract', () => {
 
   describe('Query.dashboardStats', () => {
     it('is non-nullable', () => {
-      expect(schema).toContain('dashboardStats: DashboardStatsType!');
+      expect(schema).toContain('dashboardStats(range: DateRangeInput): DashboardStatsType!');
     });
   });
 
@@ -49,12 +49,12 @@ describe('GraphQL schema contract', () => {
       expect(quotationTypeBlock).not.toContain('clientId');
     });
 
-    it('exposes clientName as a String scalar', () => {
+    it('exposes client as ClientType relation', () => {
       const quotationTypeBlock = schema.slice(
         schema.indexOf('type QuotationType'),
         schema.indexOf('}', schema.indexOf('type QuotationType')),
       );
-      expect(quotationTypeBlock).toContain('clientName: String!');
+      expect(quotationTypeBlock).toContain('client: ClientType!');
     });
 
     it('items field is non-nullable list of non-nullable items', () => {

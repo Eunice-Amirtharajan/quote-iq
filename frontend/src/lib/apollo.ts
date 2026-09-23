@@ -6,6 +6,7 @@ if (import.meta.env.PROD === true && !import.meta.env.VITE_API_URL) {
 const httpLink = new HttpLink({
   uri: import.meta.env.VITE_API_URL ?? "http://localhost:4000/graphql",
   credentials: "include",
+  headers: { "Apollo-Require-Preflight": "1" },
 });
 
 export const client = new ApolloClient({

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@apollo/client/react";
 import {
   QUOTATIONS_QUERY,
@@ -14,7 +14,7 @@ interface Quotation {
   id: string;
   quotationNumber: string;
   title: string;
-  clientName: string;
+  client: { id: string; name: string };
   status: string;
   total: number;
   createdAt: string;
@@ -49,10 +49,24 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [repFilter, setRepFilter] = useState<string>("");
+  const [repSearch, setRepSearch] = useState<string>("");
+  const [repOpen, setRepOpen] = useState(false);
+  const repRef = useRef<HTMLDivElement>(null);
   const [searchText, setSearchText] = useState<string>("");
   const [committedSearch, setCommittedSearch] = useState<string>("");
   const [page, setPage] = useState(0);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (repRef.current && !repRef.current.contains(e.target as Node)) {
+        setRepOpen(false);
+        setRepSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const handleSearchChange = (value: string) => {
     setSearchText(value);
@@ -148,7 +162,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
           )}
         </div>
 
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
           <div className="relative flex-1">
             <input
               type="text"
@@ -185,21 +199,74 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
             ))}
           </select>
           {isManager && salesReps.length > 0 && (
-            <select
-              value={repFilter}
-              onChange={(e) => {
-                setRepFilter(e.target.value);
-                setPage(0);
-              }}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
-            >
-              <option value="">All reps</option>
-              {salesReps.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={repRef}>
+              <div className="flex items-center border border-gray-200 rounded-lg bg-white focus-within:ring-2 focus-within:ring-gray-300 overflow-hidden">
+                <input
+                  type="text"
+                  value={
+                    repOpen
+                      ? repSearch
+                      : repFilter
+                        ? (salesReps.find((r) => r.id === repFilter)?.name ?? "")
+                        : ""
+                  }
+                  placeholder={repFilter ? "" : "All reps"}
+                  onChange={(e) => {
+                    setRepSearch(e.target.value);
+                    setRepOpen(true);
+                  }}
+                  onFocus={() => {
+                    setRepSearch("");
+                    setRepOpen(true);
+                  }}
+                  className="px-3 py-2 text-sm w-36 outline-none bg-transparent placeholder-gray-400"
+                />
+                {repFilter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRepFilter("");
+                      setRepSearch("");
+                      setRepOpen(false);
+                      setPage(0);
+                    }}
+                    className="pr-2 text-gray-400 hover:text-gray-600 text-xs leading-none"
+                    aria-label="Clear rep filter"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {repOpen && (
+                <ul className="absolute z-20 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto text-sm">
+                  {salesReps
+                    .filter((r) =>
+                      r.name.toLowerCase().includes(repSearch.toLowerCase()),
+                    )
+                    .map((r) => (
+                      <li key={r.id}>
+                        <button
+                          type="button"
+                          onMouseDown={() => {
+                            setRepFilter(r.id);
+                            setRepSearch("");
+                            setRepOpen(false);
+                            setPage(0);
+                          }}
+                          className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${repFilter === r.id ? "font-medium text-gray-900" : "text-gray-700"}`}
+                        >
+                          {r.name}
+                        </button>
+                      </li>
+                    ))}
+                  {salesReps.filter((r) =>
+                    r.name.toLowerCase().includes(repSearch.toLowerCase()),
+                  ).length === 0 && (
+                    <li className="px-3 py-2 text-gray-400">No match</li>
+                  )}
+                </ul>
+              )}
+            </div>
           )}
         </div>
 
@@ -209,44 +276,52 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
           </div>
         )}
         {!error && loading && (
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {[
-                    "Number",
-                    "Title",
-                    "Client",
-                    "Status",
-                    ...(isManager ? ["Win chance"] : []),
-                    "Total",
-                    "Created On",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="text-left text-xs font-medium text-gray-400 px-6 py-3"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <tr
-                    key={`skeleton-row-${i}`}
-                    className="border-b border-gray-50"
-                  >
-                    {Array.from({ length: isManager ? 7 : 6 }).map((__, j) => (
-                      <td key={`skeleton-cell-${i}-${j}`} className="px-6 py-4">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse w-24" />
-                      </td>
+          <>
+            {/* Desktop skeleton */}
+            <div className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {[
+                      "Number", "Title", "Client", "Status",
+                      ...(isManager ? ["Win chance"] : []),
+                      "Total", "Created On",
+                    ].map((h) => (
+                      <th key={h} className="text-left text-xs font-medium text-gray-400 px-6 py-3">
+                        {h}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={`skeleton-row-${i}`} className="border-b border-gray-50">
+                      {Array.from({ length: isManager ? 7 : 6 }).map((__, j) => (
+                        <td key={`skeleton-cell-${i}-${j}`} className="px-6 py-4">
+                          <div className="h-4 bg-gray-100 rounded animate-pulse w-24" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Mobile skeleton */}
+            <div className="md:hidden space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={`mobile-skeleton-${i}`} className="bg-white rounded-xl border border-gray-100 px-4 py-4">
+                  <div className="flex justify-between mb-2">
+                    <div className="h-4 bg-gray-100 rounded animate-pulse w-40" />
+                    <div className="h-5 bg-gray-100 rounded-full animate-pulse w-16" />
+                  </div>
+                  <div className="flex justify-between">
+                    <div className="h-3 bg-gray-100 rounded animate-pulse w-24" />
+                    <div className="h-3 bg-gray-100 rounded animate-pulse w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
         {!error && !loading && quotations.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
@@ -266,7 +341,8 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
         )}
         {!error && !loading && quotations.length > 0 && (
           <>
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            {/* Desktop table */}
+            <div className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -306,25 +382,17 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                         {q.quotationNumber}
                       </td>
                       <td className="px-6 py-4 max-w-50">
-                        <p
-                          className="text-sm font-medium text-gray-900 truncate"
-                          title={q.title}
-                        >
+                        <p className="text-sm font-medium text-gray-900 truncate" title={q.title}>
                           {q.title}
                         </p>
                       </td>
                       <td className="px-6 py-4 max-w-40">
-                        <p
-                          className="text-sm text-gray-900 truncate"
-                          title={q.clientName}
-                        >
-                          {q.clientName}
+                        <p className="text-sm text-gray-900 truncate" title={q.client.name}>
+                          {q.client.name}
                         </p>
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[q.status] ?? "bg-gray-100 text-gray-600"}`}
-                        >
+                        <span className={`inline-flex text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[q.status] ?? "bg-gray-100 text-gray-600"}`}>
                           {q.status}
                         </span>
                       </td>
@@ -332,9 +400,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                         <td className="px-6 py-4 text-right">
                           {q.status === "SENT" ? (
                             <span className="text-sm text-gray-700">
-                              {scoreMap[q.id] !== undefined
-                                ? `${scoreMap[q.id]}%`
-                                : "—"}
+                              {scoreMap[q.id] !== undefined ? `${scoreMap[q.id]}%` : "—"}
                             </span>
                           ) : (
                             <span className="text-gray-300 text-sm">—</span>
@@ -351,6 +417,38 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="md:hidden space-y-3">
+              {quotations.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => onSelect(q.id)}
+                  className="w-full text-left bg-white rounded-xl border border-gray-100 px-4 py-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{q.title}</p>
+                      <p className="text-xs font-mono text-gray-400 mt-0.5">{q.quotationNumber}</p>
+                    </div>
+                    <span className={`shrink-0 inline-flex text-xs font-medium px-2 py-1 rounded-full ${STATUS_STYLES[q.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      {q.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span className="truncate">{q.client.name}</span>
+                    <div className="flex items-center gap-3 shrink-0 ml-2">
+                      {isManager && q.status === "SENT" && scoreMap[q.id] !== undefined && (
+                        <span className="text-gray-600">{scoreMap[q.id]}% win</span>
+                      )}
+                      <span className="font-medium text-gray-900">€{q.total.toLocaleString()}</span>
+                      <span className="text-gray-400">{new Date(q.createdAt).toLocaleDateString("en-DE")}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
             {hasMore && (
               <div className="mt-4 flex justify-center">

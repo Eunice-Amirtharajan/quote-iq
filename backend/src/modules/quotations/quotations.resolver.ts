@@ -9,6 +9,7 @@ import { Histogram } from 'prom-client';
 import { QuotationsService } from './quotations.service';
 import { QuotationType } from './quotation.entity';
 import { StatusHistoryType } from './status-history.entity';
+import { QuotationSnapshotType } from './quotation-snapshot.entity';
 import {
   CreateQuotationInput,
   QuotationFilterInput,
@@ -143,5 +144,14 @@ export class QuotationsResolver {
       user.id,
       user.role,
     );
+  }
+
+  @Query(/* istanbul ignore next */ () => [QuotationSnapshotType])
+  async quotationSnapshots(
+    @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
+    quotationId: string,
+    @CurrentUser() user: UserType,
+  ): Promise<QuotationSnapshotType[]> {
+    return this.quotationsService.findSnapshots(quotationId, user.id, user.role);
   }
 }

@@ -685,6 +685,22 @@ describe('AIService', () => {
   });
 
   describe('getConversionScore', () => {
+    it('deletes corrupt cache entry and recomputes score', async () => {
+      // Cache exists but content fails Zod validation — triggers line 490
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce({
+        id: 'insight-corrupt',
+        content: '{"score":"not-a-number","label":"BAD"}',
+      });
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValueOnce([]);
+
+      await service.getConversionScore('q-1');
+
+      expect(mockPrismaService.aIInsight.delete).toHaveBeenCalledWith({
+        where: { id: 'insight-corrupt' },
+      });
+    });
+
     it('throws NotFoundException when quotation does not exist', async () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
       mockPrismaService.quotation.findFirst.mockResolvedValue(null);
@@ -1378,6 +1394,144 @@ describe('AIService', () => {
       expect(result[0].id).toBe('q-2');
       expect(result).toHaveLength(2);
       expect(result[0].status).toBe('APPROVED');
+    });
+  });
+
+  describe('getWinLossAnalysis', () => {
+    it('returns cached result when valid cache exists', async () => {
+      const cached = {
+        approvalRate: 60,
+        avgApprovedDeal: 8000,
+        avgRejectedDeal: 3000,
+        byRep: [],
+        byDealSize: [],
+        byClient: [],
+      };
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce({
+        id: 'wl-1',
+        content: JSON.stringify(cached),
+      });
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.approvalRate).toBe(60);
+      expect(mockPrismaService.quotation.groupBy).not.toHaveBeenCalled();
+    });
+
+    it('deletes corrupt cache entry and recomputes (line 610)', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce({
+        id: 'wl-corrupt',
+        content: '{bad json',
+      });
+      mockPrismaService.quotation.groupBy
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockPrismaService.user.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.client.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
+
+      await service.getWinLossAnalysis();
+
+      expect(mockPrismaService.aIInsight.delete).toHaveBeenCalledWith({
+        where: { id: 'wl-corrupt' },
+      });
+    });
+
+    it('computes approvalRate from groupBy status rows', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce(null);
+      mockPrismaService.quotation.groupBy
+        .mockResolvedValueOnce([
+          { status: 'APPROVED', _count: { _all: 8 }, _avg: { total: 10000 } },
+          { status: 'REJECTED', _count: { _all: 2 }, _avg: { total: 4000 } },
+        ])
+        .mockResolvedValueOnce([]) // byRep
+        .mockResolvedValueOnce([]); // byClient
+      mockPrismaService.user.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.client.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.approvalRate).toBe(80);
+      expect(result.avgApprovedDeal).toBe(10000);
+      expect(result.avgRejectedDeal).toBe(4000);
+    });
+
+    it('aggregates byClient with approved/rejected/revenue breakdown (lines 790–828)', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce(null);
+      mockPrismaService.quotation.groupBy
+        .mockResolvedValueOnce([]) // byStatus
+        .mockResolvedValueOnce([]) // byRep
+        .mockResolvedValueOnce([
+          { clientId: 'c-1', status: 'APPROVED', _count: { _all: 3 }, _sum: { total: 30000 }, _avg: { total: 10000 } },
+          { clientId: 'c-1', status: 'REJECTED', _count: { _all: 1 }, _sum: { total: 5000 }, _avg: { total: 5000 } },
+          { clientId: 'c-1', status: 'SENT',     _count: { _all: 2 }, _sum: { total: null }, _avg: { total: null } },
+        ]);
+      mockPrismaService.user.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.client.findMany.mockResolvedValueOnce([
+        { id: 'c-1', name: 'Acme Corp' },
+      ]);
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.byClient).toHaveLength(1);
+      const acme = result.byClient[0];
+      expect(acme.clientName).toBe('Acme Corp');
+      expect(acme.totalQuotes).toBe(6);
+      expect(acme.approved).toBe(3);
+      expect(acme.rejected).toBe(1);
+      expect(acme.totalRevenue).toBe(30000);
+      expect(acme.approvalRate).toBe(75);
+    });
+
+    it('uses "Unknown" as clientName when client not found in lookup', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce(null);
+      mockPrismaService.quotation.groupBy
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { clientId: 'c-missing', status: 'APPROVED', _count: { _all: 1 }, _sum: { total: 5000 }, _avg: { total: 5000 } },
+        ]);
+      mockPrismaService.user.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.client.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.byClient[0].clientName).toBe('Unknown');
+    });
+
+    it('returns zero approvalRate on byClient when no decided quotations', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce(null);
+      mockPrismaService.quotation.groupBy
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { clientId: 'c-1', status: 'SENT', _count: { _all: 2 }, _sum: { total: null }, _avg: { total: null } },
+        ]);
+      mockPrismaService.user.findMany.mockResolvedValueOnce([]);
+      mockPrismaService.client.findMany.mockResolvedValueOnce([{ id: 'c-1', name: 'Acme' }]);
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
+
+      const result = await service.getWinLossAnalysis();
+
+      expect(result.byClient[0].approvalRate).toBe(0);
+      expect(result.byClient[0].avgDealSize).toBe(0);
+    });
+  });
+
+  describe('generateQuotationEmbedding', () => {
+    it('propagates error through OTel span and rethrows (lines 1541–1542)', async () => {
+      mockPrismaService.quotation.findUnique.mockResolvedValueOnce({
+        ...mockQuotation,
+        items: [],
+        client: { name: 'Acme' },
+      });
+      mockEmbeddingsCreate.mockRejectedValueOnce(new Error('OpenAI timeout'));
+
+      await expect(service.generateQuotationEmbedding('q-1')).rejects.toThrow('OpenAI timeout');
     });
   });
 });

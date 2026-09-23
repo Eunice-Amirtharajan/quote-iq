@@ -8,6 +8,7 @@ import {
 } from '@nestjs/graphql';
 import { QuotationItemType } from './quotation-item.entity';
 import { UserType } from '../users/user.entity';
+import { ClientType } from '../clients/client.entity';
 import { QuotationStatus, type Quotation } from '@prisma/client';
 
 registerEnumType(QuotationStatus, { name: 'QuotationStatus' });
@@ -27,8 +28,10 @@ export class QuotationType {
   @Field(() => String, { description: 'Quotation title or subject' })
   title!: string;
 
-  @Field(() => String, { description: 'Free-text client name' })
-  clientName!: string;
+  @Field(() => ClientType, { description: 'Associated client' })
+  client!: ClientType;
+
+  clientId!: string;
 
   @Field(() => QuotationStatus, {
     description: 'Current status in the pipeline',
@@ -75,13 +78,13 @@ export class QuotationType {
   createdById!: string;
 }
 
+// clientId is a non-exposed FK scalar (see architecture constraint) — excluded from Pick
 type _ScalarFieldsMatch =
   QuotationType extends Pick<
     Quotation,
     | 'id'
     | 'quotationNumber'
     | 'title'
-    | 'clientName'
     | 'status'
     | 'notes'
     | 'taxRate'
@@ -108,8 +111,11 @@ export class PublicQuotationType {
   @Field(() => String, { description: 'Quotation title or subject' })
   title!: string;
 
-  @Field(() => String, { description: 'Free-text client name' })
+  @Field(() => String, { description: 'Client name for public display' })
   clientName!: string;
+
+  @Field(() => String, { description: 'Rep display name for public display' })
+  repName!: string;
 
   @Field(() => QuotationStatus, {
     description: 'Current status in the pipeline',
@@ -140,12 +146,12 @@ export class PublicQuotationType {
   items!: QuotationItemType[];
 }
 
+// clientName and repName on PublicQuotationType are derived at query time — not Prisma scalars
 type _PublicScalarFieldsMatch =
   PublicQuotationType extends Pick<
     Quotation,
     | 'quotationNumber'
     | 'title'
-    | 'clientName'
     | 'status'
     | 'notes'
     | 'taxRate'

@@ -29,6 +29,9 @@ import { getCorrelationId } from '../../common/correlation/correlation.store';
 import { context, propagation, SpanStatusCode, trace } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const allowed: Record<QuotationStatus, QuotationStatus[]> = {
   [QuotationStatus.DRAFT]: [QuotationStatus.SENT],
   [QuotationStatus.SENT]: [QuotationStatus.APPROVED, QuotationStatus.REJECTED],
@@ -107,9 +110,11 @@ export class QuotationsService {
                 },
               },
               {
-                clientName: {
-                  contains: rawSearch,
-                  mode: 'insensitive' as const,
+                client: {
+                  name: {
+                    contains: rawSearch,
+                    mode: 'insensitive' as const,
+                  },
                 },
               },
             ],
@@ -120,7 +125,7 @@ export class QuotationsService {
       // added complexity; acceptable trade-off for this portfolio scope.
       return await this.prisma.quotation.findMany({
         where: { ...ownerWhere, ...statusWhere, ...searchWhere },
-        include: { items: true, createdBy: true },
+        include: { items: true, createdBy: true, client: true },
         take: Math.min(take, 100),
         skip,
         orderBy: { createdAt: 'desc' },
@@ -160,7 +165,7 @@ export class QuotationsService {
     try {
       return await this.prisma.quotation.findFirst({
         where: { id },
-        include: { items: true, createdBy: true },
+        include: { items: true, createdBy: true, client: true },
       });
     } catch (error) {
       this.logger.error(
@@ -178,18 +183,19 @@ export class QuotationsService {
       QuotationsService.name,
     );
     try {
-      return await this.prisma.quotation.findFirst({
+      const raw = await this.prisma.quotation.findFirst({
         where: { publicToken: token },
         select: {
           quotationNumber: true,
           title: true,
-          clientName: true,
           status: true,
           notes: true,
           taxRate: true,
           subtotal: true,
           taxAmount: true,
           total: true,
+          client: { select: { name: true } },
+          createdBy: { select: { name: true } },
           items: {
             select: {
               quotationId: true,
@@ -203,6 +209,8 @@ export class QuotationsService {
           },
         },
       });
+      if (!raw) return null;
+      return { ...raw, clientName: raw.client.name, repName: raw.createdBy?.name ?? '' };
     } catch (error) {
       this.logger.error(
         `Failed to retrieve quotation with token:${token}`,
@@ -229,11 +237,9 @@ export class QuotationsService {
       );
     }
 
-    const clientName = QuotationsService.stripTags(input.clientName);
-    if (!clientName || clientName.length > 200) {
-      throw new BadRequestException(
-        'clientName must be between 1 and 200 characters',
-      );
+    const clientId = input.clientId;
+    if (!clientId || !UUID_RE.test(clientId)) {
+      throw new BadRequestException('clientId must be a valid UUID');
     }
 
     const notes =
@@ -263,7 +269,7 @@ export class QuotationsService {
     });
 
     this.logger.info(
-      `Creating quotation — title: "${title}" clientName: "${clientName}" userId: ${user.id}`,
+      `Creating quotation — title: "${title}" clientId: "${clientId}" userId: ${user.id}`,
       QuotationsService.name,
     );
     try {
@@ -280,7 +286,7 @@ export class QuotationsService {
         data: {
           quotationNumber: quoteNumber,
           title,
-          clientName,
+          clientId,
           notes,
           taxRate,
           subtotal,
@@ -301,7 +307,7 @@ export class QuotationsService {
             },
           },
         },
-        include: { items: true, createdBy: true },
+        include: { items: true, createdBy: true, client: true },
       });
 
       const correlationId = getCorrelationId();
@@ -343,7 +349,7 @@ export class QuotationsService {
       return quotation;
     } catch (error) {
       this.logger.error(
-        `Failed to create quotation — title: "${title}" clientName: "${clientName}" userId: ${user.id}`,
+        `Failed to create quotation — title: "${title}" clientId: "${clientId}" userId: ${user.id}`,
         error instanceof Error ? error.stack : String(error),
         QuotationsService.name,
       );
@@ -405,7 +411,7 @@ export class QuotationsService {
       const quotation = await this.prisma.quotation.update({
         where: { id },
         data: { status },
-        include: { items: true, createdBy: true },
+        include: { items: true, createdBy: true, client: true },
       });
 
       // Mail sends run after the DB write succeeds. Kept outside the catch so
@@ -462,7 +468,7 @@ export class QuotationsService {
           quoteSubmittedTemplate(
             quotation.quotationNumber,
             quotation.createdBy!.name,
-            quotation.clientName,
+            (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
           ),
         );
       });
@@ -470,7 +476,10 @@ export class QuotationsService {
       this.mailService.sendMail(
         quotation.createdBy.email,
         `[QuoteIQ] Quotation ${quotation.quotationNumber} approved`,
-        quoteApprovedTemplate(quotation.quotationNumber, quotation.clientName),
+        quoteApprovedTemplate(
+          quotation.quotationNumber,
+          (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
+        ),
       );
     } else if (status === QuotationStatus.REJECTED) {
       this.mailService.sendMail(
@@ -478,7 +487,7 @@ export class QuotationsService {
         `[QuoteIQ] Quotation ${quotation.quotationNumber} rejected`,
         quoteRejectedTemplate(
           quotation.quotationNumber,
-          quotation.clientName,
+          (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
           note,
         ),
       );
@@ -536,17 +545,12 @@ export class QuotationsService {
     return title;
   }
 
-  private validateClientName(
-    clientName: string | undefined,
+  private validateClientId(
+    clientId: string | undefined,
   ): string | undefined {
-    if (
-      clientName !== undefined &&
-      (clientName.length === 0 || clientName.length > 200)
-    )
-      throw new BadRequestException(
-        'clientName must be between 1 and 200 characters',
-      );
-    return clientName;
+    if (clientId !== undefined && !UUID_RE.test(clientId))
+      throw new BadRequestException('clientId must be a valid UUID');
+    return clientId;
   }
 
   private validateTaxRate(taxRate: number | undefined): number | undefined {
@@ -561,12 +565,8 @@ export class QuotationsService {
       : undefined;
   }
 
-  private normalizeClientName(
-    input: string | null | undefined,
-  ): string | undefined {
-    return input != null
-      ? this.validateClientName(QuotationsService.stripTags(input))
-      : undefined;
+  private normalizeClientId(input: string | null | undefined): string | undefined {
+    return input != null ? this.validateClientId(input) : undefined;
   }
 
   private normalizeNotes(
@@ -610,7 +610,7 @@ export class QuotationsService {
 
   private buildUpdateData(
     title: string | undefined,
-    clientName: string | undefined,
+    clientId: string | undefined,
     notes: string | null | undefined,
     taxRate: number | undefined,
     totalsData: ReturnType<QuotationsService['calculateTotals']> | undefined,
@@ -620,7 +620,7 @@ export class QuotationsService {
   ): Parameters<typeof this.prisma.quotation.update>[0]['data'] {
     return {
       ...(title !== undefined ? { title } : {}),
-      ...(clientName !== undefined ? { clientName } : {}),
+      ...(clientId !== undefined ? { client: { connect: { id: clientId } } } : {}),
       ...(notes !== undefined ? { notes } : {}),
       ...(taxRate !== undefined ? { taxRate } : {}),
       ...(totalsData
@@ -646,7 +646,7 @@ export class QuotationsService {
 
   private getChangedFields(
     title: string | undefined,
-    clientName: string | undefined,
+    clientId: string | undefined,
     notes: string | null | undefined,
     taxRate: number | undefined,
     sanitizedItems:
@@ -655,7 +655,7 @@ export class QuotationsService {
   ): string[] {
     const changed: string[] = [];
     if (title !== undefined) changed.push('title');
-    if (clientName !== undefined) changed.push('client name');
+    if (clientId !== undefined) changed.push('client');
     if (notes !== undefined) changed.push('notes');
     if (taxRate !== undefined) changed.push('tax rate');
     if (sanitizedItems !== undefined) changed.push('line items');
@@ -675,7 +675,7 @@ export class QuotationsService {
     await this.validateUpdatePermissions(id, userId);
 
     const title = this.normalizeTitle(input.title);
-    const clientName = this.normalizeClientName(input.clientName);
+    const clientId = this.normalizeClientId(input.clientId);
     const notes = this.normalizeNotes(input.notes);
     const taxRate = this.validateTaxRate(input.taxRate);
 
@@ -687,7 +687,7 @@ export class QuotationsService {
 
     const data = this.buildUpdateData(
       title,
-      clientName,
+      clientId,
       notes,
       taxRate,
       totalsData,
@@ -695,20 +695,42 @@ export class QuotationsService {
     );
     const currentVersion = await this.prisma.quotation.findFirst({
       where: { id },
-      select: { version: true },
+      select: { version: true, title: true, clientId: true, notes: true, taxRate: true },
     });
     if (currentVersion?.version !== input.version) {
       throw new ConflictException(
         'Version mismatch. The quotation has been modified by someone else — please refresh and try again.',
       );
     }
+
+    // Snapshot current state before overwriting (Neon HTTP driver has no $transaction support)
+    const currentItems = await this.prisma.quotationItem.findMany({
+      where: { quotationId: id },
+      select: { description: true, quantity: true, unitPrice: true, lineTotal: true, sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.prisma as any).quotationSnapshot.create({
+      data: {
+        quotationId: id,
+        content: {
+          version: currentVersion!.version,
+          title: currentVersion!.title,
+          clientId: currentVersion!.clientId,
+          notes: currentVersion!.notes ?? null,
+          taxRate: currentVersion!.taxRate,
+          items: currentItems,
+        },
+      },
+    });
+
     const updated = await this.prisma.quotation.update({
       where: { id },
       data: {
         ...data,
         version: { increment: 1 },
       },
-      include: { items: true, createdBy: true },
+      include: { items: true, createdBy: true, client: true },
     });
 
     if (!updated) {
@@ -721,7 +743,7 @@ export class QuotationsService {
 
     const changed = this.getChangedFields(
       title,
-      clientName,
+      clientId,
       notes,
       taxRate,
       sanitizedItems,
@@ -737,6 +759,37 @@ export class QuotationsService {
     });
 
     return updated;
+  }
+
+  async findSnapshots(
+    quotationId: string,
+    userId: string,
+    role: Role,
+  ): Promise<{ id: string; quotationId: string; content: string; createdAt: string }[]> {
+    this.logger.info(
+      `Fetching snapshots for quotation: ${quotationId}`,
+      QuotationsService.name,
+    );
+    const isManager = role === Role.SALES_MANAGER;
+    if (!isManager) {
+      const owner = await this.prisma.quotation.findFirst({
+        where: { id: quotationId },
+        select: { createdById: true },
+      });
+      if (!owner) throw new NotFoundException(`Quotation ${quotationId} not found`);
+      if (owner.createdById !== userId) throw new ForbiddenException();
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows: any[] = await (this.prisma as any).quotationSnapshot.findMany({
+      where: { quotationId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      quotationId: r.quotationId,
+      content: JSON.stringify(r.content),
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   async findStatusHistory(

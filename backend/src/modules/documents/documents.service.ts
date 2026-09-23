@@ -202,9 +202,13 @@ export class DocumentsService {
     const doc = await this.prisma.document.findUnique({ where: { id: docId } });
     if (!doc) return; // already gone — idempotent
     if (doc.status === DocumentStatus.SCANNING) {
-      throw new BadRequestException(
-        'Cannot delete a document while it is being scanned — try again in a moment',
-      );
+      const staleCutoff = new Date(Date.now() - 10 * 60 * 1000); // 10 min
+      if (doc.updatedAt > staleCutoff) {
+        throw new BadRequestException(
+          'Cannot delete a document while it is being scanned — try again in a moment',
+        );
+      }
+      // updatedAt is older than 10 min → scanner is orphaned, allow forced delete
     }
     // Cascade in DB removes DocumentChunk rows; then remove the file from storage
     await this.prisma.document.delete({ where: { id: docId } });

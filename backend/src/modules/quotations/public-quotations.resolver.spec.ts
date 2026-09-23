@@ -12,6 +12,7 @@ const mockPublicQuotation: PublicQuotationType = {
   quotationNumber: 'QT-2026-0001',
   title: 'Enterprise License',
   clientName: 'Hans Bauer',
+  repName: 'Anna Schmidt',
   status: QuotationStatus.SENT,
   notes: null,
   taxRate: 19,
