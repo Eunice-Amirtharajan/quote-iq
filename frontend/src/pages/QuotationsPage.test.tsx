@@ -489,6 +489,59 @@ describe('QuotationsPage', () => {
     });
   });
 
+  it('closes rep dropdown on outside click and clears search', async () => {
+    const user = userEvent.setup();
+    renderAsManager(managerSuccessMock);
+    await screen.findAllByText('Enterprise License');
+    const repInput = await screen.findByPlaceholderText('All reps');
+    await user.click(repInput);
+    expect(await screen.findByRole('button', { name: 'Anna Schmidt' })).toBeInTheDocument();
+    await user.click(document.body);
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Anna Schmidt' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('clears rep filter when clear button is clicked', async () => {
+    const user = userEvent.setup();
+    const repFilterMock: MockLink.MockedResponse[] = [
+      ...managerSuccessMock,
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: { repId: 'u-rep' } } },
+        result: { data: { quotations: [mockQuotations[0]] } },
+      },
+      {
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        result: { data: { quotations: mockQuotations } },
+      },
+    ];
+    renderAsManager(repFilterMock);
+    await screen.findAllByText('Enterprise License');
+    const repInput = await screen.findByPlaceholderText('All reps');
+    await user.click(repInput);
+    await user.click(await screen.findByRole('button', { name: 'Anna Schmidt' }));
+
+    const clearBtn = await screen.findByRole('button', { name: 'Clear rep filter' });
+    await user.click(clearBtn);
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Clear rep filter' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('rep input onFocus clears search text and opens dropdown', async () => {
+    const user = userEvent.setup();
+    renderAsManager(managerSuccessMock);
+    await screen.findAllByText('Enterprise License');
+    const repInput = await screen.findByPlaceholderText('All reps');
+    // Type something first to set repSearch
+    await user.type(repInput, 'Anna');
+    // Now blur and re-focus — onFocus should clear repSearch and reopen
+    await user.tab();
+    await user.click(repInput);
+    // All reps visible again (search cleared)
+    expect(await screen.findByRole('button', { name: 'Ben Müller' })).toBeInTheDocument();
+  });
+
   it('hides Load more button after clicking it (page advances)', async () => {
     const user = userEvent.setup();
     const fullPage = Array.from({ length: 20 }, (_, i) => ({

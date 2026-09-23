@@ -6,7 +6,7 @@ import QuotationDetailPage from "./QuotationDetailPage";
 
 // socket.io-client is not available in jsdom — mock the hook so tests run without a real server
 vi.mock("../hooks/useScoreSocket", () => ({ useScoreSocket: () => null }));
-import { QUOTATION_QUERY, STATUS_HISTORY_QUERY, CONVERSION_SCORE_QUERY, SIMILAR_QUOTATIONS_QUERY } from "../graphql/queries";
+import { QUOTATION_QUERY, STATUS_HISTORY_QUERY, CONVERSION_SCORE_QUERY, SIMILAR_QUOTATIONS_QUERY, QUOTATION_SNAPSHOTS_QUERY } from "../graphql/queries";
 import { UPDATE_QUOTATION_STATUS_MUTATION, DELETE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { AuthContext } from "../context/auth-context";
 import type { MockLink } from "@apollo/client/testing";
@@ -32,7 +32,7 @@ const baseQuotation = {
   quotationNumber: "QT-2026-0001",
   version: 1,
   title: "Enterprise License",
-  clientName: "Hans Bauer",
+  client: { id: "c-1", name: "Hans Bauer" },
   status: "DRAFT",
   notes: "Annual license fee",
   publicToken: "tok-abc123",
@@ -728,6 +728,123 @@ describe("QuotationDetailPage", () => {
       await waitFor(() => {
         expect(screen.queryByText("Similar Past Quotes")).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("VersionHistory", () => {
+    it("shows Version history button collapsed by default", async () => {
+      renderAs(mockManager, makeMock(baseQuotation));
+      await screen.findByText("Enterprise License");
+      expect(screen.getByText("Version history")).toBeInTheDocument();
+    });
+
+    it("opens and shows empty state when no snapshots", async () => {
+      const user = userEvent.setup();
+      const snapshotMock: MockLink.MockedResponse = {
+        request: { query: QUOTATION_SNAPSHOTS_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { quotationSnapshots: [] } },
+      };
+      renderAs(mockManager, [...makeMock(baseQuotation), snapshotMock]);
+      await screen.findByText("Enterprise License");
+      await user.click(screen.getByText("Version history"));
+      expect(await screen.findByText(/No edits recorded yet/)).toBeInTheDocument();
+    });
+
+    it("renders snapshot entries with version number and date", async () => {
+      const user = userEvent.setup();
+      const snap1 = {
+        id: "s-1",
+        quotationId: "q-1",
+        content: JSON.stringify({ version: 2, title: "Enterprise v2", clientId: "c-1", notes: null, taxRate: 19, items: [] }),
+        createdAt: "2026-05-01T12:00:00.000Z",
+      };
+      const snap2 = {
+        id: "s-2",
+        quotationId: "q-1",
+        content: JSON.stringify({ version: 1, title: "Enterprise v1", clientId: "c-1", notes: null, taxRate: 19, items: [] }),
+        createdAt: "2026-04-15T09:00:00.000Z",
+      };
+      const snapshotMock: MockLink.MockedResponse = {
+        request: { query: QUOTATION_SNAPSHOTS_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { quotationSnapshots: [snap1, snap2] } },
+      };
+      renderAs(mockManager, [...makeMock(baseQuotation), snapshotMock]);
+      await screen.findByText("Enterprise License");
+      await user.click(screen.getByText("Version history"));
+      expect(await screen.findByText(/^v3/)).toBeInTheDocument();
+      expect(screen.getByText(/^v2/)).toBeInTheDocument();
+    });
+
+    it("shows field diff when two snapshots differ", async () => {
+      const user = userEvent.setup();
+      const snap1 = {
+        id: "s-1",
+        quotationId: "q-1",
+        content: JSON.stringify({ version: 2, title: "New Title", clientId: "c-1", notes: null, taxRate: 19, items: [] }),
+        createdAt: "2026-05-01T12:00:00.000Z",
+      };
+      const snap2 = {
+        id: "s-2",
+        quotationId: "q-1",
+        content: JSON.stringify({ version: 1, title: "Old Title", clientId: "c-1", notes: null, taxRate: 19, items: [] }),
+        createdAt: "2026-04-15T09:00:00.000Z",
+      };
+      const snapshotMock: MockLink.MockedResponse = {
+        request: { query: QUOTATION_SNAPSHOTS_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { quotationSnapshots: [snap1, snap2] } },
+      };
+      renderAs(mockManager, [...makeMock(baseQuotation), snapshotMock]);
+      await screen.findByText("Enterprise License");
+      await user.click(screen.getByText("Version history"));
+      expect(await screen.findByText("Title")).toBeInTheDocument();
+      expect(screen.getByText(/Old Title/)).toBeInTheDocument();
+      expect(screen.getByText(/New Title/)).toBeInTheDocument();
+    });
+
+    it("shows 'First edit' label for the oldest snapshot (no prior to compare)", async () => {
+      const user = userEvent.setup();
+      const snap = {
+        id: "s-1",
+        quotationId: "q-1",
+        content: JSON.stringify({ version: 1, title: "Enterprise v1", clientId: "c-1", notes: null, taxRate: 19, items: [] }),
+        createdAt: "2026-04-15T09:00:00.000Z",
+      };
+      const snapshotMock: MockLink.MockedResponse = {
+        request: { query: QUOTATION_SNAPSHOTS_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { quotationSnapshots: [snap] } },
+      };
+      renderAs(mockManager, [...makeMock(baseQuotation), snapshotMock]);
+      await screen.findByText("Enterprise License");
+      await user.click(screen.getByText("Version history"));
+      expect(await screen.findByText(/First edit/)).toBeInTheDocument();
+    });
+
+    it("shows items diff correctly", async () => {
+      const user = userEvent.setup();
+      const snap1 = {
+        id: "s-1",
+        quotationId: "q-1",
+        content: JSON.stringify({
+          version: 2, title: "T", clientId: "c-1", notes: null, taxRate: 19,
+          items: [{ description: "Item A", quantity: 2, unitPrice: 100 }],
+        }),
+        createdAt: "2026-05-01T12:00:00.000Z",
+      };
+      const snap2 = {
+        id: "s-2",
+        quotationId: "q-1",
+        content: JSON.stringify({ version: 1, title: "T", clientId: "c-1", notes: null, taxRate: 19, items: [] }),
+        createdAt: "2026-04-15T09:00:00.000Z",
+      };
+      const snapshotMock: MockLink.MockedResponse = {
+        request: { query: QUOTATION_SNAPSHOTS_QUERY, variables: { quotationId: "q-1" } },
+        result: { data: { quotationSnapshots: [snap1, snap2] } },
+      };
+      renderAs(mockManager, [...makeMock(baseQuotation), snapshotMock]);
+      await screen.findByText("Enterprise License");
+      await user.click(screen.getByText("Version history"));
+      expect(await screen.findByText("Line items")).toBeInTheDocument();
+      expect(screen.getByText(/Item A × 2 @ €100/)).toBeInTheDocument();
     });
   });
 });
