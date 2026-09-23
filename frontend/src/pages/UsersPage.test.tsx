@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MockedProvider } from "@apollo/client/testing/react";
+import type { MockLink } from "@apollo/client/testing";
 import UsersPage from "./UsersPage";
 import { USERS_QUERY } from "../graphql/queries";
 import { INVITE_USER_MUTATION } from "../graphql/mutations";
@@ -15,10 +16,10 @@ const usersMock = {
   result: { data: { users: USERS } },
 };
 
-function renderPage(mocks: object[] = [usersMock]) {
+function renderPage(mocks: MockLink.MockedResponse[] = [usersMock]) {
   return render(
     <MemoryRouter>
-      <MockedProvider mocks={mocks} addTypename={false}>
+      <MockedProvider mocks={mocks}>
         <UsersPage />
       </MockedProvider>
     </MemoryRouter>,

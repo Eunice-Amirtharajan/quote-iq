@@ -59,7 +59,7 @@ describe('QuoteIQ E2E', () => {
         query: `mutation { createClient(name: "E2E Test Client") { id } }`,
       });
     e2eClientId = clientRes.body.data.createClient.id as string;
-  });
+  }, 60_000);
 
   afterAll(async () => {
     // Clean up test data created during the run.

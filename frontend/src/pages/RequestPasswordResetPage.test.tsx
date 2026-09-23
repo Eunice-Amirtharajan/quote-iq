@@ -1,13 +1,14 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MockedProvider } from "@apollo/client/testing/react";
+import type { MockLink } from "@apollo/client/testing";
 import RequestPasswordResetPage from "./RequestPasswordResetPage";
 import { REQUEST_PASSWORD_RESET_MUTATION } from "../graphql/mutations";
 
-function renderPage(mocks: object[] = []) {
+function renderPage(mocks: MockLink.MockedResponse[] = []) {
   return render(
     <MemoryRouter>
-      <MockedProvider mocks={mocks} addTypename={false}>
+      <MockedProvider mocks={mocks}>
         <RequestPasswordResetPage />
       </MockedProvider>
     </MemoryRouter>,

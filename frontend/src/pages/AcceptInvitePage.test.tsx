@@ -1,7 +1,8 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
+import type { MockLink } from "@apollo/client/testing";
 import AcceptInvitePage from "./AcceptInvitePage";
 import { ACCEPT_INVITE_MUTATION } from "../graphql/mutations";
 
@@ -11,14 +12,14 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-function renderPage(mocks: object[] = []) {
+function renderPage(mocks: MockLink.MockedResponse[] = []) {
   return render(
     <MemoryRouter initialEntries={["/invite/test-token"]}>
       <Routes>
         <Route
           path="/invite/:token"
           element={
-            <MockedProvider mocks={mocks} addTypename={false}>
+            <MockedProvider mocks={mocks}>
               <AcceptInvitePage />
             </MockedProvider>
           }

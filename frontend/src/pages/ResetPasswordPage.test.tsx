@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
+import type { MockLink } from "@apollo/client/testing";
 import ResetPasswordPage from "./ResetPasswordPage";
 import { RESET_PASSWORD_MUTATION } from "../graphql/mutations";
 
@@ -11,14 +12,14 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-function renderPage(mocks: object[] = []) {
+function renderPage(mocks: MockLink.MockedResponse[] = []) {
   return render(
     <MemoryRouter initialEntries={["/reset-password/test-token"]}>
       <Routes>
         <Route
           path="/reset-password/:token"
           element={
-            <MockedProvider mocks={mocks} addTypename={false}>
+            <MockedProvider mocks={mocks}>
               <ResetPasswordPage />
             </MockedProvider>
           }
@@ -96,7 +97,7 @@ describe("ResetPasswordPage", () => {
         query: RESET_PASSWORD_MUTATION,
         variables: { token: "test-token", password: "newpassword" },
       },
-      error: new Error("Invalid or expired reset link"),
+      result: { errors: [{ message: "Invalid or expired reset link" }] },
     };
     renderPage([mock]);
     fireEvent.change(screen.getByLabelText("New password"), { target: { value: "newpassword" } });
