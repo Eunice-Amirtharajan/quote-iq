@@ -25,12 +25,9 @@ test.describe('Authentication', () => {
     await page.fill('#email', 'anna@quoteiq.com');
     await page.fill('#password', 'wrongpassword');
     await page.click('button:has-text("Sign in")');
-    // bcrypt.compare on the backend (12 rounds) plus network round-trip can
-    // exceed the default 5s assertion timeout under CI's shared CPU — the
-    // button also flips back from "Signing in..." once the mutation settles,
-    // so wait for that as a proxy before asserting the error text.
-    await expect(page.locator('button:has-text("Sign in")')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('text=Invalid email or password.')).toBeVisible();
+    // Allow real time for bcrypt.compare (12 rounds) + network round-trip
+    // under CI's shared CPU before the error text is expected to render.
+    await expect(page.locator('text=Invalid email or password.')).toBeVisible({ timeout: 15_000 });
   });
 
   test('unknown email shows same error message', async ({ page }) => {
@@ -39,8 +36,7 @@ test.describe('Authentication', () => {
     await page.fill('#email', 'nobody@quoteiq.com');
     await page.fill('#password', 'password123');
     await page.click('button:has-text("Sign in")');
-    await expect(page.locator('button:has-text("Sign in")')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('text=Invalid email or password.')).toBeVisible();
+    await expect(page.locator('text=Invalid email or password.')).toBeVisible({ timeout: 15_000 });
   });
 
   test('user can log out', async ({ page }) => {

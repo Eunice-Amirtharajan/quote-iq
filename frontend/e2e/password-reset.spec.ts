@@ -160,7 +160,7 @@ test.describe('Accept invite — form validation', () => {
     );
     const userRes = await gql(
       request,
-      `query { users(take: 1, search: "${inviteEmail}") { items { id } } }`,
+      `query { users(take: 1, search: "E2E Short Pw") { items { id } } }`,
       {},
       managerCookie,
     );
@@ -187,7 +187,7 @@ test.describe('Accept invite — form validation', () => {
     );
     const userRes = await gql(
       request,
-      `query { users(take: 1, search: "${inviteEmail}") { items { id } } }`,
+      `query { users(take: 1, search: "E2E Mismatch Pw") { items { id } } }`,
       {},
       managerCookie,
     );
@@ -220,7 +220,7 @@ test.describe('Full invite flow', () => {
 
     const userRes = await gql(
       request,
-      `query { users(take: 1, search: "${inviteEmail}") { items { id } } }`,
+      `query { users(take: 1, search: "E2E FullInvite") { items { id } } }`,
       {},
       managerCookie,
     );

@@ -14,11 +14,16 @@ const httpLink = new HttpLink({
 });
 
 // Intercept UNAUTHENTICATED errors globally — clears cache and redirects to login.
-// Covers deactivated users, expired tokens, and any other 401 scenario.
+// Covers deactivated users, expired tokens, and any other 401 scenario where an
+// *existing* session has gone bad. A failed login attempt is not a session
+// expiring — it's the user actively on /login already — so skip the redirect
+// there and let LoginPage's own onError render "Invalid email or password."
+// instead of racing it with a redirect back to the page already showing.
 const authErrorLink = onError(({ error }) => {
   if (CombinedGraphQLErrors.is(error)) {
     const isUnauth = error.errors.some((e) => e.extensions?.["code"] === "UNAUTHENTICATED");
-    if (isUnauth) {
+    const onLoginPage = window.location.pathname === "/login" || window.location.pathname === "/";
+    if (isUnauth && !onLoginPage) {
       /* v8 ignore next 5 */
       client.clearStore().finally(() => {
         window.location.href = "/login";
