@@ -239,4 +239,100 @@ describe("UsersPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send invite" }));
     await screen.findByText("A user with that email already exists");
   });
+
+  it("filters users when search input changes", async () => {
+    const searchMock: MockLink.MockedResponse = {
+      request: { query: USERS_QUERY, variables: { skip: 0, take: 20, search: "alice" } },
+      result: { data: { users: { items: [USERS[0]], total: 1 } } },
+    };
+    renderPage([usersMock(), searchMock]);
+    await screen.findByText("Alice Smith");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "alice" } });
+    await screen.findByText("Alice Smith");
+    expect(screen.queryByText("Bob Jones")).not.toBeInTheDocument();
+  });
+
+  it("shows 'No users match your search' when search returns empty", async () => {
+    const emptySearchMock: MockLink.MockedResponse = {
+      request: { query: USERS_QUERY, variables: { skip: 0, take: 20, search: "zzz" } },
+      result: { data: { users: { items: [], total: 0 } } },
+    };
+    renderPage([usersMock(), emptySearchMock]);
+    await screen.findByText("Alice Smith");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "zzz" } });
+    await screen.findByText("No users match your search.");
+  });
+
+  it("clears name error when name input changes", async () => {
+    renderPage();
+    await screen.findByText("Alice Smith");
+    fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
+    // Submit form directly to bypass the disabled button guard
+    fireEvent.submit(document.querySelector("form")!);
+    await screen.findByText("Full name is required.");
+    // Start typing — error should clear
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "J" } });
+    await waitFor(() =>
+      expect(screen.queryByText("Full name is required.")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("clears email error when email input changes", async () => {
+    renderPage();
+    await screen.findByText("Alice Smith");
+    fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Jane" } });
+    // Submit form directly to trigger email validation
+    fireEvent.submit(document.querySelector("form")!);
+    await screen.findByText("Email is required.");
+    // Type an invalid email — error should clear on change, then show on next submit attempt
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "bad" } });
+    await waitFor(() =>
+      expect(screen.queryByText("Email is required.")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("navigates to previous page when Previous is clicked", async () => {
+    const page0Mock: MockLink.MockedResponse = {
+      request: { query: USERS_QUERY, variables: { skip: 0, take: 20, search: undefined } },
+      result: { data: { users: { items: USERS, total: 45 } } },
+    };
+    const page1Mock: MockLink.MockedResponse = {
+      request: { query: USERS_QUERY, variables: { skip: 20, take: 20, search: undefined } },
+      result: { data: { users: { items: [{ id: "u-3", name: "Carol Day", email: "carol@test.com", role: "SALES_REP", isActive: true, createdAt: "2026-03-01T00:00:00.000Z" }], total: 45 } } },
+    };
+    const page0Again: MockLink.MockedResponse = {
+      request: { query: USERS_QUERY, variables: { skip: 0, take: 20, search: undefined } },
+      result: { data: { users: { items: USERS, total: 45 } } },
+    };
+    renderPage([page0Mock, page1Mock, page0Again]);
+    await screen.findByText("Alice Smith");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Carol Day");
+    fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+    await screen.findByText("Alice Smith");
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+  });
+
+  it("changes role to Sales Manager in invite form", async () => {
+    renderPage();
+    await screen.findByText("Alice Smith");
+    fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
+    await screen.findByRole("heading", { name: "Invite user" });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "SALES_MANAGER" } });
+    expect((screen.getByRole("combobox") as HTMLSelectElement).value).toBe("SALES_MANAGER");
+  });
+
+  it("closes deactivate dialog when backdrop is clicked", async () => {
+    renderPage();
+    await screen.findByText("Alice Smith");
+    fireEvent.click(screen.getAllByRole("button", { name: "Deactivate" })[0]);
+    await screen.findByText("Deactivate user?");
+    // Click the backdrop (second aria-hidden overlay — the deactivate dialog's)
+    const backdrops = document.querySelectorAll('[aria-hidden="true"]');
+    fireEvent.click(backdrops[backdrops.length - 1]!);
+    await waitFor(() =>
+      expect(screen.queryByText("Deactivate user?")).not.toBeInTheDocument(),
+    );
+  });
 });

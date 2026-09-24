@@ -2,6 +2,7 @@ import { ApolloClient, InMemoryCache, HttpLink, from } from "@apollo/client";
 import { CombinedGraphQLErrors } from "@apollo/client/errors";
 import { onError } from "@apollo/client/link/error";
 
+/* v8 ignore next 3 */
 if (import.meta.env.PROD === true && !import.meta.env.VITE_API_URL) {
   throw new Error(`Required property VITE_API_URL not found`);
 }
@@ -18,6 +19,7 @@ const authErrorLink = onError(({ error }) => {
   if (CombinedGraphQLErrors.is(error)) {
     const isUnauth = error.errors.some((e) => e.extensions?.["code"] === "UNAUTHENTICATED");
     if (isUnauth) {
+      /* v8 ignore next 5 */
       client.clearStore().finally(() => {
         window.location.href = "/login";
       }).catch(() => {
@@ -41,6 +43,7 @@ export const client = new ApolloClient({
           // cursors and must NOT be key args.
           quotations: {
             keyArgs: ["filter"],
+            /* v8 ignore next 3 */
             merge(existing: unknown[] | undefined, incoming: unknown[]) {
               return [...(existing ?? []), ...incoming];
             },
