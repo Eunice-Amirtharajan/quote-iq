@@ -63,7 +63,7 @@ export default function ResetPasswordPage() {
           <p className="text-gray-500 mt-1 text-sm">Your new password must be at least 8 characters.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               New password

@@ -128,7 +128,11 @@ test.describe('Reset password — form validation', () => {
     await page.fill('#password', 'short');
     await page.fill('#confirm', 'short');
     await page.click('button:has-text("Update password")');
-    await expect(page.locator('text=at least 8 characters')).toBeVisible();
+    // The page's own static helper text ("Your new password must be at
+    // least 8 characters.") also matches "at least 8 characters" — scope to
+    // the red error-message paragraph so this only matches the actual
+    // validation error, not the always-present helper copy.
+    await expect(page.locator('p.text-red-600')).toHaveText('Password must be at least 8 characters.');
   });
 
   test('shows error when passwords do not match', async ({ page, request }) => {

@@ -29,7 +29,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = useMemo(() => ({ user, setUser }), [user, setUser]);
 
-  if (loading && !data) {
+  // A successful login sets localUser synchronously, then LoginRoute
+  // navigates from /login (public, ME_QUERY skipped) to / (protected,
+  // ME_QUERY un-skipped) in the same tick. That transition briefly makes
+  // ME_QUERY loading again even though we already know who the user is —
+  // without this check the spinner below would block the app indefinitely
+  // on a query whose answer we don't need. Only gate on ME_QUERY's own
+  // loading state when we don't already have a known user.
+  if (loading && !data && !localUser) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
