@@ -17,6 +17,7 @@ const mockUser: User = {
   name: 'Marcus Klein',
   password: 'hash',
   role: 'SALES_MANAGER' as Role,
+  isActive: true,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

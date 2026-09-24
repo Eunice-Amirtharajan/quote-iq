@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { login } from './helpers';
 
 async function createClientInline(page: Page, clientName: string) {
   const clientInput = page.locator('input[placeholder*="a client"]');
@@ -17,11 +18,7 @@ async function createClientInline(page: Page, clientName: string) {
 
 test.describe('Quote creation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.fill('#email', 'marcus@quoteiq.com');
-    await page.fill('#password', 'password123');
-    await page.click('button:has-text("Sign in")');
-    await page.waitForURL(/\/(dashboard|quotations)/);
+    await login(page, 'marcus@quoteiq.com');
     await page.goto('/quotations');
   });
 
@@ -46,11 +43,7 @@ test.describe('Mobile layout', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    await page.fill('#email', 'marcus@quoteiq.com');
-    await page.fill('#password', 'password123');
-    await page.click('button:has-text("Sign in")');
-    await page.waitForURL(/\/(dashboard|quotations)/);
+    await login(page, 'marcus@quoteiq.com');
     await page.goto('/quotations');
   });
 

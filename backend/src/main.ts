@@ -2,6 +2,7 @@ import './tracing'; // must be first — registers OTel SDK before any instrumen
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
+import { TokenStoreService } from './common/token-store/token-store.service';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
@@ -87,6 +88,32 @@ async function bootstrap() {
         res.status(200).json({ status: 'ok' });
       },
     );
+
+  // Test-only token endpoint — allows E2E tests to retrieve a freshly minted
+  // invite or reset token without reading the email. Never registered in production.
+  if (process.env.NODE_ENV !== 'production') {
+    const tokenStore = app.get(TokenStoreService);
+    app.getHttpAdapter().get(
+      '/__test__/token/:key',
+      async (
+        req: { params: { key: string } },
+        res: {
+          status: (c: number) => {
+            json: (b: unknown) => void;
+            send: (b: string) => void;
+          };
+          json: (b: unknown) => void;
+        },
+      ) => {
+        const value = await tokenStore.get(req.params.key);
+        if (!value) {
+          res.status(404).json({ error: 'not found' });
+        } else {
+          res.json({ value });
+        }
+      },
+    );
+  }
 
   await app.listen(process.env.PORT ?? 4000);
   const prisma = app.get(PrismaService);

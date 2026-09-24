@@ -117,21 +117,36 @@ export class AuthService {
 
   async inviteUser(name: string, email: string, role: Role): Promise<boolean> {
     const existing = await this.prisma.user.findFirst({ where: { email } });
-    if (existing)
+    if (existing && existing.isActive)
       throw new BadRequestException('A user with that email already exists');
 
-    const user = await this.prisma.user.create({
-      data: { name, email, role, password: null },
-    });
+    // Re-invite a previously deactivated user: reactivate them, wipe the old
+    // password, and send a fresh invite link — same as a brand-new invite.
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { id: existing.id },
+          data: { name, role, password: null, isActive: true },
+        })
+      : await this.prisma.user.create({
+          data: { name, email, role, password: null },
+        });
 
     const token = generateToken();
     await this.tokenStore.set(`invite:${token}`, user.id, INVITE_TTL);
+    await this.tokenStore.set(`invite_uid:${user.id}`, token, INVITE_TTL);
 
-    const appUrl = process.env.APP_URL ?? 'http://localhost:5173';
+    const appUrl = process.env.APP_URL;
+    if (!appUrl) {
+      this.logger.warn(
+        'APP_URL is not set — invite link will point to http://localhost:5173 (only works on the local machine)',
+        AuthService.name,
+      );
+    }
+    const resolvedUrl = appUrl ?? 'http://localhost:5173';
     this.mailService.sendMail(
       email,
       "You've been invited to QuoteIQ",
-      inviteEmailHtml(name, `${appUrl}/invite/${token}`),
+      inviteEmailHtml(name, `${resolvedUrl}/invite/${token}`),
     );
 
     this.logger.info(`Invite sent — userId: ${user.id}`, AuthService.name);
@@ -143,6 +158,10 @@ export class AuthService {
     if (!userId)
       throw new BadRequestException('Invalid or expired invite link');
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.isActive)
+      throw new BadRequestException('Invalid or expired invite link');
+
     const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
     await this.prisma.user.update({
       where: { id: userId },
@@ -150,6 +169,7 @@ export class AuthService {
     });
 
     await this.tokenStore.del(`invite:${token}`);
+    await this.tokenStore.del(`invite_uid:${userId}`);
     this.logger.info(`Invite accepted — userId: ${userId}`, AuthService.name);
     return true;
   }
@@ -161,12 +181,20 @@ export class AuthService {
 
     const token = generateToken();
     await this.tokenStore.set(`reset:${token}`, user.id, RESET_TTL);
+    await this.tokenStore.set(`reset_uid:${user.id}`, token, RESET_TTL);
 
-    const appUrl = process.env.APP_URL ?? 'http://localhost:5173';
+    const appUrl = process.env.APP_URL;
+    if (!appUrl) {
+      this.logger.warn(
+        'APP_URL is not set — password reset link will point to http://localhost:5173 (only works on the local machine)',
+        AuthService.name,
+      );
+    }
+    const resolvedUrl = appUrl ?? 'http://localhost:5173';
     this.mailService.sendMail(
       email,
       'Reset your QuoteIQ password',
-      passwordResetEmailHtml(`${appUrl}/reset-password/${token}`),
+      passwordResetEmailHtml(`${resolvedUrl}/reset-password/${token}`),
     );
 
     this.logger.info(
@@ -186,6 +214,7 @@ export class AuthService {
     });
 
     await this.tokenStore.del(`reset:${token}`);
+    await this.tokenStore.del(`reset_uid:${userId}`);
     this.logger.info(
       `Password reset completed — userId: ${userId}`,
       AuthService.name,
@@ -227,6 +256,14 @@ export class AuthService {
     if (!user.isActive) throw new BadRequestException('User is already deactivated');
 
     await this.prisma.user.update({ where: { id }, data: { isActive: false } });
+
+    // Invalidate any outstanding invite token for this user
+    const pendingToken = await this.tokenStore.get(`invite_uid:${id}`);
+    if (pendingToken) {
+      await this.tokenStore.del(`invite:${pendingToken}`);
+      await this.tokenStore.del(`invite_uid:${id}`);
+    }
+
     this.logger.info(`User deactivated — userId: ${id}`, AuthService.name);
     return true;
   }

@@ -145,6 +145,7 @@ describe('QuotationsService', () => {
       role,
       name: 'Test',
       password: 'hash',
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -400,6 +401,7 @@ describe('QuotationsService', () => {
       name: 'Anna',
       password: 'hash',
       role: Role.SALES_REP,
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -1005,6 +1007,7 @@ describe('QuotationsService', () => {
       name: 'Anna',
       password: 'hash',
       role: Role.SALES_REP,
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

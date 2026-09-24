@@ -25,6 +25,7 @@ const mockUser = (role: Role): User => ({
   name: 'Test User',
   password: 'hash',
   role,
+  isActive: true,
   createdAt: new Date(),
   updatedAt: new Date(),
 });

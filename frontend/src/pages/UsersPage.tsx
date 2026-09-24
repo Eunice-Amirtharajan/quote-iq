@@ -220,7 +220,7 @@ export default function UsersPage() {
                 <div className="text-3xl mb-3">✉️</div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-1">Invite sent</h2>
                 <p className="text-sm text-gray-500 mb-5">
-                  An invitation email has been sent to <strong>{email}</strong>.
+                  An invitation has been sent to <strong>{email}</strong>. If they don't receive it within a few minutes, please ask them to check their spam or junk folder.
                 </p>
                 <button
                   type="button"

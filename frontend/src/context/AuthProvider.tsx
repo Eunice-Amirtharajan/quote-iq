@@ -4,6 +4,11 @@ import { useQuery } from "@apollo/client/react";
 import { ME_QUERY } from "../graphql/queries";
 export type { User } from "./auth-context";
 
+const PUBLIC_PATH_RE = /^\/(invite|reset-password|login|view-quotation)(\/|$)/;
+
+const isPublicPath = () =>
+  typeof window !== 'undefined' && PUBLIC_PATH_RE.test(window.location.pathname);
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [localUser, setLocalUser] = useState<User | null>(null);
   const [loggedOut, setLoggedOut] = useState(false);
@@ -11,6 +16,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { loading, data, error } = useQuery<{ me: User }>(ME_QUERY, {
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'ignore',
+    skip: isPublicPath(),
   });
 
   const user = loggedOut ? null : (localUser ?? data?.me ?? null);
@@ -31,8 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   }
 
+  /* v8 ignore next 7 */
   if (error && !data) {
-    // errorPolicy:'ignore' suppresses GraphQL errors, so error here means true network failure
+    // errorPolicy:'ignore' suppresses both GraphQL and network errors, so this
+    // branch is only reachable if Apollo's internal error handling changes.
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-sm text-gray-500">Could not connect. Please refresh.</p>

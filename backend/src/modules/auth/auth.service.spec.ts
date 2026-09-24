@@ -308,13 +308,28 @@ describe('AuthService', () => {
       );
     });
 
-    it('throws BadRequestException when email already exists', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-existing' });
+    it('throws BadRequestException when an active user with that email already exists', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-existing', isActive: true });
 
       await expect(service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any))
         .rejects.toThrow(BadRequestException);
 
       expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('re-invites a deactivated user: reactivates, resets password, sends invite', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-deactivated', isActive: false });
+      mockPrismaService.user.update.mockResolvedValue({ id: 'u-deactivated', name: 'Alice', email: 'alice@test.com', role: 'SALES_REP' });
+
+      const result = await service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any);
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-deactivated' },
+        data: { name: 'Alice', role: 'SALES_REP', password: null, isActive: true },
+      });
+      expect(mailService.sendMail).toHaveBeenCalled();
     });
   });
 
@@ -340,6 +355,7 @@ describe('AuthService', () => {
     it('sets password and deletes token on valid invite token', async () => {
       tokenStore.get.mockResolvedValue('u-123');
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-123', isActive: true });
       mockPrismaService.user.update.mockResolvedValue({});
 
       const result = await service.acceptInvite('valid-token', 'newpassword');
@@ -350,6 +366,7 @@ describe('AuthService', () => {
         data: { password: 'hashed-pw' },
       });
       expect(tokenStore.del).toHaveBeenCalledWith('invite:valid-token');
+      expect(tokenStore.del).toHaveBeenCalledWith('invite_uid:u-123');
     });
 
     it('throws BadRequestException when invite token is invalid', async () => {
@@ -357,6 +374,15 @@ describe('AuthService', () => {
 
       await expect(service.acceptInvite('bad-token', 'newpassword'))
         .rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the invited user has been deactivated', async () => {
+      tokenStore.get.mockResolvedValue('u-123');
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-123', isActive: false });
+
+      await expect(service.acceptInvite('valid-token', 'newpassword'))
+        .rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
 
@@ -381,7 +407,7 @@ describe('AuthService', () => {
       mailService = module.get(MailService);
     });
 
-    it('stores reset token and sends email for valid user with password', async () => {
+    it('stores reset token and reverse index, and sends email for valid user with password', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-1', email: 'user@test.com', password: 'hashed' });
 
       await service.requestPasswordReset('user@test.com');
@@ -389,6 +415,11 @@ describe('AuthService', () => {
       expect(tokenStore.set).toHaveBeenCalledWith(
         expect.stringMatching(/^reset:/),
         'u-1',
+        expect.any(Number),
+      );
+      expect(tokenStore.set).toHaveBeenCalledWith(
+        'reset_uid:u-1',
+        expect.stringMatching(/^[0-9a-f]{64}$/),
         expect.any(Number),
       );
       expect(mailService.sendMail).toHaveBeenCalledWith(
@@ -432,7 +463,7 @@ describe('AuthService', () => {
       tokenStore = module.get(TokenStoreService);
     });
 
-    it('updates password and deletes token on valid reset token', async () => {
+    it('updates password and deletes forward and reverse token keys on valid reset token', async () => {
       tokenStore.get.mockResolvedValue('u-1');
       (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed');
       mockPrismaService.user.update.mockResolvedValue({});
@@ -445,6 +476,7 @@ describe('AuthService', () => {
         data: { password: 'new-hashed' },
       });
       expect(tokenStore.del).toHaveBeenCalledWith('reset:valid-reset-token');
+      expect(tokenStore.del).toHaveBeenCalledWith('reset_uid:u-1');
     });
 
     it('throws BadRequestException when reset token is invalid', async () => {
@@ -547,9 +579,28 @@ describe('AuthService', () => {
   });
 
   describe('deactivateUser', () => {
+    let tokenStore: { set: jest.Mock; get: jest.Mock; del: jest.Mock };
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: AppLogger, useValue: mockLogger },
+          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          { provide: MailService, useValue: { sendMail: jest.fn() } },
+        ],
+      }).compile();
+
+      service = module.get<AuthService>(AuthService);
+      tokenStore = module.get(TokenStoreService);
+    });
+
     it('sets isActive to false and returns true', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: true });
       mockPrismaService.user.update.mockResolvedValue({});
+      tokenStore.get.mockResolvedValue(null);
 
       const result = await service.deactivateUser('u-2', 'u-me');
 
@@ -558,6 +609,17 @@ describe('AuthService', () => {
         where: { id: 'u-2' },
         data: { isActive: false },
       });
+    });
+
+    it('invalidates outstanding invite token when deactivating', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: true });
+      mockPrismaService.user.update.mockResolvedValue({});
+      tokenStore.get.mockResolvedValue('some-invite-token');
+
+      await service.deactivateUser('u-2', 'u-me');
+
+      expect(tokenStore.del).toHaveBeenCalledWith('invite:some-invite-token');
+      expect(tokenStore.del).toHaveBeenCalledWith('invite_uid:u-2');
     });
 
     it('throws BadRequestException when deactivating own account', async () => {

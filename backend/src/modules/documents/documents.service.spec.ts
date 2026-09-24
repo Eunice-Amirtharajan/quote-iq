@@ -67,6 +67,7 @@ const manager: User = {
   email: 'mgr@test.com',
   role: Role.SALES_MANAGER,
   password: 'hash',
+  isActive: true,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

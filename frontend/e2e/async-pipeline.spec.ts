@@ -1,12 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-
-async function login(page: Page, email: string) {
-  await page.goto('/');
-  await page.fill('#email', email);
-  await page.fill('#password', 'password123');
-  await page.click('button:has-text("Sign in")');
-  await page.waitForURL(/\/(dashboard|quotations)/);
-}
+import { login } from './helpers';
 
 async function selectSeededClient(page: Page, searchText: string) {
   const clientInput = page.locator('input[placeholder*="a client"]');

@@ -24,7 +24,7 @@ export default function RequestPasswordResetPage() {
           <div className="text-3xl mb-4">✉️</div>
           <h1 className="text-xl font-semibold text-gray-900 mb-2">Check your email</h1>
           <p className="text-gray-500 text-sm mb-6">
-            If that address is registered, you'll receive a reset link within a few minutes.
+            If that address is registered, you'll receive a password reset link shortly. Please also check your spam or junk folder if it doesn't arrive within a few minutes.
           </p>
           <Link
             to="/login"
