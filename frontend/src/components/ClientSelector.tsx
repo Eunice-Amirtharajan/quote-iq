@@ -114,7 +114,7 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
         }}
       />
 
-      {open && (loading || filtered.length > 0 || showCreate) && (
+      {open && (
         <ul
           role="listbox"
           className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto text-sm"
@@ -135,6 +135,10 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
               {client.name}
             </li>
           ))}
+
+          {!loading && filtered.length === 0 && !showCreate && (
+            <li className="px-3 py-2 text-gray-400">No clients found</li>
+          )}
 
           {showCreate && (
             <li

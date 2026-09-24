@@ -20,6 +20,11 @@ const mockPrismaService = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
+  },
+  quotation: {
+    count: jest.fn(),
   },
 };
 
@@ -235,7 +240,7 @@ describe('AuthService', () => {
       const result = await service.salesReps();
 
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
-        where: { role: 'SALES_REP' },
+        where: { role: 'SALES_REP', isActive: true },
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       });
@@ -469,23 +474,106 @@ describe('AuthService', () => {
   });
 
   describe('listUsers', () => {
-    it('returns all users ordered by name', async () => {
+    it('returns paginated users with total', async () => {
       const users = [
         { id: 'u-1', name: 'Alice' },
         { id: 'u-2', name: 'Bob' },
       ];
       mockPrismaService.user.findMany.mockResolvedValue(users);
+      mockPrismaService.user.count.mockResolvedValue(2);
 
-      const result = await service.listUsers();
+      const result = await service.listUsers(0, 50);
 
-      expect(result).toEqual(users);
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({ orderBy: { name: 'asc' } });
+      expect(result).toEqual({ items: users, total: 2 });
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({ where: { isActive: true }, orderBy: { name: 'asc' }, skip: 0, take: 50 });
     });
 
-    it('returns empty array when no users exist', async () => {
+    it('returns empty items when no users exist', async () => {
       mockPrismaService.user.findMany.mockResolvedValue([]);
+      mockPrismaService.user.count.mockResolvedValue(0);
       const result = await service.listUsers();
-      expect(result).toEqual([]);
+      expect(result).toEqual({ items: [], total: 0 });
+    });
+
+    it('filters by name when search is provided', async () => {
+      const users = [{ id: 'u-1', name: 'Alice' }];
+      mockPrismaService.user.findMany.mockResolvedValue(users);
+      mockPrismaService.user.count.mockResolvedValue(1);
+
+      const result = await service.listUsers(0, 50, 'ali');
+
+      expect(result).toEqual({ items: users, total: 1 });
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        where: { isActive: true, name: { contains: 'ali', mode: 'insensitive' } },
+        orderBy: { name: 'asc' },
+        skip: 0,
+        take: 50,
+      });
+      expect(mockPrismaService.user.count).toHaveBeenCalledWith({
+        where: { isActive: true, name: { contains: 'ali', mode: 'insensitive' } },
+      });
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('deletes user when they have no quotations', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob' });
+      mockPrismaService.quotation.count.mockResolvedValue(0);
+      mockPrismaService.user.delete.mockResolvedValue({});
+
+      const result = await service.deleteUser('u-2', 'u-me');
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({ where: { id: 'u-2' } });
+    });
+
+    it('throws BadRequestException when deleting own account', async () => {
+      await expect(service.deleteUser('u-me', 'u-me')).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when user not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      await expect(service.deleteUser('u-ghost', 'u-me')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when user has quotations', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob' });
+      mockPrismaService.quotation.count.mockResolvedValue(3);
+
+      await expect(service.deleteUser('u-2', 'u-me')).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deactivateUser', () => {
+    it('sets isActive to false and returns true', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: true });
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      const result = await service.deactivateUser('u-2', 'u-me');
+
+      expect(result).toBe(true);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-2' },
+        data: { isActive: false },
+      });
+    });
+
+    it('throws BadRequestException when deactivating own account', async () => {
+      await expect(service.deactivateUser('u-me', 'u-me')).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when user not found', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      await expect(service.deactivateUser('u-ghost', 'u-me')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when user is already deactivated', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: false });
+      await expect(service.deactivateUser('u-2', 'u-me')).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
 });

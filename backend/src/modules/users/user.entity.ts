@@ -1,4 +1,4 @@
-import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 import { Role, type User } from '@prisma/client';
 
 registerEnumType(Role, { name: 'Role' });
@@ -20,6 +20,9 @@ export class UserType {
   @Field(() => Date, { description: 'Account creation timestamp' })
   createdAt!: Date;
 
+  @Field(() => Boolean, { description: 'Whether the account is active' })
+  isActive!: boolean;
+
   @Field(() => Date, { description: 'Last update timestamp' })
   updatedAt!: Date;
 }
@@ -28,11 +31,20 @@ export class UserType {
 type _ScalarFieldsMatch =
   UserType extends Pick<
     User,
-    'id' | 'name' | 'email' | 'role' | 'createdAt' | 'updatedAt'
+    'id' | 'name' | 'email' | 'role' | 'isActive' | 'createdAt' | 'updatedAt'
   >
     ? true
     : never;
 void (true as _ScalarFieldsMatch); // NOSONAR — compile-time type assertion, void is intentional
+
+@ObjectType()
+export class UsersPageType {
+  @Field(() => [UserType])
+  items!: UserType[];
+
+  @Field(() => Int)
+  total!: number;
+}
 
 /** Minimal projection for salesReps — exposes only id and name, not email or role */
 @ObjectType({ description: 'Sales rep summary — id and name only' })

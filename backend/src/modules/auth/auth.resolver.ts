@@ -1,4 +1,4 @@
-import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Query, Context, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -6,7 +6,11 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Response } from 'express';
-import { UserType, SalesRepSummaryType } from '../users/user.entity';
+import {
+  UserType,
+  UsersPageType,
+  SalesRepSummaryType,
+} from '../users/user.entity';
 import { Role } from '@prisma/client';
 import type { User as PrismaUser } from '@prisma/client';
 
@@ -45,11 +49,37 @@ export class AuthResolver {
     return this.authService.salesReps();
   }
 
-  @Query(/* istanbul ignore next */ () => [UserType])
+  @Query(/* istanbul ignore next */ () => UsersPageType)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SALES_MANAGER)
-  users(): Promise<PrismaUser[]> {
-    return this.authService.listUsers();
+  users(
+    @Args('skip', {
+      type: /* istanbul ignore next */ () => Int,
+      defaultValue: 0,
+    })
+    skip: number,
+    @Args('take', {
+      type: /* istanbul ignore next */ () => Int,
+      defaultValue: 50,
+    })
+    take: number,
+    @Args('search', {
+      type: /* istanbul ignore next */ () => String,
+      nullable: true,
+    })
+    search?: string,
+  ): Promise<{ items: PrismaUser[]; total: number }> {
+    return this.authService.listUsers(skip, take, search);
+  }
+
+  @Mutation(/* istanbul ignore next */ () => Boolean)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SALES_MANAGER)
+  deactivateUser(
+    @Args('id') id: string,
+    @CurrentUser() requester: PrismaUser,
+  ): Promise<boolean> {
+    return this.authService.deactivateUser(id, requester.id);
   }
 
   @Mutation(/* istanbul ignore next */ () => Boolean)
@@ -64,11 +94,15 @@ export class AuthResolver {
   }
 
   @Mutation(/* istanbul ignore next */ () => Boolean)
-  acceptInvite(
+  async acceptInvite(
     @Args('token') token: string,
     @Args('password') password: string,
+    @Context() ctx: { res: Response },
   ): Promise<boolean> {
-    return this.authService.acceptInvite(token, password);
+    const result = await this.authService.acceptInvite(token, password);
+    // Clear any existing session so the invited user must log in fresh
+    this.authService.logout(ctx.res);
+    return result;
   }
 
   @Mutation(/* istanbul ignore next */ () => Boolean)
@@ -78,10 +112,14 @@ export class AuthResolver {
   }
 
   @Mutation(/* istanbul ignore next */ () => Boolean)
-  resetPassword(
+  async resetPassword(
     @Args('token') token: string,
     @Args('password') password: string,
+    @Context() ctx: { res: Response },
   ): Promise<boolean> {
-    return this.authService.resetPassword(token, password);
+    const result = await this.authService.resetPassword(token, password);
+    // Clear any existing session — user must log in with the new password
+    this.authService.logout(ctx.res);
+    return result;
   }
 }

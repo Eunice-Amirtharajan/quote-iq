@@ -355,7 +355,7 @@ export default function CreateQuotationModal({
           </div>
 
           {formError && (
-            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+            <p className="text-xs text-red-600">
               {formError}
             </p>
           )}

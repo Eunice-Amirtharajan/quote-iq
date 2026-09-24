@@ -37,7 +37,12 @@ export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    login({ variables: { email, password } }).catch(() => {});
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    login({ variables: { email: trimmedEmail, password } }).catch(() => {});
   };
 
   const loginAs = (demoEmail: string, demoPassword: string) => {
@@ -62,12 +67,12 @@ export default function LoginPage() {
             </label>
             <input
               id="email"
-              type="email"
+              type="text"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               placeholder="you@company.com"
-              required
             />
           </div>
 
@@ -92,7 +97,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+            <p className="text-sm text-red-600">
               {error}
             </p>
           )}

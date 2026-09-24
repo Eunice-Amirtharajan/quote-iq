@@ -41,7 +41,7 @@ export class AuthService {
   async login(email: string, password: string, res: Response): Promise<User> {
     this.logger.info(`Login attempt`, AuthService.name);
     const user = await withDbRetry(
-      () => this.prisma.user.findFirst({ where: { email } }),
+      () => this.prisma.user.findFirst({ where: { email, isActive: true } }),
       this.logger,
     );
     if (!user?.password) {
@@ -90,7 +90,7 @@ export class AuthService {
 
   async salesReps(): Promise<Pick<User, 'id' | 'name'>[]> {
     return this.prisma.user.findMany({
-      where: { role: Role.SALES_REP },
+      where: { role: Role.SALES_REP, isActive: true },
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     });
@@ -199,7 +199,55 @@ export class AuthService {
     return user;
   }
 
-  async listUsers(): Promise<User[]> {
-    return this.prisma.user.findMany({ orderBy: { name: 'asc' } });
+  async listUsers(
+    skip = 0,
+    take = 50,
+    search?: string,
+  ): Promise<{ items: User[]; total: number }> {
+    const where = search
+      ? { isActive: true, name: { contains: search, mode: 'insensitive' as const } }
+      : { isActive: true };
+    const [items, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip,
+        take,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+    return { items, total };
+  }
+
+  async deactivateUser(id: string, requesterId: string): Promise<boolean> {
+    if (id === requesterId)
+      throw new BadRequestException('You cannot deactivate your own account');
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.isActive) throw new BadRequestException('User is already deactivated');
+
+    await this.prisma.user.update({ where: { id }, data: { isActive: false } });
+    this.logger.info(`User deactivated — userId: ${id}`, AuthService.name);
+    return true;
+  }
+
+  /** @deprecated kept temporarily — remove once all callers use deactivateUser */
+  async deleteUser(id: string, requesterId: string): Promise<boolean> {
+    if (id === requesterId)
+      throw new BadRequestException('You cannot delete your own account');
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const quotationCount = await this.prisma.quotation.count({
+      where: { createdById: id },
+    });
+    if (quotationCount > 0)
+      throw new BadRequestException(
+        `Cannot delete this user — they own ${quotationCount} quotation${quotationCount === 1 ? '' : 's'}. Reassign or delete their quotations first.`,
+      );
+
+    await this.prisma.user.delete({ where: { id } });
+    this.logger.info(`User deleted — userId: ${id}`, AuthService.name);
+    return true;
   }
 }

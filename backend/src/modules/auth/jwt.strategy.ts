@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // DB lookup on every request detects deactivated or deleted users.
     // Acceptable at this scale; a token blocklist would be the alternative.
     const user = await withDbRetry(
-      () => this.prisma.user.findFirst({ where: { id: payload.sub } }),
+      () => this.prisma.user.findFirst({ where: { id: payload.sub, isActive: true } }),
       this.logger,
     );
     if (!user) throw new UnauthorizedException();

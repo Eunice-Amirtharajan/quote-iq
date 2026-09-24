@@ -162,3 +162,9 @@ export const RESET_PASSWORD_MUTATION = gql`
     resetPassword(token: $token, password: $password)
   }
 `;
+
+export const DEACTIVATE_USER_MUTATION = gql`
+  mutation DeactivateUser($id: String!) {
+    deactivateUser(id: $id)
+  }
+`;

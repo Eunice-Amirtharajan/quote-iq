@@ -153,6 +153,7 @@ type Mutation {
   askPlaybook(question: String!): PlaybookAnswerType!
   createClient(email: String, name: String!): ClientType!
   createQuotation(input: CreateQuotationInput!): QuotationType!
+  deactivateUser(id: String!): Boolean!
   deleteClient(id: ID!): Boolean!
 
   """Delete a document and its chunks."""
@@ -255,7 +256,7 @@ type Query {
   """
   similarQuotations(limit: Float = 5, quotationId: ID!): [SimilarQuotationType!]!
   statusHistory(quotationId: ID!): [StatusHistoryType!]!
-  users: [UserType!]!
+  users(search: String, skip: Int! = 0, take: Int! = 50): UsersPageType!
 
   """Aggregated win/loss analysis across all quotations"""
   winLossAnalysis: WinLossStatsType!
@@ -457,6 +458,9 @@ type UserType {
   """Unique identifier"""
   id: ID!
 
+  """Whether the account is active"""
+  isActive: Boolean!
+
   """Full name"""
   name: String!
 
@@ -465,6 +469,11 @@ type UserType {
 
   """Last update timestamp"""
   updatedAt: DateTime!
+}
+
+type UsersPageType {
+  items: [UserType!]!
+  total: Int!
 }
 
 """Aggregated win/loss analysis across all quotations"""

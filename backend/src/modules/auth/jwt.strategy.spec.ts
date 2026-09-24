@@ -60,15 +60,15 @@ describe('JwtStrategy', () => {
       role: 'SALES_MANAGER',
     };
 
-    it('returns user when valid payload', async () => {
-      const mockUser = { id: 'user-1', email: 'marcus@quoteiq.com' };
+    it('returns user when valid payload and user is active', async () => {
+      const mockUser = { id: 'user-1', email: 'marcus@quoteiq.com', isActive: true };
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
       const result = await strategy.validate(payload);
 
       expect(result).toEqual(mockUser);
       expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
-        where: { id: 'user-1' },
+        where: { id: 'user-1', isActive: true },
       });
     });
 
@@ -78,6 +78,18 @@ describe('JwtStrategy', () => {
       await expect(strategy.validate(payload)).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+
+    it('throws UnauthorizedException when user is deactivated', async () => {
+      // findFirst with isActive: true returns null for deactivated users
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+
+      await expect(strategy.validate(payload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+        where: { id: 'user-1', isActive: true },
+      });
     });
   });
 });

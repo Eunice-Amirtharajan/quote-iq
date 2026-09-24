@@ -119,7 +119,8 @@ export default function ClientsPage() {
             </label>
             <input
               id="clientEmail"
-              type="email"
+              type="text"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="contact@example.com"
@@ -127,7 +128,7 @@ export default function ClientsPage() {
             />
           </div>
           {formError && (
-            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{formError}</p>
+            <p className="text-xs text-red-600">{formError}</p>
           )}
           <div className="flex justify-end">
             <button
@@ -207,7 +208,7 @@ export default function ClientsPage() {
                 This cannot be undone.
               </p>
               {deleteError && (
-                <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-4">
+                <p className="text-xs text-red-600 mb-4">
                   {deleteError}
                 </p>
               )}

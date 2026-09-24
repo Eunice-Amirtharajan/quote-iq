@@ -2,17 +2,24 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation } from "@apollo/client/react";
 import { ACCEPT_INVITE_MUTATION } from "../graphql/mutations";
+import { useAuth } from "../hooks/useAuth";
+import { client } from "../lib/apollo";
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const { setUser } = useAuth();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
   const [acceptInvite, { loading }] = useMutation(ACCEPT_INVITE_MUTATION, {
-    onCompleted: () => setDone(true),
+    onCompleted: () => {
+      // Backend cleared the cookie — mirror that in the frontend
+      client.clearStore().finally(() => setUser(null)).catch(() => setUser(null));
+      setDone(true);
+    },
     onError: (err) => setError(err.message),
   });
 
@@ -89,7 +96,7 @@ export default function AcceptInvitePage() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+            <p className="text-sm text-red-600">{error}</p>
           )}
 
           <button

@@ -273,7 +273,7 @@ function StatusActions({
     <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
       <h3 className="text-sm font-medium text-gray-900">Actions</h3>
       {actionError && (
-        <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+        <p className="text-xs text-red-600">
           {actionError}
         </p>
       )}
