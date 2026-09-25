@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   secret-scan:
@@ -234,5 +235,98 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  llm-eval:
+    name: LLM Eval Harness (askPlaybook)
+    runs-on: ubuntu-latest
+    # Manual trigger only — this job makes real Groq + OpenAI API calls (23
+    # scenarios x 2 calls each: the real answer + the LLM-as-judge score), so
+    # it deliberately does not run on every push/PR the way the other jobs
+    # do. Trigger from the Actions tab when you want a fresh baseline (e.g.
+    # before an interview, or after changing the playbook prompt/retrieval
+    # logic). Non-blocking by design (see backend/evals/) — this reports
+    # results as an artifact, it does not fail the build on score thresholds.
+    if: github.event_name == 'workflow_dispatch'
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_DB: quoteiq_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+      - name: Run migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+      - name: Seed test database (users + client)
+        working-directory: backend
+        run: npx tsx src/prisma/seed-ci.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+      - name: Seed playbook documents (real embeddings)
+        working-directory: backend
+        run: npx tsx src/prisma/seed-documents.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run eval — answer quality (LLM-as-judge)
+        working-directory: backend
+        run: npx tsx evals/run-eval.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        continue-on-error: true # non-blocking — report results, don't fail the build
+
+      - name: Run eval — retrieval precision (no LLM calls, reads results.json)
+        working-directory: backend
+        run: npx tsx evals/check-retrieval-precision.ts
+        continue-on-error: true
+
+      - name: Run eval — grounded-refusal accuracy (no LLM calls, reads results.json)
+        working-directory: backend
+        run: npx tsx evals/check-grounded-refusal.ts
+        continue-on-error: true
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-eval-results
+          path: backend/evals/results.json
+          retention-days: 30
 
 

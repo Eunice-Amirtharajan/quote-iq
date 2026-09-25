@@ -4,14 +4,11 @@
  * Tests the ILIKE search path in quotations.service.ts findAll() against
  * the production Neon DB (50k rows, GIN trigram indexes applied).
  *
- * Usage:
- *   k6 run backend/load-tests/search.js
- *
- * Override defaults:
+ * Usage — EMAIL and PASSWORD are required, no default credentials are baked in:
  *   k6 run backend/load-tests/search.js \
  *     -e BASE_URL=https://api.quoteiq.cc \
- *     -e EMAIL=anna@quoteiq.com \
- *     -e PASSWORD=password123 \
+ *     -e EMAIL=<test-account-email> \
+ *     -e PASSWORD=<test-account-password> \
  *     --vus 20 --duration 30s
  *
  * Install k6: https://k6.io/docs/get-started/installation/
@@ -27,8 +24,14 @@ import { Trend, Rate } from 'k6/metrics';
 // Configuration
 // ---------------------------------------------------------------------------
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:4000';
-const EMAIL    = __ENV.EMAIL    || 'anna@quoteiq.com';
-const PASSWORD = __ENV.PASSWORD || 'password123';
+const EMAIL = __ENV.EMAIL;
+const PASSWORD = __ENV.PASSWORD;
+
+if (!EMAIL || !PASSWORD) {
+  throw new Error(
+    'EMAIL and PASSWORD env vars are required — pass with -e EMAIL=... -e PASSWORD=... (no default credentials are baked into this script).',
+  );
+}
 
 // Search terms that exercise the trigram index across all three columns
 const SEARCH_TERMS = [

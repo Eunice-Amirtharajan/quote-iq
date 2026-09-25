@@ -234,7 +234,10 @@ export class AuthService {
     search?: string,
   ): Promise<{ items: User[]; total: number }> {
     const where = search
-      ? { isActive: true, name: { contains: search, mode: 'insensitive' as const } }
+      ? {
+          isActive: true,
+          name: { contains: search, mode: 'insensitive' as const },
+        }
       : { isActive: true };
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -253,7 +256,8 @@ export class AuthService {
       throw new BadRequestException('You cannot deactivate your own account');
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
-    if (!user.isActive) throw new BadRequestException('User is already deactivated');
+    if (!user.isActive)
+      throw new BadRequestException('User is already deactivated');
 
     await this.prisma.user.update({ where: { id }, data: { isActive: false } });
 

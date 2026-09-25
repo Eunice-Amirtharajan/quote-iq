@@ -1,7 +1,9 @@
+// k6 load test — hammers /graphql to trigger HPA scale-up on the cluster.
+// Usage: k6 run k8s/load-test.js -e BASE_URL=http://<cluster-ip-or-domain>
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const BASE_URL = 'http://34.153.168.104';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:4000';
 
 export const options = {
   stages: [

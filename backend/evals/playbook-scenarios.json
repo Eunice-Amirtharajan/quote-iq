@@ -1,0 +1,174 @@
+{
+  "description": "Labeled scenario set for evaluating askPlaybook's answer quality against the 4 seeded playbook documents (see backend/src/prisma/seed-documents.ts and docs/sample-playbook/*.md). Each scenario's expectedAnswer/expectedBehavior was hand-derived from reading the actual document content, not guessed. Used by the LLM-as-judge scoring script (backend/evals/run-eval.ts) to measure whether askPlaybook's real output correctly answers the question, refuses when it should, and cites the right source.",
+  "scenarios": [
+    {
+      "id": "pricing-01",
+      "category": "in-scope",
+      "question": "What is the day rate for a solutions architect?",
+      "expectedAnswer": "The standard day rate for a solutions architect is $1,400/day. Rush pricing (for turnarounds faster than the standard 2-week window) is $1,850/day.",
+      "expectedSourceDocuments": ["pricing-guidelines"]
+    },
+    {
+      "id": "pricing-02",
+      "category": "in-scope",
+      "question": "Can I apply a discount to the implementation services line items on a quote?",
+      "expectedAnswer": "No — when a quotation includes both license fees and implementation services, any negotiated discount should apply to the license line items only. Services day rates are not typically discounted since they reflect actual staff time. If a client wants a services discount, it should be flagged to a sales manager rather than applied unilaterally.",
+      "expectedSourceDocuments": ["pricing-guidelines"]
+    },
+    {
+      "id": "pricing-03",
+      "category": "in-scope",
+      "question": "Should I round line totals to the nearest dollar or keep fractional cents?",
+      "expectedAnswer": "Round final line totals to the nearest whole dollar — do not quote clients fractional cents. Tax should be calculated on the post-discount subtotal, not the pre-discount list price.",
+      "expectedSourceDocuments": ["pricing-guidelines"]
+    },
+    {
+      "id": "pricing-04",
+      "category": "in-scope",
+      "question": "A prospect wants Enterprise tier pricing for their 80-person sales team. What should I quote them?",
+      "expectedAnswer": "Enterprise pricing (for teams over 50 reps) is custom and should not be estimated from the Growth tier — route Enterprise pricing requests to Revenue Operations, since Enterprise includes custom SLAs that affect price.",
+      "expectedSourceDocuments": ["pricing-guidelines"]
+    },
+    {
+      "id": "discount-01",
+      "category": "in-scope",
+      "question": "What discount can a sales rep approve without any manager sign-off?",
+      "expectedAnswer": "A sales rep may apply a discount of 0-10% off list price without any approval.",
+      "expectedSourceDocuments": ["discount-approval-policy"]
+    },
+    {
+      "id": "discount-02",
+      "category": "in-scope",
+      "question": "What's the maximum discount I can offer a healthcare client with a $75,000 deal without getting director approval?",
+      "expectedAnswer": "For healthcare deals over $50,000 total contract value, the maximum discount a sales rep can offer without director approval is 15% (tighter than the standard 20%), because of the extended sales cycles and higher servicing costs in this segment at this deal size.",
+      "expectedSourceDocuments": ["discount-approval-policy"]
+    },
+    {
+      "id": "discount-03",
+      "category": "in-scope",
+      "question": "Can I stack a line-item discount with a header-level discount on the same quote?",
+      "expectedAnswer": "No — discounts should be entered as a single blended rate on the quotation. Stacking a line-item discount and a header-level discount on the same quotation is not supported and has caused invoicing mismatches in the past.",
+      "expectedSourceDocuments": ["discount-approval-policy"]
+    },
+    {
+      "id": "discount-04",
+      "category": "in-scope",
+      "question": "A startup with 30 employees wants a 22% discount. Do I need manager approval?",
+      "expectedAnswer": "No — reps may offer up to 25% without manager approval for verified startups under 50 employees. Verification means confirming company size via LinkedIn or the client's own website, not the client's self-reported employee count.",
+      "expectedSourceDocuments": ["discount-approval-policy"]
+    },
+    {
+      "id": "discount-05",
+      "category": "in-scope",
+      "question": "What approval is needed for a renewal that keeps the same discount as the original contract?",
+      "expectedAnswer": "Renewals at flat or increased price do not require any approval regardless of discount history. A renewal proposing a discount deeper than the original contract's discount requires the same approval tier as a new deal at that discount level.",
+      "expectedSourceDocuments": ["discount-approval-policy"]
+    },
+    {
+      "id": "battlecard-01",
+      "category": "in-scope",
+      "question": "A prospect says QuoteWise is cheaper than us. How should I respond?",
+      "expectedAnswer": "QuoteWise's list pricing is lower per seat, but their approval workflow limitations often force customers to purchase a higher tier to unlock multi-step approvals, at which point total cost is comparable. Ask the prospect how many approval steps their deals typically require before comparing price directly.",
+      "expectedSourceDocuments": ["competitor-battlecard-quotewise"]
+    },
+    {
+      "id": "battlecard-02",
+      "category": "in-scope",
+      "question": "Does QuoteIQ support multi-currency quotations?",
+      "expectedAnswer": "No — QuoteIQ currently assumes single-currency quotations, while QuoteWise supports line items priced in different currencies within a single quotation. For international deals, values should be calculated in the client's primary currency manually before quote creation.",
+      "expectedSourceDocuments": ["competitor-battlecard-quotewise"]
+    },
+    {
+      "id": "winloss-01",
+      "category": "in-scope",
+      "question": "What did clients say helped them get internal budget approval faster?",
+      "expectedAnswer": "Clients in the professional services segment repeatedly said a detailed line-item breakdown (rather than a single bundled project fee) helped them get internal budget approval faster, since they could show finance exactly what each cost covered.",
+      "expectedSourceDocuments": ["win-loss-debrief-q1-2026"]
+    },
+    {
+      "id": "winloss-02",
+      "category": "in-scope",
+      "question": "Why did a $120,000 public sector deal fall through last quarter?",
+      "expectedAnswer": "A $120,000 public sector contract was lost after internal approval for a requested 22% discount took nine business days, during which the prospect's budget window closed. This is the case study behind the push to tighten SLA on regional-director-level approvals to 2 business days.",
+      "expectedSourceDocuments": ["win-loss-debrief-q1-2026"]
+    },
+    {
+      "id": "out-of-scope-01",
+      "category": "out-of-scope",
+      "question": "What's the weather like in San Francisco today?",
+      "expectedBehavior": "refuse",
+      "expectedAnswer": "I could not find a relevant answer in the uploaded playbook documents."
+    },
+    {
+      "id": "out-of-scope-02",
+      "category": "out-of-scope",
+      "question": "Can you write me a Python script to sort a list?",
+      "expectedBehavior": "refuse",
+      "expectedAnswer": "I could not find a relevant answer in the uploaded playbook documents."
+    },
+    {
+      "id": "out-of-scope-03",
+      "category": "out-of-scope",
+      "question": "What's QuoteIQ's stock ticker symbol?",
+      "expectedBehavior": "refuse",
+      "expectedAnswer": "I could not find a relevant answer in the uploaded playbook documents.",
+      "notes": "Adversarial-adjacent: sounds business-related but isn't actually answerable from any seeded document (QuoteIQ isn't a public company and none of the docs mention one) — tests that surface-level topic similarity doesn't fool the relevance gate."
+    },
+    {
+      "id": "out-of-scope-04",
+      "category": "out-of-scope",
+      "question": "How do I reset my QuoteIQ account password?",
+      "expectedBehavior": "refuse",
+      "expectedAnswer": "I could not find a relevant answer in the uploaded playbook documents.",
+      "notes": "Sounds like a legitimate QuoteIQ product question, but none of the 4 seeded documents (pricing, discount policy, battlecard, win-loss debrief) cover account/password mechanics — tests that the gate doesn't over-trust anything QuoteIQ-adjacent."
+    },
+    {
+      "id": "cross-doc-01",
+      "category": "cross-document",
+      "question": "I'm quoting a $60,000 healthcare deal and the client is asking why the discount approval is taking so long compared to what they expected. What should I tell them, and what's our actual policy here?",
+      "expectedAnswer": "Combines two documents: per the discount-approval-policy, this deal is over the $50,000 healthcare threshold, so the max discount a rep can approve without director sign-off is 15% (not the standard 20%) — healthcare deals in this size band take longer to close and carry higher servicing costs. Separately, the win-loss-debrief notes that slow internal approval turnaround has directly cost at least one deal (a $120,000 public sector contract lost after a 9-business-day approval delay), which is why there's now a push to tighten regional-director approval SLA to 2 business days — so the client's concern about speed is a recognized internal issue, not unique to their deal.",
+      "expectedSourceDocuments": ["discount-approval-policy", "win-loss-debrief-q1-2026"],
+      "notes": "Hardest scenario in the set — a good answer should touch both documents; a mediocre answer will only cite one. Useful for judging whether reranking/context selection actually surfaces both relevant sources for a question that doesn't obviously read as 'two-document'."
+    },
+    {
+      "id": "cross-doc-02",
+      "category": "cross-document",
+      "question": "A prospect is comparing us to QuoteWise and specifically cares about multi-currency support, which we don't have. Is this a common reason we lose deals, and how should I handle the objection?",
+      "expectedAnswer": "Combines two documents: per the battlecard, QuoteWise supports multi-currency line items while QuoteIQ assumes single-currency — for international deals, values should be calculated in the client's primary currency manually before quote creation. Per the win-loss-debrief, this is a real, documented loss reason: two lost EMEA-region deals in Q1 2026 specifically cited the lack of multi-currency support as the blocker, and both went with QuoteWise for that reason — so this isn't a hypothetical objection, it has real track record as a loss driver.",
+      "expectedSourceDocuments": ["competitor-battlecard-quotewise", "win-loss-debrief-q1-2026"],
+      "notes": "Second hardest scenario — tests whether the system connects a competitive gap mentioned in one doc to its real-world consequence documented in another."
+    },
+    {
+      "id": "false-refusal-01",
+      "category": "in-scope",
+      "question": "quick q — can reps just eyeball whether a startup is small enough for the better discount tier, or is there an actual process?",
+      "expectedAnswer": "There's an actual process — reps may offer up to 25% without manager approval for verified startups under 50 employees, but verification means confirming company size via LinkedIn or the client's own website. Self-reported employee counts from the client are not sufficient, so reps can't just take the client's word for it.",
+      "expectedSourceDocuments": ["discount-approval-policy"],
+      "notes": "False-refusal probe: casual/vague phrasing ('quick q', 'eyeball') and no direct keyword overlap with the policy's own wording ('verified', 'verification') — tests whether informal phrasing pushes the cosine distance past the 0.7 refusal threshold on a question that IS fully answerable."
+    },
+    {
+      "id": "false-refusal-02",
+      "category": "in-scope",
+      "question": "If a deal is basically the same client renewing but they want a bigger cut than last time, what happens?",
+      "expectedAnswer": "A renewal proposing a discount deeper than the original contract's discount requires the same approval tier as a new deal at that discount level. Renewals at flat or increased price do not require approval, but a deeper discount on renewal is treated like a fresh discount request.",
+      "expectedSourceDocuments": ["discount-approval-policy"],
+      "notes": "False-refusal probe: 'bigger cut' is colloquial for 'deeper discount', 'basically the same client renewing' avoids the word 'renewal' directly — tests paraphrase robustness rather than keyword matching."
+    },
+    {
+      "id": "false-refusal-03",
+      "category": "in-scope",
+      "question": "why do healthcare deals seem to close less often once they get past a certain size? is that expected?",
+      "expectedAnswer": "Yes, this is a documented pattern — healthcare deals under $50,000 closed at a notably higher rate (58%) than healthcare deals over $50,000 (34%), which reinforces the tighter discount discipline in the discount policy for larger healthcare deals. Larger healthcare deals appear to face more internal scrutiny on the client side regardless of QuoteIQ's own pricing or approval process.",
+      "expectedSourceDocuments": ["win-loss-debrief-q1-2026"],
+      "notes": "False-refusal probe: an open-ended 'why' question with no obvious keyword anchor to the document (doesn't mention 'discount', 'approval', or a specific number) — tests whether the retrieval gate can surface a document purely on topical/semantic relevance rather than lexical overlap."
+    },
+    {
+      "id": "false-refusal-04",
+      "category": "in-scope",
+      "question": "we're losing some international deals, is there a known reason or is it just random?",
+      "expectedAnswer": "Not random — missing multi-currency support is a documented, specific reason: two lost EMEA-region deals in Q1 2026 cited the lack of multi-currency line items as a blocker, consistent with the same gap noted in the QuoteWise competitor battlecard, and both prospects chose QuoteWise specifically for that reason.",
+      "expectedSourceDocuments": ["win-loss-debrief-q1-2026", "competitor-battlecard-quotewise"],
+      "notes": "False-refusal probe, also cross-document: vague framing ('is there a known reason or is it just random') without naming the actual cause — tests whether the system still retrieves and connects both relevant documents rather than concluding the question is too vague to answer."
+    }
+  ]
+}
