@@ -28,8 +28,8 @@
                 <mxCell id="github-repo" value="Repository&#xa;(main branch)" style="shape=mxgraph.veeam2.server;html=1;fillColor=#f5f5f5;strokeColor=#333333;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="460" y="115" width="60" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="gh-actions" value="GitHub Actions CI&#xa;&#xa;1. Backend unit tests&#xa;2. Backend E2E tests&#xa;   (Docker + Postgres)&#xa;3. Frontend unit tests&#xa;4. Build check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;fontSize=11;align=left;spacingLeft=8;" parent="1" vertex="1">
-                    <mxGeometry x="415" y="195" width="190" height="170" as="geometry"/>
+                <mxCell id="gh-actions" value="GitHub Actions CI (.github/workflows/ci.yml)&#xa;&#xa;1. secret-scan (Gitleaks)&#xa;2. test — unit + backend E2E&#xa;   (Docker + Postgres + RabbitMQ)&#xa;   + SonarCloud analysis&#xa;3. playwright — frontend E2E&#xa;   (separate job, own containers)&#xa;4. llm-eval — manual dispatch only&#xa;   (askPlaybook eval harness,&#xa;   non-blocking, report-only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;fontSize=11;align=left;spacingLeft=8;" parent="1" vertex="1">
+                    <mxGeometry x="415" y="195" width="220" height="260" as="geometry"/>
                 </mxCell>
                 <mxCell id="vercel-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;opacity=40;" parent="1" vertex="1">
                     <mxGeometry x="680" y="80" width="260" height="300" as="geometry"/>
@@ -58,7 +58,7 @@
                 <mxCell id="docker-label" value="Docker Container" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=2;" parent="1" vertex="1">
                     <mxGeometry x="1015" y="118" width="270" height="20" as="geometry"/>
                 </mxCell>
-                <mxCell id="nestjs-box" value="NestJS 11&#xa;Apollo GraphQL Server&#xa;:5000/graphql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+                <mxCell id="nestjs-box" value="NestJS 11&#xa;Apollo GraphQL Server&#xa;:4000/graphql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
                     <mxGeometry x="1035" y="145" width="220" height="60" as="geometry"/>
                 </mxCell>
                 <mxCell id="health-endpoint" value="GET /health&#xa;→ 200 { status: ok }&#xa;No DB call — always fast" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">

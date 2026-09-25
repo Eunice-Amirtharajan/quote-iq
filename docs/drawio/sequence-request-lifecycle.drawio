@@ -67,8 +67,8 @@
         </mxCell>
         <mxCell id="m2-label" value="Invoke JwtAuthGuard" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m2"><mxGeometry relative="1" as="geometry" /></mxCell>
 
-        <mxCell id="note-jwt" value="Extract cookie → verify JWT → validate payload&#xa;findUnique(payload.sub) → attach req.user" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
-          <mxGeometry x="520" y="225" width="280" height="45" as="geometry" />
+        <mxCell id="note-jwt" value="Extract cookie → verify JWT → validate payload&#xa;findFirst(payload.sub, isActive: true) → attach req.user" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
+          <mxGeometry x="520" y="225" width="280" height="55" as="geometry" />
         </mxCell>
 
         <mxCell id="m3" value="401 Unauthorized" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;dashed=1;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">

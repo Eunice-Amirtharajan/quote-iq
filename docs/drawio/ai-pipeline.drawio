@@ -128,14 +128,17 @@
         <mxCell id="f1a-embed-q" value="Embed question&#xa;OpenAI text-embedding-3-small" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="1020" y="250" width="180" height="55" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-retrieve" value="pgvector cosine search&#xa;SELECT ... ORDER BY&#xa;embedding &lt;=&gt; $queryVec LIMIT k&#xa;(DocumentChunk table)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="355" width="200" height="80" as="geometry" />
+        <mxCell id="f1a-retrieve" value="Hybrid retrieval (searchDocumentChunks)&#xa;Leg 1: pgvector cosine — embedding &lt;=&gt; $queryVec&#xa;Leg 2: Postgres keyword — ts_rank/plainto_tsquery&#xa;Fused via RRF: score = 1/(60+rank), summed&#xa;across both legs (DocumentChunk table)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="355" width="220" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-no-result" value="No chunk above&#xa;threshold → return&#xa;'no relevant info'" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1240" y="355" width="140" height="80" as="geometry" />
+        <mxCell id="f1a-no-result" value="bestDistance &gt; 0.7&#xa;or no chunks → return&#xa;'no relevant info'&#xa;(skips rerank + LLM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="355" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="f1a-rerank" value="rerankChunks()&#xa;Groq cross-encoder reranking&#xa;of top RRF-fused chunks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="480" width="220" height="65" as="geometry" />
         </mxCell>
         <mxCell id="f1a-groq-answer" value="Groq API&#xa;System: ground in retrieved passages&#xa;User: the question&#xa;Answer: 2–4 grounded sentences" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="490" width="200" height="80" as="geometry" />
+          <mxGeometry x="1010" y="580" width="220" height="80" as="geometry" />
         </mxCell>
         <mxCell id="f1a-answer-return" value="Return grounded answer" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="1040" y="620" width="160" height="50" as="geometry" />
@@ -268,10 +271,13 @@
         <mxCell id="cf1a-q2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1a-embed-q" target="f1a-retrieve" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf1a-q3" value="found" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontSize=10;" edge="1" source="f1a-retrieve" target="f1a-groq-answer" parent="1">
+        <mxCell id="cf1a-q3" value="within threshold" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontSize=10;" edge="1" source="f1a-retrieve" target="f1a-rerank" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf1a-q3b" value="none" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;fontSize=10;" edge="1" source="f1a-retrieve" target="f1a-no-result" parent="1">
+        <mxCell id="cf1a-q3b" value="bestDistance &gt; 0.7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;fontSize=10;" edge="1" source="f1a-retrieve" target="f1a-no-result" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cf1a-q3c" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1a-rerank" target="f1a-groq-answer" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="cf1a-q4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f1a-groq-answer" target="f1a-answer-return" parent="1">

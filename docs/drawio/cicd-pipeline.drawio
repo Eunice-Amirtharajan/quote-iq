@@ -21,34 +21,60 @@
 
         <!-- CI ZONE -->
         <mxCell id="ci-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;opacity=30;" vertex="1" parent="1">
-          <mxGeometry x="100" y="300" width="200" height="380" as="geometry" />
+          <mxGeometry x="100" y="300" width="200" height="620" as="geometry" />
         </mxCell>
-        <mxCell id="ci-label" value="CI — Test Stage" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="ci-label" value="CI — 3 sequential jobs (push/PR)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="100" y="305" width="200" height="25" as="geometry" />
         </mxCell>
 
+        <mxCell id="ci0" value="Job 1: secret-scan&#xa;Gitleaks (full git history)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="120" y="335" width="160" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="ci-job2-label" value="Job 2: test" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="120" y="385" width="160" height="18" as="geometry" />
+        </mxCell>
         <mxCell id="ci1" value="npm ci" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="335" width="160" height="40" as="geometry" />
+          <mxGeometry x="120" y="405" width="160" height="35" as="geometry" />
         </mxCell>
         <mxCell id="ci2" value="npx prisma generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="385" width="160" height="40" as="geometry" />
+          <mxGeometry x="120" y="445" width="160" height="35" as="geometry" />
         </mxCell>
         <mxCell id="ci3" value="prisma migrate deploy&#xa;(Docker PostgreSQL :5433)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="435" width="160" height="50" as="geometry" />
+          <mxGeometry x="120" y="485" width="160" height="45" as="geometry" />
         </mxCell>
-        <mxCell id="ci4" value="prisma db seed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="495" width="160" height="40" as="geometry" />
+        <mxCell id="ci4" value="seed-ci.ts&#xa;(users + client, RabbitMQ up)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="535" width="160" height="45" as="geometry" />
         </mxCell>
         <mxCell id="ci5" value="npm run test:cov&#xa;(Jest unit tests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="545" width="160" height="40" as="geometry" />
+          <mxGeometry x="120" y="585" width="160" height="35" as="geometry" />
         </mxCell>
         <mxCell id="ci6" value="npm run test:e2e&#xa;(Supertest E2E)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="595" width="160" height="40" as="geometry" />
+          <mxGeometry x="120" y="625" width="160" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="ci7" value="SonarCloud analysis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="665" width="160" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="ci-job3-label" value="Job 3: playwright&#xa;(own Postgres + RabbitMQ containers)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="120" y="705" width="160" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="ci8" value="Frontend Playwright E2E&#xa;(backend started, /health polled)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="740" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- LLM EVAL — separate manual-only job, not part of the push/PR sequence -->
+        <mxCell id="llm-eval-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="300" width="200" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="llm-eval-label" value="Job 4: llm-eval&#xa;workflow_dispatch ONLY&#xa;(not on push/PR — real API cost)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="305" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="llm-eval-step" value="seed-documents.ts (real embeddings)&#xa;→ run-eval.ts (LLM-as-judge)&#xa;→ retrieval-precision + grounded-refusal&#xa;→ upload results.json artifact&#xa;(continue-on-error — report only,&#xa;never blocks the build)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1095" y="350" width="170" height="80" as="geometry" />
         </mxCell>
 
         <!-- GATE -->
         <mxCell id="gate" value="All tests&#xa;passed?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="700" width="160" height="80" as="geometry" />
+          <mxGeometry x="120" y="940" width="160" height="80" as="geometry" />
         </mxCell>
 
         <mxCell id="blocked" value="❌ CI failed&#xa;(Railway + Vercel already deploying independently)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
@@ -111,13 +137,17 @@
 
         <!-- EDGES -->
         <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="trigger" target="gha" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="gha" target="ci1" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e1b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="gha" target="ci0" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="ci0" target="ci1" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci1" target="ci2" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci2" target="ci3" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci3" target="ci4" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci4" target="ci5" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci5" target="ci6" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="ci6" target="gate" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci6" target="ci7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7c" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci7" target="ci8" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="ci8" target="gate" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" edge="1" source="gha" target="llm-eval-step" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="gate" target="blocked" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>

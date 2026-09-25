@@ -112,7 +112,7 @@
         <mxCell id="neon-label" value="Neon DB (PostgreSQL · EU Frankfurt)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="270" y="835" width="200" height="22" as="geometry" />
         </mxCell>
-        <mxCell id="postgres" value="PostgreSQL + pgvector&#xa;9 tables · Prisma migrations" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="postgres" value="PostgreSQL + pgvector&#xa;11 tables · Prisma migrations" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="310" y="865" width="120" height="70" as="geometry" />
         </mxCell>
 

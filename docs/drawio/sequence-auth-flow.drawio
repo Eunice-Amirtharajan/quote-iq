@@ -118,7 +118,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="m9" value="findUnique({ where: { id: payload.sub } })" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
+        <mxCell id="m9" value="findFirst({ where: { id: payload.sub, isActive: true } })" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="760" y="610" /><mxPoint x="960" y="610" /></Array></mxGeometry>
         </mxCell>
 

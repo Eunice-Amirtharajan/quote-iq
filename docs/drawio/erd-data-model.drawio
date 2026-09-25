@@ -1,12 +1,12 @@
 <mxfile host="app.diagrams.net" modified="2026-09-18" version="21.0.0">
   <diagram name="ERD - Data Model" id="erd">
-    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2000" pageHeight="1400" math="0" shadow="0">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2000" pageHeight="1300" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
         <!-- Title -->
-        <mxCell id="title" value="QuoteIQ — Entity Relationship Diagram (9 tables)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="title" value="QuoteIQ — Entity Relationship Diagram (11 tables)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="400" y="20" width="1000" height="40" as="geometry" />
         </mxCell>
 
@@ -14,16 +14,32 @@
         <mxCell id="user-header" value="User" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="60" y="80" width="220" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="user-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;email: String (unique)&#xa;password: String (bcrypt hash)&#xa;role: SALES_MANAGER | SALES_REP&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="60" y="115" width="220" height="130" as="geometry" />
+        <mxCell id="user-fields" value="🔑 id: UUID (PK)&#xa;name: String&#xa;email: String (unique)&#xa;password: String? (bcrypt hash)&#xa;role: SALES_MANAGER | SALES_REP&#xa;isActive: Boolean (default true)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="115" width="220" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- ===== CLIENT ===== -->
+        <mxCell id="client-header" value="Client" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="290" width="220" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="client-fields" value="🔑 id: UUID (PK)&#xa;name: String (unique)&#xa;email: String?&#xa;createdAt: DateTime&#xa;updatedAt: DateTime&#xa;&#xa;INDEX: name" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="325" width="220" height="120" as="geometry" />
         </mxCell>
 
         <!-- ===== QUOTATION ===== -->
         <mxCell id="quotation-header" value="Quotation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="400" y="80" width="240" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;quotationNumber: String (unique, QT-YYYY-NNNN)&#xa;title: String&#xa;clientName: String&#xa;status: DRAFT|SENT|APPROVED|REJECTED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;validUntil: DateTime?&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime&#xa;&#xa;INDEX: createdById" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="400" y="115" width="240" height="280" as="geometry" />
+        <mxCell id="quotation-fields" value="🔑 id: UUID (PK)&#xa;publicToken: UUID (unique)&#xa;quotationNumber: String (unique, QT-YYYY-NNNN)&#xa;title: String&#xa;🔗 clientId: UUID (FK → Client)&#xa;status: DRAFT|SENT|APPROVED|REJECTED&#xa;notes: String?&#xa;taxRate: Float&#xa;subtotal: Float&#xa;taxAmount: Float&#xa;total: Float&#xa;version: Int (default 1)&#xa;🔗 createdById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime&#xa;&#xa;INDEX: createdById, clientId, status&#xa;INDEX: (createdById, status)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="400" y="115" width="240" height="310" as="geometry" />
+        </mxCell>
+
+        <!-- ===== QUOTATION_SNAPSHOT ===== -->
+        <mxCell id="snapshot-header" value="QuotationSnapshot" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1080" width="240" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="snapshot-fields" value="🔑 id: UUID (PK)&#xa;🔗 quotationId: UUID (FK → Quotation)&#xa;content: Json (field-level diff)&#xa;createdAt: DateTime&#xa;&#xa;INDEX: quotationId" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1115" width="240" height="110" as="geometry" />
         </mxCell>
 
         <!-- ===== QUOTATION_ITEM ===== -->
@@ -60,26 +76,26 @@
 
         <!-- ===== PLAYBOOK_CHUNK ===== -->
         <mxCell id="playbook-header" value="PlaybookChunk" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="340" width="240" height="35" as="geometry" />
+          <mxGeometry x="60" y="480" width="240" height="35" as="geometry" />
         </mxCell>
         <mxCell id="playbook-fields" value="🔑 id: UUID (PK)&#xa;source: String (document filename/key)&#xa;content: String (chunk text)&#xa;embedding: vector(1536)?  [pgvector]&#xa;createdAt: DateTime&#xa;&#xa;INDEX: source&#xa;cosine similarity: &lt;=&gt; operator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="60" y="375" width="240" height="145" as="geometry" />
+          <mxGeometry x="60" y="515" width="240" height="145" as="geometry" />
         </mxCell>
 
         <!-- ===== DOCUMENT ===== -->
         <mxCell id="doc-header" value="Document" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="560" width="240" height="35" as="geometry" />
+          <mxGeometry x="60" y="700" width="240" height="35" as="geometry" />
         </mxCell>
         <mxCell id="doc-fields" value="🔑 id: UUID (PK)&#xa;filename: String&#xa;mimeType: String&#xa;sizeBytes: Int&#xa;storageKey: String (unique — Supabase key)&#xa;storageUrl: String&#xa;status: PENDING_SCAN | SCANNING&#xa;       | PENDING_REVIEW | READY&#xa;       | REJECTED | FAILED&#xa;rejectedReason: String?&#xa;🔗 uploadedById: UUID (FK → User)&#xa;createdAt: DateTime&#xa;updatedAt: DateTime&#xa;&#xa;INDEX: uploadedById, status" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="60" y="595" width="240" height="265" as="geometry" />
+          <mxGeometry x="60" y="735" width="240" height="265" as="geometry" />
         </mxCell>
 
         <!-- ===== DOCUMENT_CHUNK ===== -->
         <mxCell id="chunk-header" value="DocumentChunk" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="930" width="240" height="35" as="geometry" />
+          <mxGeometry x="60" y="1070" width="240" height="35" as="geometry" />
         </mxCell>
         <mxCell id="chunk-fields" value="🔑 id: UUID (PK)&#xa;chunkIndex: Int&#xa;content: String (chunk text)&#xa;embedding: vector(1536)?  [pgvector]&#xa;createdAt: DateTime&#xa;🔗 documentId: UUID (FK → Document)&#xa;&#xa;INDEX: documentId&#xa;cosine similarity: &lt;=&gt; operator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="60" y="965" width="240" height="155" as="geometry" />
+          <mxGeometry x="60" y="1105" width="240" height="155" as="geometry" />
         </mxCell>
 
         <!-- ===== RELATIONSHIPS ===== -->
@@ -136,6 +152,22 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="r7-label" value="chunked into" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Client → Quotation (1:many) -->
+        <mxCell id="r8" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="client-fields" target="quotation-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r8-label" value="quoted for" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Quotation → QuotationSnapshot (1:many) -->
+        <mxCell id="r9" style="edgeStyle=entityRelationEdgeStyle;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="quotation-fields" target="snapshot-fields" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r9-label" value="version history" style="edgeLabel;html=1;fontSize=10;fontStyle=2;" vertex="1" connectable="0" parent="r9">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
