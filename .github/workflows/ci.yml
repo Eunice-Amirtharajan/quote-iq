@@ -191,13 +191,23 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
 
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
       - name: Start backend
         working-directory: backend
-        # Backgrounded across a step boundary — nohup + disown + redirected
-        # output keep the process alive after this step's shell exits, and
-        # `nest start` (no --watch) avoids the file-watcher process the dev
-        # script normally uses, which is unnecessary and less stable in CI.
-        run: nohup npx nest start > backend.log 2>&1 & disown
+        # Runs the already-built dist/main.js directly, rather than `nest
+        # start` (compile + run combined) — that combo raced against its own
+        # compile step when backgrounded across a step boundary, sometimes
+        # starting the runtime before dist/main.js existed yet. Building as
+        # its own prior step means a real build failure fails loudly here,
+        # instead of surfacing later as a misleading MODULE_NOT_FOUND.
+        # nohup + disown + redirected output keep the process alive after
+        # this step's shell exits.
+        run: nohup node dist/main.js > backend.log 2>&1 & disown
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
           JWT_SECRET: test-secret-key
