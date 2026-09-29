@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -11,18 +11,34 @@ import { AuthProvider } from "./context/AuthProvider";
 import { useAuth } from "./hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
 import Layout from "./components/Layout";
-import DashboardPage from "./pages/DashboardPage";
-import QuotationsPage from "./pages/QuotationsPage";
-import QuotationDetailPage from "./pages/QuotationDetailPage";
-import WinLossPage from "./pages/WinLossPage";
-import PublicQuotePage from "./pages/PublicQuotePage";
-import DocumentsPage from "./pages/DocumentsPage";
-import PlaybookPage from "./pages/PlaybookPage";
-import ClientsPage from "./pages/ClientsPage";
-import UsersPage from "./pages/UsersPage";
-import AcceptInvitePage from "./pages/AcceptInvitePage";
-import RequestPasswordResetPage from "./pages/RequestPasswordResetPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
+import { lazyWithPreload } from "./lib/lazy-with-preload";
+
+// Route-level code splitting: each page is its own chunk, so the first download is
+// just the shell (router, Apollo, auth, layout, login). Heavy page dependencies —
+// Recharts and D3 on the dashboard — load only when that route is visited.
+// LoginPage stays eager: it is the first screen for every signed-out visit.
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const QuotationsPage = lazy(() => import("./pages/QuotationsPage"));
+// Preloaded from the list (see QuotationsRoute): creating or opening a quote navigates
+// here, and without the chunk ready the list would stay on screen while it downloads.
+const QuotationDetailPage = lazyWithPreload(() => import("./pages/QuotationDetailPage"));
+const WinLossPage = lazy(() => import("./pages/WinLossPage"));
+const PublicQuotePage = lazy(() => import("./pages/PublicQuotePage"));
+const DocumentsPage = lazy(() => import("./pages/DocumentsPage"));
+const PlaybookPage = lazy(() => import("./pages/PlaybookPage"));
+const ClientsPage = lazy(() => import("./pages/ClientsPage"));
+const UsersPage = lazy(() => import("./pages/UsersPage"));
+const AcceptInvitePage = lazy(() => import("./pages/AcceptInvitePage"));
+const RequestPasswordResetPage = lazy(() => import("./pages/RequestPasswordResetPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64" role="status">
+      <p className="text-gray-400 text-sm">Loading…</p>
+    </div>
+  );
+}
 
 function RequireAuth({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user } = useAuth();
@@ -46,6 +62,10 @@ function QuotationDetailRoute() {
 
 function QuotationsRoute() {
   const navigate = useNavigate();
+  useEffect(() => {
+    // Fire-and-forget: a failed preload is retried when the route actually renders
+    QuotationDetailPage.preload().catch(() => {});
+  }, []);
   return <QuotationsPage onSelect={(id) => navigate(`/quotations/${id}`)} />;
 }
 
@@ -64,37 +84,42 @@ function DefaultRedirect() {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginRoute />} />
-      <Route path="/invite/:token" element={<AcceptInvitePage />} />
-      <Route path="/reset-password" element={<RequestPasswordResetPage />} />
-      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-      <Route path="/view-quotation/:token" element={<PublicQuotePage />} />
-      <Route
-        path="*"
-        element={
-          <RequireAuth>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<DefaultRedirect />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/quotations" element={<QuotationsRoute />} />
-                <Route
-                  path="/quotations/:id"
-                  element={<QuotationDetailRoute />}
-                />
-                <Route path="/clients" element={<ClientsPage />} />
-                <Route path="/users" element={<UsersPage />} />
-                <Route path="/winloss" element={<WinLossPage />} />
-                <Route path="/documents" element={<DocumentsPage />} />
-                <Route path="/playbook" element={<PlaybookPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Layout>
-          </RequireAuth>
-        }
-      />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/login" element={<LoginRoute />} />
+        <Route path="/invite/:token" element={<AcceptInvitePage />} />
+        <Route path="/reset-password" element={<RequestPasswordResetPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        <Route path="/view-quotation/:token" element={<PublicQuotePage />} />
+        <Route
+          path="*"
+          element={
+            <RequireAuth>
+              <Layout>
+                {/* Inner boundary keeps the nav visible while a page chunk loads */}
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    <Route path="/" element={<DefaultRedirect />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/quotations" element={<QuotationsRoute />} />
+                    <Route
+                      path="/quotations/:id"
+                      element={<QuotationDetailRoute />}
+                    />
+                    <Route path="/clients" element={<ClientsPage />} />
+                    <Route path="/users" element={<UsersPage />} />
+                    <Route path="/winloss" element={<WinLossPage />} />
+                    <Route path="/documents" element={<DocumentsPage />} />
+                    <Route path="/playbook" element={<PlaybookPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Suspense>
+              </Layout>
+            </RequireAuth>
+          }
+        />
+      </Routes>
+    </Suspense>
   );
 }
 

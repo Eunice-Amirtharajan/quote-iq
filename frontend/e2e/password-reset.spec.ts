@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const GQL = 'http://localhost:4000/graphql';
-const TEST_API = 'http://localhost:4000';
+// Direct API calls (login, invite, token lookup) must hit the same backend the UI uses.
+// Override with E2E_API_URL when the backend isn't on :4000 — otherwise these calls
+// silently reach whatever else is listening there (e.g. a dev server on a shared DB).
+const TEST_API = process.env.E2E_API_URL ?? 'http://localhost:4000';
+const GQL = `${TEST_API}/graphql`;
 
 async function gql(
   request: import('@playwright/test').APIRequestContext,
@@ -154,17 +157,20 @@ test.describe('Accept invite — form validation', () => {
   test('shows error when password is too short', async ({ page, request }) => {
     const { cookie: managerCookie } = await loginApi(request, 'marcus@quoteiq.com', 'password123');
     const inviteEmail = `e2e-inv-short-${Date.now()}@test.com`;
+    // Unique per run: the lookup below searches by name, and a leftover user from an
+    // earlier local run (no teardown) would otherwise be matched instead of this one
+    const inviteName = `E2E Short Pw ${Date.now()}`;
     await gql(
       request,
       `mutation InviteUser($name: String!, $email: String!, $role: Role!) {
         inviteUser(name: $name, email: $email, role: $role)
       }`,
-      { name: 'E2E Short Pw', email: inviteEmail, role: 'SALES_REP' },
+      { name: inviteName, email: inviteEmail, role: 'SALES_REP' },
       managerCookie,
     );
     const userRes = await gql(
       request,
-      `query { users(take: 1, search: "E2E Short Pw") { items { id } } }`,
+      `query { users(take: 1, search: "${inviteName}") { items { id } } }`,
       {},
       managerCookie,
     );
@@ -181,17 +187,20 @@ test.describe('Accept invite — form validation', () => {
   test('shows error when passwords do not match', async ({ page, request }) => {
     const { cookie: managerCookie } = await loginApi(request, 'marcus@quoteiq.com', 'password123');
     const inviteEmail = `e2e-inv-mismatch-${Date.now()}@test.com`;
+    // Unique per run: the lookup below searches by name, and a leftover user from an
+    // earlier local run (no teardown) would otherwise be matched instead of this one
+    const inviteName = `E2E Mismatch Pw ${Date.now()}`;
     await gql(
       request,
       `mutation InviteUser($name: String!, $email: String!, $role: Role!) {
         inviteUser(name: $name, email: $email, role: $role)
       }`,
-      { name: 'E2E Mismatch Pw', email: inviteEmail, role: 'SALES_REP' },
+      { name: inviteName, email: inviteEmail, role: 'SALES_REP' },
       managerCookie,
     );
     const userRes = await gql(
       request,
-      `query { users(take: 1, search: "E2E Mismatch Pw") { items { id } } }`,
+      `query { users(take: 1, search: "${inviteName}") { items { id } } }`,
       {},
       managerCookie,
     );
@@ -212,19 +221,22 @@ test.describe('Full invite flow', () => {
   test('invited user can set password and log in', async ({ page, request }) => {
     const { cookie: managerCookie } = await loginApi(request, 'marcus@quoteiq.com', 'password123');
     const inviteEmail = `e2e-inv-full-${Date.now()}@test.com`;
+    // Unique per run: the lookup below searches by name, and a leftover user from an
+    // earlier local run (no teardown) would otherwise be matched instead of this one
+    const inviteName = `E2E FullInvite ${Date.now()}`;
 
     await gql(
       request,
       `mutation InviteUser($name: String!, $email: String!, $role: Role!) {
         inviteUser(name: $name, email: $email, role: $role)
       }`,
-      { name: 'E2E FullInvite', email: inviteEmail, role: 'SALES_REP' },
+      { name: inviteName, email: inviteEmail, role: 'SALES_REP' },
       managerCookie,
     );
 
     const userRes = await gql(
       request,
-      `query { users(take: 1, search: "E2E FullInvite") { items { id } } }`,
+      `query { users(take: 1, search: "${inviteName}") { items { id } } }`,
       {},
       managerCookie,
     );

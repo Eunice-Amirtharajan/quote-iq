@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@apollo/client/react";
 import { WIN_LOSS_ANALYSIS_QUERY } from "../graphql/queries";
+import PipelineAnalysis from "../components/dashboard/PipelineAnalysis";
 
 interface RepStat {
   repName: string;
@@ -9,19 +11,11 @@ interface RepStat {
   approvalRate: number;
 }
 
-interface BucketStat {
-  bucket: string;
-  total: number;
-  approved: number;
-  approvalRate: number;
-}
-
 interface WinLossStats {
   approvalRate: number;
   avgApprovedDeal: number;
   avgRejectedDeal: number;
   byRep: RepStat[];
-  byDealSize: BucketStat[];
 }
 
 function StatCard({
@@ -36,9 +30,15 @@ function StatCard({
   );
 }
 
+/** Rows per page in the By Sales Rep table */
+const REP_PAGE_SIZE = 5;
+
 export default function WinLossPage() {
   const { data, loading, error } =
     useQuery<{ winLossAnalysis: WinLossStats }>(WIN_LOSS_ANALYSIS_QUERY);
+  // The per-rep rows arrive in one cached aggregate, so paging is client-side:
+  // the database work is the same however many rows are shown
+  const [repPage, setRepPage] = useState(0);
 
   if (loading)
     return (
@@ -56,6 +56,10 @@ export default function WinLossPage() {
 
   const stats = data?.winLossAnalysis;
   if (!stats) return null;
+
+  const repPages = Math.max(1, Math.ceil(stats.byRep.length / REP_PAGE_SIZE));
+  const currentRepPage = Math.min(repPage, repPages - 1);
+  const visibleReps = stats.byRep.slice(currentRepPage * REP_PAGE_SIZE, (currentRepPage + 1) * REP_PAGE_SIZE);
 
   return (
     <div className="space-y-8">
@@ -92,7 +96,8 @@ export default function WinLossPage() {
             No data yet
           </p>
         ) : (
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-115">
             <thead>
               <tr className="border-b border-gray-50">
                 {["Rep", "Sent", "Approved", "Rejected", "Win rate"].map(
@@ -108,7 +113,7 @@ export default function WinLossPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {stats.byRep.map((r) => (
+              {visibleReps.map((r) => (
                 <tr key={r.repName}>
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">
                     {r.repName}
@@ -127,45 +132,42 @@ export default function WinLossPage() {
               ))}
             </tbody>
           </table>
+          </div>
+        )}
+        {repPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3 text-sm text-gray-500">
+            <span className="text-xs">
+              Showing {currentRepPage * REP_PAGE_SIZE + 1}–
+              {currentRepPage * REP_PAGE_SIZE + visibleReps.length} of {stats.byRep.length} reps
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRepPage(currentRepPage - 1)}
+                disabled={currentRepPage === 0}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-xs">
+                Page {currentRepPage + 1} of {repPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setRepPage(currentRepPage + 1)}
+                disabled={currentRepPage >= repPages - 1}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* By deal size */}
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-medium text-gray-900">By Deal Size</h3>
-        </div>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-50">
-              {["Bucket", "Total", "Approved", "Win rate"].map((h) => (
-                <th
-                  key={h}
-                  className="text-left text-xs font-medium text-gray-400 px-6 py-3"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {stats.byDealSize.map((b) => (
-              <tr key={b.bucket}>
-                <td className="px-6 py-3 text-sm font-medium text-gray-900">
-                  {b.bucket}
-                </td>
-                <td className="px-6 py-3 text-sm text-gray-500">{b.total}</td>
-                <td className="px-6 py-3 text-sm text-green-600">
-                  {b.approved}
-                </td>
-                <td className="px-6 py-3 text-sm font-medium text-gray-900">
-                  {b.approvalRate}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Win rate by deal size, cycle times, concentration and QoQ. The by-deal-size
+          breakdown is now per rep in the Pipeline Analysis heatmap (team row = old table). */}
+      <PipelineAnalysis />
     </div>
   );
 }

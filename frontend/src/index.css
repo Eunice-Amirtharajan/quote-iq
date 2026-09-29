@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* Pipeline Intelligence dashboard tokens, taken from the UI concept. Namespaced
+   (font-dash*, *-dash-*) so the rest of the app keeps its existing look. */
+@theme {
+  --font-dash: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-dash-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-dash-bg: #f8f9fc;
+  --color-dash-raised: #f1f3f8;
+  --color-dash-border: #e4e7ef;
+  --color-dash-text: #0f1117;
+  --color-dash-muted: #6b7280;
+  --color-dash-faint: #9ca3af;
+  --color-dash-accent: #3b82f6;
+  --color-dash-accent-bg: #eff6ff;
+  --color-dash-pos: #10b981;
+  --color-dash-pos-bg: #ecfdf5;
+  --color-dash-neg: #ef4444;
+  --color-dash-neg-bg: #fef2f2;
+  --color-dash-warn: #f59e0b;
+  --color-dash-warn-bg: #fffbeb;
+  --color-dash-stale: #ea580c;
+  --color-dash-stale-bg: #fff7ed;
+  --color-dash-stale-border: #fed7aa;
+}

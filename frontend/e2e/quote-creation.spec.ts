@@ -63,7 +63,10 @@ test.describe('Mobile layout', () => {
 
   test('overlay click closes the sidebar', async ({ page }) => {
     await page.click('button[aria-label="Open menu"]');
-    await page.locator('.bg-black\\/40').click();
+    // Click the overlay to the right of the 224px sidebar. Its centre (x≈195 on a 390px
+    // viewport) is covered by the sidebar once the slide-in finishes, which made this
+    // test pass or time out depending on whether the click beat the 200ms transition.
+    await page.locator('.bg-black\\/40').click({ position: { x: 350, y: 400 } });
     const sidebar = page.locator('aside');
     await expect(sidebar).toHaveClass(/-translate-x-full/);
   });

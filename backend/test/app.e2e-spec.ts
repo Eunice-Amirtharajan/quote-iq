@@ -981,6 +981,94 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
+  describe('Pipeline Intelligence queries', () => {
+    // CI seed data has no historical timestamps, so these assert shape and access, not values
+    const analyticsQuery = `
+      query {
+        repPerformance { repId repName isOthers totalSent totalApproved approvedRevenue winRate }
+        clientConcentration { clientId clientName approvedRevenue shareOfTotal quoteCount }
+        approvalRateTrend { month sent approved rejected rate }
+        dealVelocity { transition avgDays p90Days sampleSize }
+        staleQuotations { thresholdDays totalCount totalValue items { id daysStale } }
+        quarterlyHistory { quarter isCurrent totalQuotations winRate topClients { name revenue } }
+        repDealSizeWinRates { buckets totalReps teamAverage { bucket decided winRate } reps { repName cells { bucket winRate } } }
+      }
+    `;
+
+    it('returns every analytics panel for SALES_MANAGER', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query: analyticsQuery })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      const data = response.body.data;
+      expect(Array.isArray(data.repPerformance)).toBe(true);
+      expect(Array.isArray(data.clientConcentration)).toBe(true);
+      expect(data.approvalRateTrend).toHaveLength(12);
+      expect(data.dealVelocity.map((v: { transition: string }) => v.transition)).toEqual([
+        'DRAFT_TO_SENT',
+        'SENT_TO_APPROVED',
+        'SENT_TO_REJECTED',
+        'FULL_CYCLE',
+      ]);
+      expect(data.staleQuotations.thresholdDays).toBe(14);
+      expect(data.staleQuotations.items.length).toBeLessThanOrEqual(data.staleQuotations.totalCount);
+      expect(data.quarterlyHistory).toHaveLength(4);
+      expect(data.quarterlyHistory[3].isCurrent).toBe(true);
+      expect(data.repDealSizeWinRates.buckets).toEqual(['<5k', '5k–20k', '>20k']);
+      expect(data.repDealSizeWinRates.teamAverage).toHaveLength(3);
+    });
+
+    it('accepts a date range on range-driven panels', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `
+            query($range: DateRangeInput) {
+              repPerformance(range: $range) { repName }
+              clientConcentration(range: $range) { clientName }
+              dealVelocity(range: $range) { transition sampleSize }
+            }
+          `,
+          variables: { range: { from: '2020-01-01T00:00:00.000Z', to: new Date().toISOString() } },
+        })
+        .expect(200);
+
+      expect(response.body.errors).toBeUndefined();
+      expect(response.body.data.dealVelocity).toHaveLength(4);
+    });
+
+    it.each([
+      'repPerformance { repName }',
+      'clientConcentration { clientName }',
+      'approvalRateTrend { month }',
+      'dealVelocity { transition }',
+      'staleQuotations { totalCount }',
+      'quarterlyHistory { quarter }',
+      'repDealSizeWinRates { totalReps }',
+    ])('rejects %s for SALES_REP', async (selection) => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({ query: `query { ${selection} }` })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+
+    it('rejects analytics access for unauthenticated user', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({ query: `query { staleQuotations { totalCount } }` })
+        .expect(200);
+
+      expect(response.body.errors).toBeDefined();
+    });
+  });
+
   describe('winLossAnalysis query', () => {
     it('returns stats for SALES_MANAGER', async () => {
       const response = await request(app.getHttpServer())

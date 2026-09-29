@@ -1,28 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
-
-async function logout(page: Page) {
-  await page.click('button:has-text("Sign out")');
-  await page.waitForURL('/login');
-}
+import { login, logout, selectSeededClient } from './helpers';
 
 function breadcrumbBadge(page: Page, status: string) {
   return page
     .locator('div.flex.items-center', { hasText: 'Quotations' })
     .locator(`span:has-text("${status}")`);
-}
-
-async function selectSeededClient(page: Page, searchText: string) {
-  const clientInput = page.locator('input[placeholder*="a client"]');
-  await clientInput.click();
-  // Wait for CLIENTS_QUERY to load — listbox appears once data arrives
-  await expect(page.locator('ul[role="listbox"]')).toBeVisible({ timeout: 10_000 });
-  // pressSequentially keeps focus on the element while typing each character,
-  // triggering React's onChange reliably without any implicit mouse actions
-  await clientInput.pressSequentially(searchText, { delay: 50 });
-  await expect(page.locator('li[role="option"]').first()).toBeVisible({ timeout: 10_000 });
-  await page.locator('li[role="option"]').first().click();
-  await expect(page.locator('ul[role="listbox"]')).not.toBeVisible();
 }
 
 test.describe('Quote status workflow', () => {

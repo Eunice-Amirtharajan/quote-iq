@@ -1,7 +1,12 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
+import { vi } from "vitest";
 import WinLossPage from "./WinLossPage";
 import { WIN_LOSS_ANALYSIS_QUERY } from "../graphql/queries";
+
+// Pipeline Analysis has its own tests and queries; stub it so this suite stays focused
+vi.mock("../components/dashboard/PipelineAnalysis", () => ({ default: () => <div>PipelineAnalysis section</div> }));
 
 const mockStats = {
   approvalRate: 66.7,
@@ -22,11 +27,6 @@ const mockStats = {
       rejected: 2,
       approvalRate: 60,
     },
-  ],
-  byDealSize: [
-    { bucket: "<5k", total: 6, approved: 4, approvalRate: 66.7 },
-    { bucket: "5k–20k", total: 7, approved: 5, approvalRate: 71.4 },
-    { bucket: ">20k", total: 2, approved: 1, approvalRate: 50 },
   ],
 };
 
@@ -61,6 +61,11 @@ describe("WinLossPage", () => {
     expect(screen.getByText(/8,500/)).toBeInTheDocument();
   });
 
+  it("renders the pipeline analysis section below the win/loss tables", async () => {
+    renderPage([successMock]);
+    expect(await screen.findByText("PipelineAnalysis section")).toBeInTheDocument();
+  });
+
   it("renders byRep table with all reps", async () => {
     renderPage([successMock]);
     expect(await screen.findByText("Alice")).toBeInTheDocument();
@@ -68,12 +73,10 @@ describe("WinLossPage", () => {
     expect(screen.getByText("By Sales Rep")).toBeInTheDocument();
   });
 
-  it("renders byDealSize table with all buckets", async () => {
+  it("no longer renders a separate By Deal Size table — the heatmap covers it", async () => {
     renderPage([successMock]);
-    expect(await screen.findByText("<5k")).toBeInTheDocument();
-    expect(screen.getByText("5k–20k")).toBeInTheDocument();
-    expect(screen.getByText(">20k")).toBeInTheDocument();
-    expect(screen.getByText("By Deal Size")).toBeInTheDocument();
+    await screen.findByText("Overall approval rate");
+    expect(screen.queryByText("By Deal Size")).not.toBeInTheDocument();
   });
 
   it("shows error message on query failure", async () => {
@@ -108,5 +111,55 @@ describe("WinLossPage", () => {
     };
     renderPage([emptyRepsMock]);
     expect(await screen.findByText("No data yet")).toBeInTheDocument();
+  });
+
+  describe("By Sales Rep pagination", () => {
+    const manyReps = Array.from({ length: 12 }, (_, i) => ({
+      repName: `Rep ${String(i + 1).padStart(2, "0")}`,
+      sent: 10,
+      approved: 6,
+      rejected: 2,
+      approvalRate: 75,
+    }));
+    const pagedMock = {
+      request: { query: WIN_LOSS_ANALYSIS_QUERY },
+      result: { data: { winLossAnalysis: { ...mockStats, byRep: manyReps } } },
+    };
+    const repRows = () => within(screen.getByText("By Sales Rep").closest("div.bg-white")!).getAllByRole("row").slice(1);
+
+    it("shows 5 reps per page with a position summary", async () => {
+      renderPage([pagedMock]);
+      await screen.findByText("Rep 01");
+
+      expect(repRows()).toHaveLength(5);
+      expect(screen.getByText(/Showing 1–5 of 12 reps/)).toBeInTheDocument();
+      expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
+      expect(screen.queryByText("Rep 06")).not.toBeInTheDocument();
+    });
+
+    it("pages forward and back, disabling Next on the last page", async () => {
+      const user = userEvent.setup();
+      renderPage([pagedMock]);
+      await screen.findByText("Rep 01");
+
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByText("Rep 06")).toBeInTheDocument();
+      expect(screen.getByText(/Showing 6–10 of 12 reps/)).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Next" }));
+      expect(repRows()).toHaveLength(2);
+      expect(screen.getByText(/Showing 11–12 of 12 reps/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+
+      await user.click(screen.getByRole("button", { name: "Previous" }));
+      expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
+    });
+
+    it("hides the pager when every rep fits on one page", async () => {
+      renderPage([successMock]); // 2 reps
+      await screen.findByText("Alice");
+      expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+    });
   });
 });

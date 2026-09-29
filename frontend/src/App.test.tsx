@@ -20,6 +20,19 @@ vi.mock("./pages/QuotationDetailPage", () => ({
 }));
 vi.mock("./pages/WinLossPage", () => ({ default: () => <div>WinLossPage</div> }));
 vi.mock("./pages/LoginPage", () => ({ default: () => <div>LoginPage</div> }));
+vi.mock("./pages/PublicQuotePage", () => ({ default: () => <div>PublicQuotePage</div> }));
+// ClientsPage's chunk stays pending until a test releases it, so the loading state is observable
+const clientsChunk = vi.hoisted(() => {
+  let release: () => void = () => {};
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { ready, release: () => release() };
+});
+vi.mock("./pages/ClientsPage", async () => {
+  await clientsChunk.ready;
+  return { default: () => <div>ClientsPage</div> };
+});
 vi.mock("./lib/apollo", () => ({
   client: { resetStore: vi.fn().mockResolvedValue(null) },
 }));
@@ -101,16 +114,39 @@ describe("AppRoutes — direct route access", () => {
     { user: mockRep, path: "/quotations", expectedText: "QuotationsPage", description: "sales rep can access /quotations directly" },
     { user: mockRep, path: "/quotations/q-1", expectedText: "QuotationDetailPage", description: "sales rep can access /quotations/:id directly" },
     { user: mockRep, path: "/does-not-exist", expectedText: "QuotationsPage", description: "unknown path redirects to role home" },
-  ])("$description", ({ user, path, expectedText }) => {
+  ])("$description", async ({ user, path, expectedText }) => {
     render(<TestApp initialUser={user} initialPath={path} />);
-    expect(screen.getByText(expectedText)).toBeInTheDocument();
+    // Pages are lazy-loaded, so they resolve after the first render
+    expect(await screen.findByText(expectedText)).toBeInTheDocument();
   });
 
-  it("navigate back to quotations when onBack is called from QuotationDetailPage", () => {
+  it("navigate back to quotations when onBack is called from QuotationDetailPage", async () => {
     render(<TestApp initialUser={mockRep} initialPath="/quotations/q-1" />);
-    expect(screen.getByText("QuotationDetailPage")).toBeInTheDocument();
+    expect(await screen.findByText("QuotationDetailPage")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Back to Quotations"));
-    expect(screen.getByText("QuotationsPage")).toBeInTheDocument();
+    expect(await screen.findByText("QuotationsPage")).toBeInTheDocument();
+  });
+});
+
+describe("AppRoutes — lazy-loaded pages", () => {
+  it("keeps the navigation visible while a page chunk loads", async () => {
+    render(<TestApp initialUser={mockManager} initialPath="/clients" />);
+
+    // Layout renders immediately; the loader holds the page slot until the chunk resolves
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading…");
+    expect(screen.queryByText("ClientsPage")).not.toBeInTheDocument();
+
+    await act(async () => clientsChunk.release());
+
+    expect(await screen.findByText("ClientsPage")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("lazy-loads public pages outside the authenticated layout", async () => {
+    render(<TestApp initialUser={null} initialPath="/view-quotation/tok-1" />);
+    expect(await screen.findByText("PublicQuotePage")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
   });
 });
 

@@ -25,6 +25,69 @@ describe('GraphQL schema contract', () => {
     });
   });
 
+  describe('Query.repPerformance', () => {
+    it('accepts an optional range and a limit defaulting to 10', () => {
+      expect(schema).toMatch(
+        /repPerformance\(\s*("""[^"]*"""\s*)?limit: Int! = 10\s+range: DateRangeInput\s*\): \[RepPerformanceType!\]!/,
+      );
+    });
+  });
+
+  describe('DashboardStatsType deal size distribution', () => {
+    it('exposes nullable median and p90 deal size', () => {
+      expect(schema).toMatch(/^\s*medianDealSize: Float$/m);
+      expect(schema).toMatch(/^\s*p90DealSize: Float$/m);
+    });
+  });
+
+  describe('QuarterStatsType.pipelineValue', () => {
+    it('is non-nullable', () => {
+      expect(schema).toContain('pipelineValue: Float!');
+    });
+  });
+
+  describe('Query.repDealSizeWinRates', () => {
+    it('accepts a range and paging args and returns a non-nullable heatmap', () => {
+      expect(schema).toMatch(
+        /repDealSizeWinRates\(\s*("""[^"]*"""\s*)?limit: Int! = 10\s+offset: Int! = 0\s+range: DateRangeInput\s*\): RepDealSizeWinRatesType!/,
+      );
+    });
+
+    it('exposes a nullable win rate per cell so empty bands are not reported as 0%', () => {
+      expect(schema).toMatch(/type DealSizeCellType \{[^}]*winRate: Float\n/);
+    });
+  });
+
+  describe('Query.clientConcentration', () => {
+    it('accepts an optional range and returns a non-nullable list', () => {
+      expect(schema).toContain('clientConcentration(range: DateRangeInput): [ClientConcentrationType!]!');
+    });
+  });
+
+  describe('Query.approvalRateTrend', () => {
+    it('takes no args and returns a non-nullable list', () => {
+      expect(schema).toContain('approvalRateTrend: [ApprovalRateMonthType!]!');
+    });
+  });
+
+  describe('Query.dealVelocity', () => {
+    it('accepts an optional range and returns a non-nullable list', () => {
+      expect(schema).toContain('dealVelocity(range: DateRangeInput): [DealVelocityType!]!');
+    });
+  });
+
+  describe('Query.staleQuotations', () => {
+    it('defaults thresholdDays to 14 and returns a non-nullable pipeline', () => {
+      expect(schema).toContain('staleQuotations(thresholdDays: Int! = 14): StalePipelineType!');
+    });
+  });
+
+  describe('Query.quarterlyHistory', () => {
+    it('defaults quarters to 4 and returns a non-nullable list', () => {
+      expect(schema).toContain('quarterlyHistory(quarters: Int! = 4): [QuarterStatsType!]!');
+    });
+  });
+
   describe('Mutation.updateQuotationStatus', () => {
     it('accepts id and input args', () => {
       expect(schema).toContain(

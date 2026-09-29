@@ -11,11 +11,133 @@ export const DASHBOARD_STATS_QUERY = gql`
       totalPipelineValue
       totalApprovedValue
       avgDealSize
+      medianDealSize
+      p90DealSize
       totalQuotationsTrend { delta pct direction }
       conversionRateTrend  { delta pct direction }
       totalPipelineValueTrend { delta pct direction }
       totalApprovedValueTrend { delta pct direction }
       avgDealSizeTrend { delta pct direction }
+    }
+  }
+`;
+
+// ── Pipeline Intelligence panels — one query per panel so each loads independently ──
+
+export const REP_PERFORMANCE_QUERY = gql`
+  query RepPerformance($range: DateRangeInput, $limit: Int! = 10) {
+    repPerformance(range: $range, limit: $limit) {
+      repId
+      repName
+      isOthers
+      totalSent
+      totalApproved
+      approvedRevenue
+      winRate
+    }
+  }
+`;
+
+export const APPROVAL_RATE_TREND_QUERY = gql`
+  query ApprovalRateTrend {
+    approvalRateTrend {
+      month
+      sent
+      approved
+      rejected
+      rate
+    }
+  }
+`;
+
+export const STALE_QUOTATIONS_QUERY = gql`
+  query StaleQuotations($thresholdDays: Int! = 14) {
+    staleQuotations(thresholdDays: $thresholdDays) {
+      thresholdDays
+      totalCount
+      totalValue
+      items {
+        id
+        quotationNumber
+        title
+        clientId
+        clientName
+        repName
+        total
+        sentAt
+        daysStale
+      }
+    }
+  }
+`;
+
+export const CLIENT_CONCENTRATION_QUERY = gql`
+  query ClientConcentration($range: DateRangeInput) {
+    clientConcentration(range: $range) {
+      clientId
+      clientName
+      approvedRevenue
+      shareOfTotal
+      quoteCount
+    }
+  }
+`;
+
+export const DEAL_VELOCITY_QUERY = gql`
+  query DealVelocity($range: DateRangeInput) {
+    dealVelocity(range: $range) {
+      transition
+      avgDays
+      p90Days
+      sampleSize
+    }
+  }
+`;
+
+export const QUARTERLY_HISTORY_QUERY = gql`
+  query QuarterlyHistory($quarters: Int! = 4) {
+    quarterlyHistory(quarters: $quarters) {
+      quarter
+      from
+      to
+      isCurrent
+      totalQuotations
+      totalApproved
+      pipelineValue
+      approvedRevenue
+      winRate
+      avgDealSize
+    }
+  }
+`;
+
+export const REP_DEAL_SIZE_WIN_RATES_QUERY = gql`
+  query RepDealSizeWinRates($range: DateRangeInput, $offset: Int! = 0, $limit: Int! = 10) {
+    repDealSizeWinRates(range: $range, offset: $offset, limit: $limit) {
+      buckets
+      totalReps
+      offset
+      limit
+      teamAverage {
+        bucket
+        approved
+        rejected
+        decided
+        winRate
+      }
+      reps {
+        repId
+        repName
+        decided
+        winRate
+        cells {
+          bucket
+          approved
+          rejected
+          decided
+          winRate
+        }
+      }
     }
   }
 `;
@@ -108,12 +230,6 @@ export const WIN_LOSS_ANALYSIS_QUERY = gql`
         sent
         approved
         rejected
-        approvalRate
-      }
-      byDealSize {
-        bucket
-        total
-        approved
         approvalRate
       }
       byClient {

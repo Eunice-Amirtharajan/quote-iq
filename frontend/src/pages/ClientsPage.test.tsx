@@ -9,7 +9,7 @@ import { CREATE_CLIENT_MUTATION, DELETE_CLIENT_MUTATION } from '../graphql/mutat
 const CLIENT_A = { __typename: 'ClientType', id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', createdAt: '2026-01-01T00:00:00.000Z' };
 const CLIENT_B = { __typename: 'ClientType', id: 'c-2', name: 'Beta GmbH', email: null, createdAt: '2026-01-02T00:00:00.000Z' };
 
-const PAGE_VARS = { search: undefined, skip: 0, take: 50 };
+const PAGE_VARS = { search: undefined, skip: 0, take: 10 };
 
 const clientsMock = {
   request: { query: CLIENTS_PAGE_QUERY, variables: PAGE_VARS },
@@ -57,6 +57,23 @@ describe('ClientsPage', () => {
     expect(await screen.findByText('2 clients')).toBeInTheDocument();
   });
 
+  it('shows 10 clients per page and fetches the next 10 on Next', async () => {
+    const pageOf = (start: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({ ...CLIENT_A, id: `c-${start + i}`, name: `Client ${start + i}` }));
+    renderPage([
+      { request: { query: CLIENTS_PAGE_QUERY, variables: PAGE_VARS }, result: { data: { clientsPage: { items: pageOf(1, 10), total: 23 } } } },
+      {
+        request: { query: CLIENTS_PAGE_QUERY, variables: { ...PAGE_VARS, skip: 10 } },
+        result: { data: { clientsPage: { items: pageOf(11, 10), total: 23 } } },
+      },
+    ]);
+
+    expect(await screen.findByText('1–10 of 23')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Next ›' }));
+    expect(await screen.findByText('Client 11')).toBeInTheDocument();
+    expect(screen.getByText('11–20 of 23')).toBeInTheDocument();
+  });
+
   it('shows empty state when no clients', async () => {
     renderPage([emptyMock]);
     expect(await screen.findByText(/No clients yet/i)).toBeInTheDocument();
@@ -87,7 +104,7 @@ describe('ClientsPage', () => {
       result: { data: { createClient: newClient } },
     };
     const refetchMock = {
-      request: { query: CLIENTS_PAGE_QUERY, variables: { skip: 0, take: 50 } },
+      request: { query: CLIENTS_PAGE_QUERY, variables: { skip: 0, take: 10 } },
       result: { data: { clientsPage: { items: [CLIENT_A, CLIENT_B, newClient], total: 3 } } },
     };
 
@@ -112,7 +129,7 @@ describe('ClientsPage', () => {
       result: { data: { createClient: newClient } },
     };
     const refetchMock = {
-      request: { query: CLIENTS_PAGE_QUERY, variables: { skip: 0, take: 50 } },
+      request: { query: CLIENTS_PAGE_QUERY, variables: { skip: 0, take: 10 } },
       result: { data: { clientsPage: { items: [newClient], total: 1 } } },
     };
 
@@ -185,7 +202,7 @@ describe('ClientsPage', () => {
   it('shows search no-match message when search returns nothing', async () => {
     const user = userEvent.setup();
     const searchMock = {
-      request: { query: CLIENTS_PAGE_QUERY, variables: { search: 'xyz', skip: 0, take: 50 } },
+      request: { query: CLIENTS_PAGE_QUERY, variables: { search: 'xyz', skip: 0, take: 10 } },
       result: { data: { clientsPage: { items: [], total: 0 } } },
     };
 

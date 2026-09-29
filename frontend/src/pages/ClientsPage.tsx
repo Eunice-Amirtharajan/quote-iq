@@ -11,7 +11,7 @@ interface Client {
   createdAt: string;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10;
 
 export default function ClientsPage() {
   const [name, setName] = useState("");
