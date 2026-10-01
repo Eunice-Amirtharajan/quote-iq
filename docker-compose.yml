@@ -2,6 +2,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: quoteiq-rabbitmq
+    restart: unless-stopped
     ports:
       - "5672:5672"   # AMQP
       - "15672:15672" # Management UI — http://localhost:15672 (guest/guest)
@@ -19,6 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: quoteiq-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
@@ -30,6 +32,7 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: quoteiq-jaeger
+    restart: unless-stopped
     ports:
       - "16686:16686" # Jaeger UI
       - "4318:4318"   # OTLP HTTP receiver
@@ -39,6 +42,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: quoteiq-prometheus
+    restart: unless-stopped
     ports:
       - "9090:9090"
     extra_hosts:
@@ -54,6 +58,7 @@ services:
   grafana:
     image: grafana/grafana:11.1.0
     container_name: quoteiq-grafana
+    restart: unless-stopped
     ports:
       - "3001:3000"   # Grafana UI — http://localhost:3001 (admin/admin)
     environment:
