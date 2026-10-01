@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Writable } from 'stream';
+import { Logger, transports } from 'winston';
 import { AppLogger } from './logger.service';
+import { correlationStore } from '../correlation/correlation.store';
 
 describe('AppLogger', () => {
   let logger: AppLogger;
@@ -35,5 +38,40 @@ describe('AppLogger', () => {
 
   it('handles missing trace in error', () => {
     expect(() => logger.error('error without trace')).not.toThrow();
+  });
+
+  describe('correlation ID', () => {
+    // Capture formatted output by adding a stream transport to the underlying winston logger
+    const capture = () => {
+      const lines: string[] = [];
+      const stream = new Writable({
+        write(chunk: Buffer, _enc, done) {
+          lines.push(chunk.toString());
+          done();
+        },
+      });
+      (logger as unknown as { logger: Logger }).logger.add(new transports.Stream({ stream }));
+      return lines;
+    };
+
+    it('adds the current correlation ID to every log line', () => {
+      const lines = capture();
+      correlationStore.run('cid-123', () => {
+        logger.info('inside a request', 'Test');
+        logger.error('failed inside a request', undefined, 'Test');
+      });
+
+      expect(lines).toHaveLength(2);
+      for (const line of lines) expect(line).toContain('cid-123');
+    });
+
+    it('omits the correlation ID outside a request or when it is empty', () => {
+      const lines = capture();
+      logger.info('startup message', 'Test');
+      correlationStore.run('', () => logger.info('message with no upstream ID', 'Test'));
+
+      expect(lines).toHaveLength(2);
+      for (const line of lines) expect(line).not.toContain('cid');
+    });
   });
 });
