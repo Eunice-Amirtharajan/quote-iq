@@ -83,9 +83,33 @@ describe('OutboxService', () => {
         }),
       });
     });
+
+    it('writes an empty correlation id when called outside a request', async () => {
+      const tx = {
+        outboxEvent: { create: jest.fn().mockResolvedValue({ id: 'evt-1' }) },
+      };
+      await service.enqueue(tx as never, {
+        routingKey: 'quote.created',
+        aggregateId: 'q-1',
+        payload: { quotationId: 'q-1' },
+      });
+      expect(tx.outboxEvent.create.mock.calls[0][0].data.headers).toEqual(
+        expect.objectContaining({ 'x-correlation-id': '' }),
+      );
+    });
   });
 
   describe('relay', () => {
+    it('logs a non-Error relay failure as text', async () => {
+      mockPrisma.$queryRaw.mockRejectedValueOnce('pool exhausted');
+      await expect(service.relay()).resolves.toBe(0);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Outbox relay run failed',
+        'pool exhausted',
+        OutboxService.name,
+      );
+    });
+
     it('claims due events with SKIP LOCKED so replicas never publish the same row at once', async () => {
       mockPrisma.$queryRaw.mockResolvedValueOnce([]);
       await service.relay();
@@ -190,6 +214,99 @@ describe('OutboxService', () => {
         { status: OutboxStatus.FAILED },
         0,
       );
+    });
+
+    it('retries an event whose PUBLISHED update fails -- at-least-once, never lost', async () => {
+      mockPrisma.$queryRaw.mockResolvedValueOnce([event()]);
+      mockPrisma.outboxEvent.update
+        .mockRejectedValueOnce(new Error('db blip'))
+        .mockResolvedValueOnce({});
+      await service.relay();
+      const retry = mockPrisma.outboxEvent.update.mock.calls[1][0].data;
+      expect(retry.status).toBeUndefined();
+      expect(retry.lastError).toBe('db blip');
+      expect(mockCounter.inc).toHaveBeenCalledWith({
+        routing_key: 'quote.created',
+        outcome: 'retry',
+      });
+    });
+
+    it('swallows a failure to record the retry -- the lease expires and the event is retried', async () => {
+      mockPrisma.$queryRaw.mockResolvedValueOnce([event()]);
+      mockAmqp.publish.mockRejectedValueOnce(new Error('broker down'));
+      mockPrisma.outboxEvent.update.mockRejectedValueOnce(
+        new Error('db also down'),
+      );
+      await expect(service.relay()).resolves.toBe(1);
+    });
+
+    it('records a non-Error rejection as text', async () => {
+      mockPrisma.$queryRaw.mockResolvedValueOnce([event()]);
+      mockAmqp.publish.mockRejectedValueOnce('connection closed');
+      await service.relay();
+      expect(
+        mockPrisma.outboxEvent.update.mock.calls[0][0].data.lastError,
+      ).toBe('connection closed');
+    });
+
+    it('publishes an event that has no stored headers', async () => {
+      mockPrisma.$queryRaw.mockResolvedValueOnce([event({ headers: null })]);
+      await service.relay();
+      expect(mockAmqp.publish).toHaveBeenCalledWith(
+        'quoteiq.events',
+        'quote.created',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ 'x-outbox-id': 'evt-1' }),
+        }),
+      );
+    });
+
+    it('deletes PUBLISHED events older than 7 days, at most once an hour', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+      mockPrisma.outboxEvent.deleteMany.mockResolvedValueOnce({ count: 4 });
+      const before = Date.now();
+      await service.relay();
+      await service.relay();
+      expect(mockPrisma.outboxEvent.deleteMany).toHaveBeenCalledTimes(1);
+      const where = mockPrisma.outboxEvent.deleteMany.mock.calls[0][0].where;
+      expect(where.status).toBe(OutboxStatus.PUBLISHED);
+      expect(before - where.publishedAt.lt.getTime()).toBeGreaterThanOrEqual(
+        7 * 864e5,
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('removed 4 published events'),
+        OutboxService.name,
+      );
+      mockPrisma.$queryRaw.mockReset();
+    });
+  });
+
+  describe('relay timer', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+      process.env.OUTBOX_RELAY_DISABLED = 'true';
+    });
+
+    it('runs the relay every 5s from startup until shutdown', () => {
+      jest.useFakeTimers();
+      delete process.env.OUTBOX_RELAY_DISABLED;
+      const relay = jest.spyOn(service, 'relay').mockResolvedValue(0);
+      service.onModuleInit();
+      jest.advanceTimersByTime(10_000);
+      expect(relay).toHaveBeenCalledTimes(2);
+      service.onModuleDestroy();
+      jest.advanceTimersByTime(10_000);
+      expect(relay).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not start when OUTBOX_RELAY_DISABLED=true, and shuts down cleanly', () => {
+      jest.useFakeTimers();
+      const relay = jest.spyOn(service, 'relay').mockResolvedValue(0);
+      service.onModuleInit();
+      jest.advanceTimersByTime(10_000);
+      expect(relay).not.toHaveBeenCalled();
+      expect(() => service.onModuleDestroy()).not.toThrow();
     });
   });
 });
