@@ -187,3 +187,30 @@ model QuotationEmbedding {
   embedding   Unsupported("vector(1536)")?
   updatedAt   DateTime  @updatedAt
 }
+
+enum OutboxStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+// Transactional outbox: an event is written in the same DB transaction as the change
+// it describes; OutboxService then publishes it to RabbitMQ (at-least-once). A failed publish is
+// retried instead of losing the event.
+model OutboxEvent {
+  id          String       @id @default(uuid())
+  routingKey  String
+  aggregateId String
+  payload     Json
+  // Correlation id and W3C trace context captured from the request that wrote the event
+  headers     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  lastError   String?
+  // When the relay may (re)try it: pushed forward while claimed (lease) and after a failure (backoff)
+  availableAt DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  publishedAt DateTime?
+
+  @@index([status, availableAt])
+}

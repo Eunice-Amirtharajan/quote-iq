@@ -5,9 +5,10 @@ import { PublicQuotationsResolver } from './public-quotations.resolver';
 import { MailModule } from '../../common/mail/mail.module';
 import { EventsModule } from '../events/events.module';
 import { AIModule } from '../ai/ai.module';
+import { OutboxModule } from '../outbox/outbox.module';
 
 @Module({
-  imports: [MailModule, EventsModule, AIModule],
+  imports: [MailModule, EventsModule, AIModule, OutboxModule],
   providers: [QuotationsService, QuotationsResolver, PublicQuotationsResolver],
 })
 export class QuotationsModule {}

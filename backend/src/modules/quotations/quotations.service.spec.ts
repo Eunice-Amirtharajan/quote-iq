@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OutboxService } from '../outbox/outbox.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { MailService } from '../../common/mail/mail.service';
-import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { AIService } from '../ai/ai.service';
 import { Role, User, QuotationStatus } from '@prisma/client';
 import {
@@ -42,7 +42,12 @@ const mockPrismaService = {
     findMany: jest.fn(),
   },
   $queryRaw: jest.fn(),
+  $transaction: jest.fn(),
 };
+// Runs the callback against the same mock, as an interactive transaction would
+mockPrismaService.$transaction.mockImplementation(
+  (cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService),
+);
 
 const mockLogger = {
   info: jest.fn(),
@@ -55,8 +60,9 @@ const mockMailService = {
   sendMail: jest.fn(),
 };
 
-const mockAmqpConnection = {
-  publish: jest.fn().mockResolvedValue(undefined),
+const mockOutboxService = {
+  enqueue: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+  relay: jest.fn().mockResolvedValue(1),
 };
 
 describe('QuotationsService', () => {
@@ -69,7 +75,7 @@ describe('QuotationsService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: AppLogger, useValue: mockLogger },
         { provide: MailService, useValue: mockMailService },
-        { provide: AmqpConnection, useValue: mockAmqpConnection },
+        { provide: OutboxService, useValue: mockOutboxService },
         {
           provide: AIService,
           useValue: {
@@ -513,36 +519,26 @@ describe('QuotationsService', () => {
       expect(result).toEqual(mockCreatedQuotation);
     });
 
-    it('publishes quote.created to the exchange after successful create', async () => {
+    it('writes the quotation and its quote.created outbox event in one transaction', async () => {
       await service.create(mockInput, mockUser);
-      // Give the void promise a tick to resolve
-      await new Promise(process.nextTick);
-      expect(mockAmqpConnection.publish).toHaveBeenCalledWith(
-        'quoteiq.events',
-        'quote.created',
-        { quotationId: mockCreatedQuotation.id, createdById: mockUser.id },
-        {
-          headers: expect.objectContaining({
-            'x-correlation-id': expect.any(String),
-            'x-published-at': expect.any(Number),
-          }),
-        },
-      );
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockOutboxService.enqueue).toHaveBeenCalledWith(mockPrismaService, {
+        routingKey: 'quote.created',
+        aggregateId: mockCreatedQuotation.id,
+        payload: { quotationId: mockCreatedQuotation.id, createdById: mockUser.id },
+      });
     });
 
-    it('does not throw when publish fails — logs the error instead', async () => {
-      mockAmqpConnection.publish.mockRejectedValueOnce(
-        new Error('RabbitMQ unavailable'),
-      );
-      await expect(service.create(mockInput, mockUser)).resolves.toEqual(
-        mockCreatedQuotation,
-      );
-      await new Promise(process.nextTick);
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to publish quote.created'),
-        expect.any(String),
-        QuotationsService.name,
-      );
+    it('fails the create when the outbox write fails, so no quotation exists without its event', async () => {
+      mockOutboxService.enqueue.mockRejectedValueOnce(new Error('insert failed'));
+      await expect(service.create(mockInput, mockUser)).rejects.toThrow('insert failed');
+      expect(mockOutboxService.relay).not.toHaveBeenCalled();
+    });
+
+    it('kicks the relay after commit without waiting for the publish', async () => {
+      mockOutboxService.relay.mockReturnValueOnce(new Promise(() => undefined));
+      await expect(service.create(mockInput, mockUser)).resolves.toEqual(mockCreatedQuotation);
+      expect(mockOutboxService.relay).toHaveBeenCalledTimes(1);
     });
 
     it('writes a DRAFT→DRAFT status history entry nested in create', async () => {

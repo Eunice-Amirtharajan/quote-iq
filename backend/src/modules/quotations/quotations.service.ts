@@ -22,12 +22,9 @@ import { MailService } from '../../common/mail/mail.service';
 import { quoteSubmittedTemplate } from '../../common/mail/templates/quote-submitted';
 import { quoteApprovedTemplate } from '../../common/mail/templates/quote-approved';
 import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejected';
-import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
-import { EXCHANGE, ROUTING_KEY } from '../events/events.module';
+import { ROUTING_KEY } from '../events/events.module';
+import { OutboxService } from '../outbox/outbox.service';
 import { AIService } from '../ai/ai.service';
-import { getCorrelationId } from '../../common/correlation/correlation.store';
-import { context, propagation, SpanStatusCode, trace } from '@opentelemetry/api';
-import { tracer } from '../../common/tracing/tracer';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -45,7 +42,7 @@ export class QuotationsService {
     private readonly prisma: PrismaService,
     private readonly logger: AppLogger,
     private readonly mailService: MailService,
-    private readonly amqp: AmqpConnection,
+    private readonly outbox: OutboxService,
     private readonly aiService: AIService,
   ) {}
 
@@ -210,7 +207,11 @@ export class QuotationsService {
         },
       });
       if (!raw) return null;
-      return { ...raw, clientName: raw.client.name, repName: raw.createdBy?.name ?? '' };
+      return {
+        ...raw,
+        clientName: raw.client.name,
+        repName: raw.createdBy?.name ?? '',
+      };
     } catch (error) {
       this.logger.error(
         `Failed to retrieve quotation with token:${token}`,
@@ -276,75 +277,55 @@ export class QuotationsService {
       const { itemsWithTotal, subtotal, taxAmount, total } =
         this.calculateTotals(sanitizedItems, taxRate);
 
-      const seqResult = await this.prisma.$queryRaw<
-        [{ nextval: bigint }]
-      >`SELECT nextval('quote_number_seq')`;
-      const seq = Number(seqResult[0].nextval);
-      const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
+      // Transactional outbox: the quotation and its quote.created event commit
+      // together. Publishing straight after the write used to lose the event -- and the score --
+      // whenever RabbitMQ was unreachable; now the relay retries it from the outbox.
+      const quotation = await this.prisma.$transaction(async (tx) => {
+        const seqResult = await tx.$queryRaw<
+          [{ nextval: bigint }]
+        >`SELECT nextval('quote_number_seq')`;
+        const seq = Number(seqResult[0].nextval);
+        const quoteNumber = `QT-${new Date().getFullYear()}-${String(seq).padStart(4, '0')}`;
 
-      const quotation = await this.prisma.quotation.create({
-        data: {
-          quotationNumber: quoteNumber,
-          title,
-          clientId,
-          notes,
-          taxRate,
-          subtotal,
-          taxAmount,
-          total,
-          createdById: user.id,
-          items: {
-            create: itemsWithTotal.map((item, i) => ({
-              ...item,
-              sortOrder: i,
-            })),
-          },
-          statusHistory: {
-            create: {
-              fromStatus: QuotationStatus.DRAFT,
-              toStatus: QuotationStatus.DRAFT,
-              changedById: user.id,
+        const created = await tx.quotation.create({
+          data: {
+            quotationNumber: quoteNumber,
+            title,
+            clientId,
+            notes,
+            taxRate,
+            subtotal,
+            taxAmount,
+            total,
+            createdById: user.id,
+            items: {
+              create: itemsWithTotal.map((item, i) => ({
+                ...item,
+                sortOrder: i,
+              })),
+            },
+            statusHistory: {
+              create: {
+                fromStatus: QuotationStatus.DRAFT,
+                toStatus: QuotationStatus.DRAFT,
+                changedById: user.id,
+              },
             },
           },
-        },
-        include: { items: true, createdBy: true, client: true },
+          include: { items: true, createdBy: true, client: true },
+        });
+
+        await this.outbox.enqueue(tx, {
+          routingKey: ROUTING_KEY,
+          aggregateId: created.id,
+          payload: { quotationId: created.id, createdById: user.id },
+        });
+        return created;
       });
 
-      const correlationId = getCorrelationId();
-      const publishStart = Date.now();
-      const span = tracer.startSpan('amqp.publish quote.created');
-      const carrier: Record<string, string> = {};
-      const spanContext = context.with(trace.setSpan(context.active(), span), () => context.active());
-      propagation.inject(spanContext, carrier);
-      void this.amqp
-        .publish(
-          EXCHANGE,
-          ROUTING_KEY,
-          { quotationId: quotation.id, createdById: user.id },
-          {
-            headers: {
-              'x-correlation-id': correlationId ?? '',
-              ...carrier,
-              'x-published-at': publishStart,
-            },
-          },
-        )
-        .then(() => {
-          span.setStatus({ code: SpanStatusCode.OK });
-          this.logger.info(
-            `Published quote.created — quotationId:${quotation.id} publishMs:${Date.now() - publishStart}`,
-            QuotationsService.name,
-          );
-        })
-        .catch((err: unknown) => {
-          span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
-          this.logger.error(
-            `Failed to publish quote.created for quotationId:${quotation.id}`,
-            err instanceof Error ? err.stack : String(err),
-            QuotationsService.name,
-          );
-        })
-        .finally(() => span.end());
+      // Fast path: publish now instead of waiting for the next relay tick. relay() never throws;
+      // if RabbitMQ is down the event stays PENDING and the timer retries it.
+      void this.outbox.relay();
 
       return quotation;
     } catch (error) {
@@ -370,7 +351,8 @@ export class QuotationsService {
     );
 
     try {
-      // $transaction not supported by Neon HTTP driver — sequential calls used.
+      // Sequential calls, not a $transaction: written when the Neon HTTP driver had no transactions.
+      // The WebSocket adapter supports them now (create() uses one for the outbox).
       // Guards (state machine + role check) run before any write so a failed
       // validation never leaves partial state.
       const current = await this.prisma.quotation.findFirst({ where: { id } });
@@ -421,13 +403,15 @@ export class QuotationsService {
       await this.prisma.aIInsight.deleteMany({ where: { quotationId: id } });
 
       // Regenerate embedding — outcome field in corpus text has changed
-      void this.aiService.generateQuotationEmbedding(id).catch((err: unknown) =>
-        this.logger.error(
-          `Failed to regenerate embedding on status change for quotationId:${id}`,
-          err instanceof Error ? err.stack : String(err),
-          QuotationsService.name,
-        ),
-      );
+      void this.aiService
+        .generateQuotationEmbedding(id)
+        .catch((err: unknown) =>
+          this.logger.error(
+            `Failed to regenerate embedding on status change for quotationId:${id}`,
+            err instanceof Error ? err.stack : String(err),
+            QuotationsService.name,
+          ),
+        );
 
       return quotation;
     } catch (error) {
@@ -468,7 +452,8 @@ export class QuotationsService {
           quoteSubmittedTemplate(
             quotation.quotationNumber,
             quotation.createdBy!.name,
-            (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
+            (quotation as unknown as { client?: { name: string } }).client
+              ?.name ?? '',
           ),
         );
       });
@@ -478,7 +463,8 @@ export class QuotationsService {
         `[QuoteIQ] Quotation ${quotation.quotationNumber} approved`,
         quoteApprovedTemplate(
           quotation.quotationNumber,
-          (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
+          (quotation as unknown as { client?: { name: string } }).client
+            ?.name ?? '',
         ),
       );
     } else if (status === QuotationStatus.REJECTED) {
@@ -487,7 +473,8 @@ export class QuotationsService {
         `[QuoteIQ] Quotation ${quotation.quotationNumber} rejected`,
         quoteRejectedTemplate(
           quotation.quotationNumber,
-          (quotation as unknown as { client?: { name: string } }).client?.name ?? '',
+          (quotation as unknown as { client?: { name: string } }).client
+            ?.name ?? '',
           note,
         ),
       );
@@ -545,9 +532,7 @@ export class QuotationsService {
     return title;
   }
 
-  private validateClientId(
-    clientId: string | undefined,
-  ): string | undefined {
+  private validateClientId(clientId: string | undefined): string | undefined {
     if (clientId !== undefined && !UUID_RE.test(clientId))
       throw new BadRequestException('clientId must be a valid UUID');
     return clientId;
@@ -565,7 +550,9 @@ export class QuotationsService {
       : undefined;
   }
 
-  private normalizeClientId(input: string | null | undefined): string | undefined {
+  private normalizeClientId(
+    input: string | null | undefined,
+  ): string | undefined {
     return input != null ? this.validateClientId(input) : undefined;
   }
 
@@ -620,7 +607,9 @@ export class QuotationsService {
   ): Parameters<typeof this.prisma.quotation.update>[0]['data'] {
     return {
       ...(title !== undefined ? { title } : {}),
-      ...(clientId !== undefined ? { client: { connect: { id: clientId } } } : {}),
+      ...(clientId !== undefined
+        ? { client: { connect: { id: clientId } } }
+        : {}),
       ...(notes !== undefined ? { notes } : {}),
       ...(taxRate !== undefined ? { taxRate } : {}),
       ...(totalsData
@@ -695,7 +684,13 @@ export class QuotationsService {
     );
     const currentVersion = await this.prisma.quotation.findFirst({
       where: { id },
-      select: { version: true, title: true, clientId: true, notes: true, taxRate: true },
+      select: {
+        version: true,
+        title: true,
+        clientId: true,
+        notes: true,
+        taxRate: true,
+      },
     });
     if (currentVersion?.version !== input.version) {
       throw new ConflictException(
@@ -703,10 +698,17 @@ export class QuotationsService {
       );
     }
 
-    // Snapshot current state before overwriting (Neon HTTP driver has no $transaction support)
+    // Snapshot current state before overwriting. Sequential, not a $transaction: written when the
+    // Neon HTTP driver had no transactions; the WebSocket adapter supports them now.
     const currentItems = await this.prisma.quotationItem.findMany({
       where: { quotationId: id },
-      select: { description: true, quantity: true, unitPrice: true, lineTotal: true, sortOrder: true },
+      select: {
+        description: true,
+        quantity: true,
+        unitPrice: true,
+        lineTotal: true,
+        sortOrder: true,
+      },
       orderBy: { sortOrder: 'asc' },
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -765,7 +767,9 @@ export class QuotationsService {
     quotationId: string,
     userId: string,
     role: Role,
-  ): Promise<{ id: string; quotationId: string; content: string; createdAt: string }[]> {
+  ): Promise<
+    { id: string; quotationId: string; content: string; createdAt: string }[]
+  > {
     this.logger.info(
       `Fetching snapshots for quotation: ${quotationId}`,
       QuotationsService.name,
@@ -776,7 +780,8 @@ export class QuotationsService {
         where: { id: quotationId },
         select: { createdById: true },
       });
-      if (!owner) throw new NotFoundException(`Quotation ${quotationId} not found`);
+      if (!owner)
+        throw new NotFoundException(`Quotation ${quotationId} not found`);
       if (owner.createdById !== userId) throw new ForbiddenException();
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

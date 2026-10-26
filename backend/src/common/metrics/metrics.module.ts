@@ -3,6 +3,7 @@ import {
   PrometheusModule,
   makeHistogramProvider,
   makeCounterProvider,
+  makeGaugeProvider,
 } from '@willsoto/nestjs-prometheus';
 
 @Global()
@@ -25,10 +26,22 @@ import {
       help: 'Total Groq model invocations by model name and outcome',
       labelNames: ['model', 'outcome', 'tier'],
     }),
+    makeCounterProvider({
+      name: 'outbox_events_total',
+      help: 'Outbox publish attempts by routing key and outcome (published, retry, failed)',
+      labelNames: ['routing_key', 'outcome'],
+    }),
+    makeGaugeProvider({
+      name: 'outbox_backlog_events',
+      help: 'Outbox events not yet published (PENDING) or given up on (FAILED)',
+      labelNames: ['status'],
+    }),
   ],
   exports: [
     'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
     'PROM_METRIC_GROQ_MODEL_REQUESTS_TOTAL',
+    'PROM_METRIC_OUTBOX_EVENTS_TOTAL',
+    'PROM_METRIC_OUTBOX_BACKLOG_EVENTS',
   ],
 })
 export class MetricsModule {}
