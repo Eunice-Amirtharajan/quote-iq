@@ -15,7 +15,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 | Backend | NestJS · GraphQL (Apollo Server, code-first) · Prisma ORM |
 | Database | PostgreSQL (Neon DB — serverless, WebSocket driver) · pgvector extension |
 | Auth | JWT in HttpOnly cookies · Role-based access control · Redis (ioredis) invite/reset token store |
-| AI | OpenAI `text-embedding-3-small` · Groq API (Llama 3.3 70B) · Zod response validation |
+| AI | OpenAI `text-embedding-3-small` · Groq API (pinned models: `gpt-oss-120b` → `qwen3.8-27b` → `gpt-oss-20b`) · Zod response validation |
 | Messaging | RabbitMQ (CloudAMQP — managed) · AMQP pub/sub with W3C trace context propagation |
 | Storage | Supabase Storage (PDF uploads) . VirusTotal malware scanning |
 | Observability | OpenTelemetry SDK · Jaeger (local) / Grafana Cloud Tempo (production) · Prometheus + Grafana |
@@ -35,7 +35,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 **Neon WebSocket driver over pg pool** — Neon free tier pauses compute after 5 minutes of inactivity. The `PrismaNeon` WebSocket adapter maintains a lightweight connection and supports full Prisma transactions (implicit and explicit), including nested writes and `update+include`. A 4-minute keepalive ping prevents cold starts on the free tier. The initial implementation used `PrismaNeonHttp` (stateless HTTP per query) but was switched to `PrismaNeon` when nested Prisma writes — which use implicit transactions — failed with "Transactions are not supported in HTTP mode".
 
-**Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on timeouts, 429 and 5xx errors — self-healing without manual intervention. A **circuit breaker** wraps every Groq call: after 5 failed calls in a row it fails fast with a 503 for 30s instead of making each user wait on a degraded API, then lets one trial call through to check Groq is back.
+**Groq over Gemini** — Groq's free tier runs open-weight models on dedicated inference hardware with significantly better availability than Gemini's free tier. Models are **pinned per role** in config (`GROQ_COMPLETION_MODELS`, `GROQ_CLASSIFIER_MODELS`), not discovered: a Groq catalog change once silently moved production to a reasoning model and retired the classifier's model. Pins are checked at startup (a missing pin is logged, exposed as `ai_model_available` and alerted on), and the completion chain (`gpt-oss-120b` → `qwen3.8-27b` → `gpt-oss-20b`) fails over on timeouts, 429, 5xx and retired models (404) — self-healing without manual intervention. A **circuit breaker** wraps every Groq call: after 5 failed calls in a row it fails fast with a 503 for 30s instead of making each user wait on a degraded API, then lets one trial call through to check Groq is back.
 
 **RabbitMQ (CloudAMQP) for async embedding** — F2 quotation embedding is triggered asynchronously via AMQP so it never blocks the GraphQL create/update response. `createQuotation` writes the `quote.created` event to a **transactional outbox** in the same DB transaction as the quotation, and `OutboxService` publishes it (retried until the broker confirms, so a RabbitMQ outage never loses a score). A separate `QueueConsumerModule` processes `quote.created` and calls `AIService.generateQuotationEmbedding()`. W3C traceparent headers (`traceparent`, `tracestate`) are injected into AMQP message headers via `propagation.inject()` so distributed traces span across the publish/consume boundary.
 
@@ -117,7 +117,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 3. **Hard override** — if rules say RECONSIDER, that verdict is locked regardless of Groq output. Structured data cannot be overridden by qualitative reads
 4. **Zod validates** every AI response before it's used — TypeScript types don't protect at runtime
 5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name from `client.name`) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
-6. **Self-healing fallback** — if the primary model (Llama 3.3 70B) is overloaded or times out (25s per attempt), the service automatically retries with Llama 3.1 8B then Mixtral 8x7B. If whole calls keep failing, the Groq circuit breaker opens and requests fail fast for 30s
+6. **Self-healing fallback** — if the primary pinned model (`gpt-oss-120b`) is overloaded, times out (25s per attempt) or has been retired, the service retries with the next pin (`qwen3.8-27b`, then `gpt-oss-20b`). If whole calls keep failing, the Groq circuit breaker opens and requests fail fast for 30s
 7. **Scoped NL Q&A** — `askAboutQuotation` uses the system/user message split to confine Groq strictly to one quotation's data; off-topic questions receive a fixed refusal without any additional DB query
 
 ### RAG Pipeline (F1a — Playbook / Lessons Learned)
@@ -197,6 +197,8 @@ DATABASE_URL=""            # PostgreSQL connection string (Neon DB — pooled We
 JWT_SECRET=""              # Any long random string (openssl rand -hex 64)
 JWT_EXPIRES_IN="7d"        # Token expiry — supports 7d, 24h, 30m etc.
 GROQ_API_KEY=""            # Groq API key — free at console.groq.com
+GROQ_COMPLETION_MODELS=""  # Optional: comma-separated completion chain, in order (default in ai/model-catalog.ts)
+GROQ_CLASSIFIER_MODELS=""  # Optional: non-reasoning models for the 1-token intent classifier
 OPENAI_API_KEY=""          # OpenAI API key — used for text-embedding-3-small
 SEED_PASSWORD=""           # Password for all seeded demo users (default: password123)
 PORT=4000

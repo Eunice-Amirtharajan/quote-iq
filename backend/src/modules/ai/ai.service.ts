@@ -35,6 +35,7 @@ import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
 import OpenAI from 'openai';
 import { escapeXml, describeError } from '../../common/helper/helper';
+import { CatalogStatus, ModelCatalog, modelPinsFromEnv } from './model-catalog';
 import { SpanStatusCode } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
 
@@ -71,14 +72,6 @@ const MAX_OUTPUT_TOKENS: Record<GroqFeature, number> = {
   lessons_qa: 1200, // JSON: answer + cited entries
   playbook_qa: 1000, // 2–4 sentences + source citations
 };
-// The intent classifier answers Y/N in one token, so it needs a model that doesn't reason first:
-// a reasoning model spends that token on reasoning and returns nothing. First available wins.
-const CLASSIFIER_MODELS = [
-  'qwen/qwen3.8-27b',
-  'allam-2-7b',
-  'llama-3.1-8b-instant',
-];
-const NON_CHAT_MODEL_MARKERS = ['whisper', 'embed', 'tts', 'orpheus', 'guard'];
 type ChatMessage = { role: 'system' | 'user'; content: string };
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 type EmbeddingFeature =
@@ -150,6 +143,11 @@ const WinLossStatsSchema = z.object({
   byClient: z.array(ClientStatSchema),
 });
 
+/** Groq answers 404 for a model it has retired; another model may still work. */
+function isModelGone(err: unknown): boolean {
+  return err instanceof APIError && err.status === 404;
+}
+
 function toPgVector(embedding: number[]): string {
   return '[' + embedding.join(',') + ']';
 }
@@ -161,19 +159,18 @@ export class AIService implements OnModuleInit {
   private readonly groq: Groq;
   private readonly openAI: OpenAI;
   private readonly groqBreaker: CircuitBreaker;
-  private availableModels: Set<string> = new Set();
+  private readonly models = new ModelCatalog(modelPinsFromEnv());
 
   async onModuleInit() {
     try {
       const res = await this.groq.models.list();
-      this.availableModels = new Set(
-        res.data.map((m) => m.id).filter((id) => this.isChatModel(id)),
-      );
-      if (this.availableModels.size === 0) {
+      const status = this.models.load(res.data.map((m) => m.id));
+      this.reportModelStatus(status);
+      if (this.models.models('completion').length === 0) {
         throw new Error('No usable chat models returned from Groq');
       }
       this.logger.info(
-        `Groq models loaded: ${[...this.availableModels].join(', ')}`,
+        `Groq models — completion: ${this.models.models('completion').join(', ')}; classifier: ${this.models.models('classifier').join(', ') || 'none'}`,
         AIService.name,
       );
     } catch (err) {
@@ -197,6 +194,8 @@ export class AIService implements OnModuleInit {
     private readonly tokensCounter: Counter<string>,
     @InjectMetric('ai_completions_truncated_total')
     private readonly truncatedCounter: Counter<string>,
+    @InjectMetric('ai_model_available')
+    private readonly modelAvailable: Gauge<string>,
   ) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY is not set');
@@ -315,21 +314,43 @@ Your recommendation MUST match this unless the line items or notes contain
 strong contradicting signals. Justify your reasoning.
 `.trim();
   }
-  private isChatModel(id: string): boolean {
-    // Groq lists speech (whisper, orpheus, tts), embedding and safety-classifier models
-    // (prompt-guard, safeguard) next to chat models; none of them can answer a prompt
-    return !NON_CHAT_MODEL_MARKERS.some((marker) => id.includes(marker));
+  /** Pinned models the provider doesn't offer are errors: they need a deliberate pin change. */
+  private reportModelStatus(status: CatalogStatus): void {
+    for (const role of ['completion', 'classifier'] as const) {
+      const available = new Set(this.models.models(role));
+      for (const model of this.models.pins[role]) {
+        this.modelAvailable.set({ role, model }, available.has(model) ? 1 : 0);
+      }
+      if (status.missing[role].length > 0) {
+        this.logger.error(
+          `Pinned Groq ${role} models not offered by Groq: ${status.missing[role].join(', ')}. Update the pins (${role === 'completion' ? 'GROQ_COMPLETION_MODELS' : 'GROQ_CLASSIFIER_MODELS'}).`,
+          undefined,
+          AIService.name,
+        );
+      }
+    }
+    if (status.completionFallback) {
+      this.logger.error(
+        'No pinned completion model is available, falling back to discovered models',
+        undefined,
+        AIService.name,
+      );
+    }
   }
 
-  private rankedModels(): string[] {
-    return [...this.availableModels].sort((a, b) => {
-      const size = (id: string) => {
-        // \d+ is a single unambiguous quantifier with no nested/overlapping groups.
-        const m = /(\d+)b/i.exec(id); // NOSONAR
-        return m ? Number.parseInt(m[1], 10) : 0;
-      };
-      return size(b) - size(a);
-    });
+  /** A model Groq retired after startup (404): skip it from now on and alert. */
+  private retireModel(model: string): void {
+    this.models.retire(model);
+    for (const role of ['completion', 'classifier'] as const) {
+      if (this.models.pins[role].includes(model)) {
+        this.modelAvailable.set({ role, model }, 0);
+      }
+    }
+    this.logger.error(
+      `Groq model ${model} no longer exists (404), removed until the next restart`,
+      undefined,
+      AIService.name,
+    );
   }
 
   private callGroq(prompt: string, feature: GroqFeature): Promise<string> {
@@ -354,21 +375,21 @@ strong contradicting signals. Justify your reasoning.
     messages: ChatMessage[],
     feature: GroqFeature,
   ): Promise<string> {
-    if (this.availableModels.size === 0) {
+    const models = this.models.models('completion');
+    if (models.length === 0) {
       throw new InternalServerErrorException(
         'No Groq chat models are currently available',
       );
     }
     // The whole fallback chain is one breaker call: it fails only when every model failed
-    const ranked = this.rankedModels();
     return this.groqBreaker.execute(() =>
-      this.tryModelsInOrder(ranked, messages, feature),
+      this.tryModelsInOrder(models, messages, feature),
     );
   }
 
   /**
-   * Fallback chain: one model at a time, largest first. A transient error moves on to the next
-   * model; any other error, or a failure of the last model, is thrown.
+   * Fallback chain: one model at a time, in pinned order. A transient error or a retired model
+   * moves on to the next model; any other error, or a failure of the last model, is thrown.
    */
   private async tryModelsInOrder(
     models: string[],
@@ -385,8 +406,10 @@ strong contradicting signals. Justify your reasoning.
         feature,
       );
     } catch (err) {
+      if (isModelGone(err)) this.retireModel(model);
       const isLast = index === models.length - 1;
-      if (isLast || !this.isTransientError(err)) throw err;
+      const tryNext = this.isTransientError(err) || isModelGone(err);
+      if (isLast || !tryNext) throw err;
       return this.tryModelsInOrder(models, messages, feature, index + 1);
     }
   }
@@ -1027,7 +1050,7 @@ strong contradicting signals. Justify your reasoning.
   private async isGenuineQuestion(question: string): Promise<boolean> {
     // The classifier only saves cost, so it fails open: with no suitable model, or on any
     // error other than an open circuit, the question is answered rather than refused
-    const model = CLASSIFIER_MODELS.find((m) => this.availableModels.has(m));
+    const model = this.models.models('classifier')[0];
     if (!model) {
       this.logger.warn(
         'No intent-classifier model available, answering without the noise filter',
@@ -1039,6 +1062,7 @@ strong contradicting signals. Justify your reasoning.
       return await this.classifyWithModel(model, question);
     } catch (err) {
       if (err instanceof CircuitOpenError) throw err;
+      if (isModelGone(err)) this.retireModel(model);
       this.logger.warn(
         `Intent classifier failed on ${model}, answering without the noise filter: ${err instanceof Error ? err.message : String(err)}`,
         AIService.name,
