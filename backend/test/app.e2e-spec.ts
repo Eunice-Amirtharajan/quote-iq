@@ -10,6 +10,9 @@ import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
+import { corsOptions } from '../src/common/cors/cors-options';
+
+const FRONTEND_ORIGIN = 'http://localhost:5173';
 
 class NoopThrottlerGuard implements CanActivate {
   canActivate(_context: ExecutionContext): boolean {
@@ -38,6 +41,8 @@ describe('QuoteIQ E2E', () => {
 
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
+    // Same CORS config as main.ts, so browser preflights can be tested
+    app.enableCors(corsOptions(FRONTEND_ORIGIN));
     await app.init();
 
     // Login as manager to create a shared test client
@@ -444,6 +449,22 @@ describe('QuoteIQ E2E', () => {
   });
 
   describe('Quotations — Idempotency-Key', () => {
+    it('lets the browser send the Idempotency-Key header cross-origin (CORS preflight)', async () => {
+      const res = await request(app.getHttpServer())
+        .options('/graphql')
+        .set('Origin', FRONTEND_ORIGIN)
+        .set('Access-Control-Request-Method', 'POST')
+        .set(
+          'Access-Control-Request-Headers',
+          'content-type,apollo-require-preflight,idempotency-key',
+        );
+      expect(res.status).toBe(204);
+      expect(res.headers['access-control-allow-origin']).toBe(FRONTEND_ORIGIN);
+      expect(
+        (res.headers['access-control-allow-headers'] as string).toLowerCase(),
+      ).toContain('idempotency-key');
+    });
+
     const created: string[] = [];
     const create = (key: string, title: string) =>
       request(app.getHttpServer())

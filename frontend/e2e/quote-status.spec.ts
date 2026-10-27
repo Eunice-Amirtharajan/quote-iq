@@ -7,6 +7,12 @@ function breadcrumbBadge(page: Page, status: string) {
     .locator(`span:has-text("${status}")`);
 }
 
+// The detail page's breadcrumb title (a span). A plain text locator also matches the list rows
+// (desktop + mobile <p>), which stay mounted while the lazy detail route loads.
+function breadcrumbTitle(page: Page, title: string) {
+  return page.locator('span.font-medium', { hasText: title });
+}
+
 test.describe('Quote status workflow', () => {
   test('full DRAFT → SENT → APPROVED workflow', async ({ page }) => {
     const quotationTitle = `Status-Test-${Date.now()}`;
@@ -30,7 +36,7 @@ test.describe('Quote status workflow', () => {
     // --- Step 2: rep opens detail and submits for approval ---
     await page.click(`text=${quotationTitle}`);
     await page.waitForURL(/\/quotations\/.+/);
-    await expect(page.locator(`text=${quotationTitle}`)).toBeVisible();
+    await expect(breadcrumbTitle(page, quotationTitle)).toBeVisible();
     await expect(breadcrumbBadge(page, 'DRAFT')).toBeVisible();
 
     await page.click('button:has-text("Submit for Approval")');
@@ -42,7 +48,7 @@ test.describe('Quote status workflow', () => {
     await page.goto('/quotations');
     await page.click(`text=${quotationTitle}`);
     await page.waitForURL(/\/quotations\/.+/);
-    await expect(page.locator(`text=${quotationTitle}`)).toBeVisible();
+    await expect(breadcrumbTitle(page, quotationTitle)).toBeVisible();
     await expect(breadcrumbBadge(page, 'SENT')).toBeVisible();
 
     await page.click('button:has-text("Approve")');
