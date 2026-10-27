@@ -36,12 +36,24 @@ import {
       help: 'Outbox events not yet published (PENDING) or given up on (FAILED)',
       labelNames: ['status'],
     }),
+    makeGaugeProvider({
+      name: 'circuit_breaker_state',
+      help: 'Circuit breaker state per downstream: 0 closed, 1 half-open, 2 open',
+      labelNames: ['breaker'],
+    }),
+    makeCounterProvider({
+      name: 'circuit_breaker_rejections_total',
+      help: 'Calls failed fast without reaching the downstream because the circuit was open',
+      labelNames: ['breaker'],
+    }),
   ],
   exports: [
     'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
     'PROM_METRIC_GROQ_MODEL_REQUESTS_TOTAL',
     'PROM_METRIC_OUTBOX_EVENTS_TOTAL',
     'PROM_METRIC_OUTBOX_BACKLOG_EVENTS',
+    'PROM_METRIC_CIRCUIT_BREAKER_STATE',
+    'PROM_METRIC_CIRCUIT_BREAKER_REJECTIONS_TOTAL',
   ],
 })
 export class MetricsModule {}

@@ -10,7 +10,7 @@ import OpenAI from 'openai';
 import { AIService } from '../src/modules/ai/ai.service';
 import { AppLogger } from '../src/common/logger/logger.service';
 import { PrismaService } from '../src/prisma/prisma.service';
-import type { Counter } from 'prom-client';
+import type { Counter, Gauge } from 'prom-client';
 
 const JUDGE_MODEL = 'gpt-4o-mini';
 
@@ -46,6 +46,10 @@ interface EvalResult {
 // through NestJS DI in production; askPlaybook only ever calls .inc() on it.
 function makeNoopCounter(): Counter<string> {
   return { inc: () => undefined } as unknown as Counter<string>;
+}
+
+function makeNoopGauge(): Gauge<string> {
+  return { set: () => undefined } as unknown as Gauge<string>;
 }
 
 async function judgeAnswer(
@@ -218,7 +222,13 @@ async function main() {
 
   const prisma = new PrismaService();
   const logger = new AppLogger();
-  const aiService = new AIService(prisma, logger, makeNoopCounter());
+  const aiService = new AIService(
+    prisma,
+    logger,
+    makeNoopCounter(),
+    makeNoopGauge(),
+    makeNoopCounter(),
+  );
   await aiService.onModuleInit(); // loads available Groq models — normally run by Nest's lifecycle
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
