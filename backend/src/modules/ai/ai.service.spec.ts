@@ -542,6 +542,58 @@ describe('AIService', () => {
       expect(mockCreate).not.toHaveBeenCalled();
     });
   });
+  describe('reasoning effort per feature', () => {
+    const loadModels = async (ids: string[]) => {
+      mockModelsList.mockResolvedValueOnce({ data: ids.map((id) => ({ id })) });
+      await service.onModuleInit();
+    };
+    const sent = () =>
+      mockCreate.mock.calls.map(([body]) => ({
+        model: body.model,
+        reasoning_effort: body.reasoning_effort,
+      }));
+
+    beforeEach(() => mockCreate.mockResolvedValue(mockGroqResponse));
+
+    it('asks gpt-oss for low reasoning on simple features', async () => {
+      await loadModels(['openai/gpt-oss-120b']);
+      await service['queryGroqModels']('system', 'question', 'playbook_qa');
+      expect(sent()).toEqual([
+        { model: 'openai/gpt-oss-120b', reasoning_effort: 'low' },
+      ]);
+    });
+
+    it("switches to qwen3's own value when the chain falls back to it", async () => {
+      await loadModels(['openai/gpt-oss-120b', 'qwen/qwen3.8-27b']);
+      mockCreate.mockRejectedValueOnce(
+        new InternalServerError(503, undefined, 'overloaded', new Headers()),
+      );
+      await service['callGroq']('prompt', 'rerank');
+      expect(sent()).toEqual([
+        { model: 'openai/gpt-oss-120b', reasoning_effort: 'low' },
+        { model: 'qwen/qwen3.8-27b', reasoning_effort: 'none' },
+      ]);
+    });
+
+    it('keeps full reasoning for the summary', async () => {
+      await loadModels(['openai/gpt-oss-120b']);
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      await service.generateQuotationSummary('q-1');
+      expect(sent()[0]).toEqual({
+        model: 'openai/gpt-oss-120b',
+        reasoning_effort: undefined,
+      });
+    });
+
+    it('sends no reasoning parameter to a model family that does not take one', async () => {
+      await service['queryGroqModels']('system', 'question', 'quotation_qa');
+      expect(sent()[0]).toEqual({
+        model: 'llama-3.1-70b-versatile',
+        reasoning_effort: undefined,
+      });
+    });
+  });
   describe('stale summary fallback', () => {
     const generatedAt = new Date('2026-10-20T09:00:00Z');
     const storedRow = (over: Record<string, unknown> = {}) => ({

@@ -52,6 +52,18 @@ function makeNoopCounter(): Counter<string> {
   return { inc: () => undefined } as unknown as Counter<string>;
 }
 
+type TokenTotals = Record<string, { prompt: number; completion: number }>;
+
+// Records what ai_tokens_total would count in production, so each run reports its cost per feature
+function makeTokenCounter(totals: TokenTotals): Counter<string> {
+  const inc = (labels: Record<string, string>, value = 1) => {
+    const entry = (totals[labels.feature] ??= { prompt: 0, completion: 0 });
+    if (labels.kind === 'prompt') entry.prompt += value;
+    else entry.completion += value;
+  };
+  return { inc } as unknown as Counter<string>;
+}
+
 function makeNoopGauge(): Gauge<string> {
   return { set: () => undefined } as unknown as Gauge<string>;
 }
@@ -232,6 +244,7 @@ function writeResults(
   results: EvalResult[],
   avgScore: number,
   passCount: number,
+  tokens: TokenTotals,
 ): string {
   const outPath = path.resolve(__dirname, 'results.json');
   fs.writeFileSync(
@@ -241,6 +254,11 @@ function writeResults(
         runAt: new Date().toISOString(),
         overallAvgScore: avgScore,
         passCount,
+        tokens,
+        totalTokens: Object.values(tokens).reduce(
+          (sum, t) => sum + t.prompt + t.completion,
+          0,
+        ),
         totalCount: results.length,
         results: results.map((r) => ({
           id: r.scenario.id,
@@ -275,13 +293,14 @@ async function main() {
 
   const prisma = new PrismaService();
   const logger = new AppLogger();
+  const tokenTotals: TokenTotals = {};
   const aiService = new AIService(
     prisma,
     logger,
     makeNoopCounter(),
     makeNoopGauge(),
     makeNoopCounter(),
-    makeNoopCounter(),
+    makeTokenCounter(tokenTotals),
     makeNoopCounter(),
     makeNoopGauge(),
     // Evals run outside a user request, so nothing is charged to a quota
@@ -306,7 +325,13 @@ async function main() {
 
   const { avgScore, passCount } = printSummary(results);
   printFailures(results);
-  const outPath = writeResults(results, avgScore, passCount);
+  console.log('\n--- Groq/OpenAI tokens by feature (prompt + completion) ---');
+  for (const [feature, t] of Object.entries(tokenTotals)) {
+    console.log(
+      `  ${feature}: ${t.prompt} + ${t.completion} = ${t.prompt + t.completion}`,
+    );
+  }
+  const outPath = writeResults(results, avgScore, passCount, tokenTotals);
   console.log(`\nResults written to ${outPath}`);
 
   process.exit(passCount === results.length ? 0 : 1);
