@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OutboxService } from '../outbox/outbox.service';
+import { IdempotencyService } from '../idempotency/idempotency.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { MailService } from '../../common/mail/mail.service';
 import { AIService } from '../ai/ai.service';
@@ -11,6 +12,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
@@ -20,6 +22,7 @@ const mockPrismaService = {
     create: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
     delete: jest.fn(),
@@ -40,6 +43,11 @@ const mockPrismaService = {
   },
   user: {
     findMany: jest.fn(),
+  },
+  idempotencyKey: {
+    findUnique: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({}),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
   },
   $queryRaw: jest.fn(),
   $transaction: jest.fn(),
@@ -76,6 +84,8 @@ describe('QuotationsService', () => {
         { provide: AppLogger, useValue: mockLogger },
         { provide: MailService, useValue: mockMailService },
         { provide: OutboxService, useValue: mockOutboxService },
+        // Real service on the mock DB: exercises the actual hashing and lookup rules
+        IdempotencyService,
         {
           provide: AIService,
           useValue: {
@@ -297,7 +307,11 @@ describe('QuotationsService', () => {
       };
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       const result = await service.findByToken('token-1');
-      expect(result).toEqual({ ...mockQuotation, clientName: 'Client', repName: 'Rep Name' });
+      expect(result).toEqual({
+        ...mockQuotation,
+        clientName: 'Client',
+        repName: 'Rep Name',
+      });
     });
 
     it('returns null when not found', async () => {
@@ -522,22 +536,188 @@ describe('QuotationsService', () => {
     it('writes the quotation and its quote.created outbox event in one transaction', async () => {
       await service.create(mockInput, mockUser);
       expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
-      expect(mockOutboxService.enqueue).toHaveBeenCalledWith(mockPrismaService, {
-        routingKey: 'quote.created',
-        aggregateId: mockCreatedQuotation.id,
-        payload: { quotationId: mockCreatedQuotation.id, createdById: mockUser.id },
-      });
+      expect(mockOutboxService.enqueue).toHaveBeenCalledWith(
+        mockPrismaService,
+        {
+          routingKey: 'quote.created',
+          aggregateId: mockCreatedQuotation.id,
+          payload: {
+            quotationId: mockCreatedQuotation.id,
+            createdById: mockUser.id,
+          },
+        },
+      );
     });
 
     it('fails the create when the outbox write fails, so no quotation exists without its event', async () => {
-      mockOutboxService.enqueue.mockRejectedValueOnce(new Error('insert failed'));
-      await expect(service.create(mockInput, mockUser)).rejects.toThrow('insert failed');
+      mockOutboxService.enqueue.mockRejectedValueOnce(
+        new Error('insert failed'),
+      );
+      await expect(service.create(mockInput, mockUser)).rejects.toThrow(
+        'insert failed',
+      );
       expect(mockOutboxService.relay).not.toHaveBeenCalled();
+    });
+
+    describe('with an Idempotency-Key', () => {
+      const KEY = 'a8f5f167-0e8b-4d3c-9f0a-5c2b1e7d4a91';
+      const storedKey = (
+        input: unknown,
+        over: Record<string, unknown> = {},
+      ) => ({
+        id: 'ik-1',
+        key: KEY,
+        userId: mockUser.id,
+        operation: 'createQuotation',
+        requestHash: new IdempotencyService(
+          mockPrismaService as never,
+          mockLogger as never,
+        ).hashRequest(input),
+        resourceId: 'q-original',
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 3600_000),
+        ...over,
+      });
+
+      it('does nothing extra when no key is sent', async () => {
+        await service.create(mockInput, mockUser);
+        expect(
+          mockPrismaService.idempotencyKey.findUnique,
+        ).not.toHaveBeenCalled();
+        expect(mockPrismaService.idempotencyKey.create).not.toHaveBeenCalled();
+      });
+
+      it('records a new key in the same transaction as the quotation', async () => {
+        await service.create(mockInput, mockUser, KEY);
+        expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+        expect(mockPrismaService.idempotencyKey.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            key: KEY,
+            userId: mockUser.id,
+            operation: 'createQuotation',
+            requestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+            resourceId: mockCreatedQuotation.id,
+            expiresAt: expect.any(Date),
+          }),
+        });
+      });
+
+      it('returns the original quotation for a repeated key, without creating or publishing again', async () => {
+        mockPrismaService.idempotencyKey.findUnique.mockResolvedValueOnce(
+          storedKey(mockInput),
+        );
+        const original = {
+          id: 'q-original',
+          items: [],
+          client: {},
+          createdBy: {},
+        };
+        mockPrismaService.quotation.findUnique.mockResolvedValueOnce(original);
+        await expect(service.create(mockInput, mockUser, KEY)).resolves.toEqual(
+          original,
+        );
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+        expect(mockOutboxService.enqueue).not.toHaveBeenCalled();
+        expect(mockOutboxService.relay).not.toHaveBeenCalled();
+      });
+
+      it('treats the same input with fields in another order as the same request', async () => {
+        const reordered = {
+          items: mockInput.items,
+          notes: mockInput.notes,
+          taxRate: mockInput.taxRate,
+          clientId: mockInput.clientId,
+          title: mockInput.title,
+        };
+        mockPrismaService.idempotencyKey.findUnique.mockResolvedValueOnce(
+          storedKey(mockInput),
+        );
+        mockPrismaService.quotation.findUnique.mockResolvedValueOnce({
+          id: 'q-original',
+        });
+        await expect(service.create(reordered, mockUser, KEY)).resolves.toEqual(
+          { id: 'q-original' },
+        );
+      });
+
+      it('rejects a key reused for a different request', async () => {
+        mockPrismaService.idempotencyKey.findUnique.mockResolvedValueOnce(
+          storedKey({ ...mockInput, title: 'Something else' }),
+        );
+        await expect(service.create(mockInput, mockUser, KEY)).rejects.toThrow(
+          UnprocessableEntityException,
+        );
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      });
+
+      it('treats an expired key as new, freeing it first', async () => {
+        mockPrismaService.idempotencyKey.findUnique.mockResolvedValueOnce(
+          storedKey(mockInput, { expiresAt: new Date(Date.now() - 1000) }),
+        );
+        await service.create(mockInput, mockUser, KEY);
+        expect(
+          mockPrismaService.idempotencyKey.deleteMany,
+        ).toHaveBeenCalledWith({ where: { id: 'ik-1' } });
+        expect(mockPrismaService.quotation.create).toHaveBeenCalled();
+      });
+
+      it('returns the winner when a concurrent request with the same key committed first', async () => {
+        mockPrismaService.$transaction.mockRejectedValueOnce(
+          new PrismaClientKnownRequestError('Unique constraint failed', {
+            code: 'P2002',
+            clientVersion: '6',
+          }),
+        );
+        mockPrismaService.idempotencyKey.findUnique
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(storedKey(mockInput));
+        mockPrismaService.quotation.findUnique.mockResolvedValueOnce({
+          id: 'q-original',
+        });
+        await expect(service.create(mockInput, mockUser, KEY)).resolves.toEqual(
+          { id: 'q-original' },
+        );
+        expect(mockOutboxService.relay).not.toHaveBeenCalled();
+      });
+
+      it('rethrows a unique violation when no earlier request holds the key', async () => {
+        mockPrismaService.$transaction.mockRejectedValueOnce(
+          new PrismaClientKnownRequestError('Unique constraint failed', {
+            code: 'P2002',
+            clientVersion: '6',
+          }),
+        );
+        await expect(service.create(mockInput, mockUser, KEY)).rejects.toThrow(
+          'Unique constraint failed',
+        );
+      });
+
+      it('rejects a malformed key before touching the database', async () => {
+        await expect(
+          service.create(mockInput, mockUser, 'bad key'),
+        ).rejects.toThrow(BadRequestException);
+        expect(
+          mockPrismaService.idempotencyKey.findUnique,
+        ).not.toHaveBeenCalled();
+        expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      });
+
+      it('reports a conflict when the original quotation was deleted', async () => {
+        mockPrismaService.idempotencyKey.findUnique.mockResolvedValueOnce(
+          storedKey(mockInput),
+        );
+        mockPrismaService.quotation.findUnique.mockResolvedValueOnce(null);
+        await expect(service.create(mockInput, mockUser, KEY)).rejects.toThrow(
+          ConflictException,
+        );
+      });
     });
 
     it('kicks the relay after commit without waiting for the publish', async () => {
       mockOutboxService.relay.mockReturnValueOnce(new Promise(() => undefined));
-      await expect(service.create(mockInput, mockUser)).resolves.toEqual(mockCreatedQuotation);
+      await expect(service.create(mockInput, mockUser)).resolves.toEqual(
+        mockCreatedQuotation,
+      );
       expect(mockOutboxService.relay).toHaveBeenCalledTimes(1);
     });
 
@@ -1338,11 +1518,7 @@ describe('QuotationsService', () => {
         .mockReset()
         .mockResolvedValueOnce(draftOwned);
       await expect(
-        service.update(
-          'q-1',
-          { clientId: 'not-a-uuid', version: 1 },
-          'user-1',
-        ),
+        service.update('q-1', { clientId: 'not-a-uuid', version: 1 }, 'user-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1435,9 +1611,15 @@ describe('QuotationsService', () => {
 
     it('returns snapshots for a SALES_MANAGER without ownership check', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrismaService as any).quotationSnapshot.findMany.mockResolvedValue([mockSnapshot]);
+      (mockPrismaService as any).quotationSnapshot.findMany.mockResolvedValue([
+        mockSnapshot,
+      ]);
 
-      const result = await service.findSnapshots('q-1', 'mgr-1', Role.SALES_MANAGER);
+      const result = await service.findSnapshots(
+        'q-1',
+        'mgr-1',
+        Role.SALES_MANAGER,
+      );
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('snap-1');
@@ -1446,17 +1628,27 @@ describe('QuotationsService', () => {
     });
 
     it('returns snapshots for a SALES_REP who owns the quotation', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValueOnce({ createdById: 'user-1' });
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce({
+        createdById: 'user-1',
+      });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrismaService as any).quotationSnapshot.findMany.mockResolvedValueOnce([mockSnapshot]);
+      (
+        mockPrismaService as any
+      ).quotationSnapshot.findMany.mockResolvedValueOnce([mockSnapshot]);
 
-      const result = await service.findSnapshots('q-1', 'user-1', Role.SALES_REP);
+      const result = await service.findSnapshots(
+        'q-1',
+        'user-1',
+        Role.SALES_REP,
+      );
 
       expect(result).toHaveLength(1);
     });
 
     it('throws ForbiddenException when SALES_REP does not own the quotation', async () => {
-      mockPrismaService.quotation.findFirst.mockResolvedValueOnce({ createdById: 'other-user' });
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce({
+        createdById: 'other-user',
+      });
 
       await expect(
         service.findSnapshots('q-1', 'user-1', Role.SALES_REP),

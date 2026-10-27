@@ -62,6 +62,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 ### Quotation Management
 - Sales reps create quotations by selecting or creating a client via the `ClientSelector` combobox (search existing clients or create on-the-fly), then adding line items with tax calculation
 - Auto-generated quotation numbers via PostgreSQL sequence (`QT-2026-0001`)
+- `Idempotency-Key` header on `createQuotation`: a double-submit or a retried request returns the original quotation instead of creating a duplicate (key stored in the same transaction, unique per user, 24h TTL)
 - Status workflow: DRAFT → SENT (rep submits for approval) → APPROVED / REJECTED (manager)
 - Role-based transition enforcement — SALES_REP cannot approve or reject (blocked at service layer)
 - Full audit trail via `StatusHistory` — creation, every edit (fields changed listed in note), and every status transition logged with actor and timestamp; timeline visible on quotation detail
@@ -296,6 +297,7 @@ quote-iq/
 │       │   ├── documents/   # PDF upload, VirusTotal scan, extraction, embedding
 │       │   ├── events/      # RabbitMQ AMQP publisher (CloudAMQP)
 │       │   ├── gateway/     # WebSocket gateway — real-time push to frontend
+│       │   ├── idempotency/ # Idempotency-Key store for create mutations (same transaction, unique per user)
 │       │   ├── outbox/      # Transactional outbox: OutboxEvent relay to RabbitMQ
 │       │   ├── queue-consumer/ # AMQP consumer, OTel trace extraction, embedding trigger
 │       │   ├── quotations/  # Quotation CRUD, status workflow, outbox event on create

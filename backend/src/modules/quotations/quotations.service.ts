@@ -24,6 +24,10 @@ import { quoteApprovedTemplate } from '../../common/mail/templates/quote-approve
 import { quoteRejectedTemplate } from '../../common/mail/templates/quote-rejected';
 import { ROUTING_KEY } from '../events/events.module';
 import { OutboxService } from '../outbox/outbox.service';
+import {
+  IdempotencyScope,
+  IdempotencyService,
+} from '../idempotency/idempotency.service';
 import { AIService } from '../ai/ai.service';
 
 const UUID_RE =
@@ -43,6 +47,7 @@ export class QuotationsService {
     private readonly logger: AppLogger,
     private readonly mailService: MailService,
     private readonly outbox: OutboxService,
+    private readonly idempotency: IdempotencyService,
     private readonly aiService: AIService,
   ) {}
 
@@ -230,7 +235,10 @@ export class QuotationsService {
   async create(
     input: CreateQuotationInput,
     user: UserType,
+    idempotencyHeader?: string | string[],
   ): Promise<QuotationType> {
+    // Validated first: a malformed key is rejected before anything else happens
+    const idempotencyKey = this.idempotency.parseKey(idempotencyHeader);
     const title = QuotationsService.stripTags(input.title);
     if (!title || title.length > 100) {
       throw new BadRequestException(
@@ -268,6 +276,21 @@ export class QuotationsService {
       }
       return { ...item, description };
     });
+
+    // Idempotency: a retry or double-submit carrying the same key gets the original quotation
+    // back instead of a second one (and a second scoring event)
+    const scope: IdempotencyScope | undefined = idempotencyKey
+      ? {
+          userId: user.id,
+          operation: 'createQuotation',
+          key: idempotencyKey,
+          requestHash: this.idempotency.hashRequest(input),
+        }
+      : undefined;
+    if (scope) {
+      const existingId = await this.idempotency.findResource(scope);
+      if (existingId) return this.replayCreated(existingId, scope.key);
+    }
 
     this.logger.info(
       `Creating quotation — title: "${title}" clientId: "${clientId}" userId: ${user.id}`,
@@ -320,6 +343,8 @@ export class QuotationsService {
           aggregateId: created.id,
           payload: { quotationId: created.id, createdById: user.id },
         });
+        // Same transaction: the key exists only if the quotation does
+        if (scope) await this.idempotency.record(tx, scope, created.id);
         return created;
       });
 
@@ -329,6 +354,17 @@ export class QuotationsService {
 
       return quotation;
     } catch (error) {
+      // Two requests with the same key at once: Postgres makes the second insert wait for the
+      // first transaction, then fail on the unique key. This transaction rolled back (no
+      // quotation, no outbox event), so return the one the first request created.
+      if (
+        scope &&
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const winnerId = await this.idempotency.findResource(scope);
+        if (winnerId) return this.replayCreated(winnerId, scope.key);
+      }
       this.logger.error(
         `Failed to create quotation — title: "${title}" clientId: "${clientId}" userId: ${user.id}`,
         error instanceof Error ? error.stack : String(error),
@@ -336,6 +372,31 @@ export class QuotationsService {
       );
       throw error;
     }
+  }
+
+  // The quotation an earlier request with this Idempotency-Key created, in the same shape create() returns
+  private async replayCreated(
+    quotationId: string,
+    key: string,
+  ): Promise<QuotationType> {
+    this.logger.info(
+      `Idempotent replay — returning quotation ${quotationId} for Idempotency-Key ${key}`,
+      QuotationsService.name,
+    );
+    const existing = await this.prisma.quotation.findUnique({
+      where: { id: quotationId },
+      include: {
+        items: { orderBy: { sortOrder: 'asc' } },
+        createdBy: true,
+        client: true,
+      },
+    });
+    if (!existing) {
+      throw new ConflictException(
+        'The quotation created for this Idempotency-Key no longer exists',
+      );
+    }
+    return existing;
   }
 
   async updateStatus(

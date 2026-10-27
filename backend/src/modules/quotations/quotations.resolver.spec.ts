@@ -141,6 +141,7 @@ describe('QuotationsResolver', () => {
       expect(mockQuotationsService.create).toHaveBeenCalledWith(
         input,
         mockUser,
+        undefined,
       );
       expect(result).toEqual(mockQuotation);
     });
@@ -156,8 +157,32 @@ describe('QuotationsResolver', () => {
       mockQuotationsService.create.mockResolvedValue(mockQuotation);
 
       const result = await resolver.createQuotation(input, manager);
-      expect(mockQuotationsService.create).toHaveBeenCalledWith(input, manager);
+      expect(mockQuotationsService.create).toHaveBeenCalledWith(
+        input,
+        manager,
+        undefined,
+      );
       expect(result).toEqual(mockQuotation);
+    });
+
+    it('passes the Idempotency-Key header to the service', async () => {
+      const input = {
+        title: 'Retried Quote',
+        clientId: 'c-3',
+        taxRate: 0,
+        items: [],
+      };
+      mockQuotationsService.create.mockResolvedValue(mockQuotation);
+      const req = {
+        headers: { 'idempotency-key': 'a8f5f167-0e8b-4d3c-9f0a-5c2b1e7d4a91' },
+      } as never;
+
+      await resolver.createQuotation(input, mockUser, req);
+      expect(mockQuotationsService.create).toHaveBeenCalledWith(
+        input,
+        mockUser,
+        'a8f5f167-0e8b-4d3c-9f0a-5c2b1e7d4a91',
+      );
     });
   });
 

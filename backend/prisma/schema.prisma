@@ -214,3 +214,21 @@ model OutboxEvent {
 
   @@index([status, availableAt])
 }
+
+// Idempotency keys for mutations that create resources. A retried or double-submitted request
+// with the same Idempotency-Key returns the original resource instead of creating another one.
+// The row is written in the same transaction as the resource, so the two can never disagree.
+model IdempotencyKey {
+  id          String   @id @default(uuid())
+  key         String
+  userId      String
+  operation   String
+  // SHA-256 of the request input: the same key with a different input is a client bug
+  requestHash String
+  resourceId  String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([userId, operation, key])
+  @@index([expiresAt])
+}
