@@ -103,6 +103,8 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 - Manager dashboard with pipeline stats, conversion rate, and approved value
 - Win/Loss aggregation fully in SQL — `GROUP BY` status and rep, conditional aggregation for deal-size buckets; no full table scan into application memory
 - Rate limiting — 120 requests/minute per IP via `@nestjs/throttler`; custom `GqlThrottlerGuard` extracts the request from the GraphQL execution context
+- CSRF protection — foreign origins get 403 before any route runs, cross-site writes without an Origin are rejected, and Apollo `csrfPrevention` blocks GraphQL GETs/simple requests without a preflight header
+- GraphQL query limits — max depth 8 and 150 fields per operation (aliases counted), checked before execution
 - URL-based routing via `react-router-dom` v7 — bookmarkable URLs, working browser back button, deep-linking to quotation detail pages
 - Demo credentials gate via `VITE_SHOW_DEMO_CREDENTIALS` env var
 

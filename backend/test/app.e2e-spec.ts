@@ -87,6 +87,74 @@ describe('QuoteIQ E2E', () => {
     await app.close();
   });
 
+  describe('Security — CSRF and query limits', () => {
+    const createClient = (name: string) => ({
+      query: `mutation { createClient(name: "${name}") { id } }`,
+    });
+    const clientExists = async (name: string) => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query: `{ clients(search: "${name}") { name } }` });
+      const items = (res.body.data?.clients ?? []) as { name: string }[];
+      return items.some((c) => c.name === name);
+    };
+
+    it('rejects a mutation from a foreign origin with 403, before it runs', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .set('Origin', 'https://evil.example')
+        .send(createClient('E2E CSRF foreign origin'));
+      expect(res.status).toBe(403);
+      expect(await clientExists('E2E CSRF foreign origin')).toBe(false);
+    });
+
+    it('rejects a cross-site write that hides its Origin', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .set('Sec-Fetch-Site', 'cross-site')
+        .send(createClient('E2E CSRF no origin'));
+      expect(res.status).toBe(403);
+      expect(await clientExists('E2E CSRF no origin')).toBe(false);
+    });
+
+    it('rejects a GraphQL GET without a preflight header (a link or <img> can send one)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/graphql')
+        .query({ query: '{ salesReps { id } }' })
+        .set('Cookie', managerCookie);
+      expect(res.status).toBe(400);
+    });
+
+    it('still serves the frontend: allowed origin with the preflight header', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .set('Origin', FRONTEND_ORIGIN)
+        .set('Apollo-Require-Preflight', '1')
+        .send({ query: '{ salesReps { id } }' });
+      expect(res.status).toBe(200);
+      expect(res.body.errors).toBeUndefined();
+    });
+
+    it('rejects an operation that repeats a field through 200 aliases', async () => {
+      const aliases = Array.from(
+        { length: 200 },
+        (_, i) => `a${i}: salesReps { id }`,
+      );
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query: `query Flood { ${aliases.join(' ')} }` });
+      expect(res.status).toBe(400);
+      expect(res.body.errors[0].message).toBe(
+        'Flood selects 400 fields; the limit is 150',
+      );
+    });
+  });
+
   describe('Health — readiness', () => {
     it('GET /health/ready answers 200 with the database up', async () => {
       const res = await request(app.getHttpServer()).get('/health/ready');

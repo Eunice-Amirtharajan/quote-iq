@@ -1,19 +1,26 @@
+import { ForbiddenException } from '@nestjs/common';
+import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
+import type { Request } from 'express';
 import { corsOptions } from './cors-options';
 
-type OriginFn = (
-  origin: string | undefined,
-  cb: (err: Error | null, allow?: boolean) => void,
-) => void;
+const ALLOWED = 'https://quoteiq.cc, http://localhost:5173';
 
-const check = (allowed: string | undefined, origin: string | undefined) => {
-  const cb = jest.fn();
-  (corsOptions(allowed).origin as OriginFn)(origin, cb);
-  return cb.mock.calls[0] as [Error | null, boolean?];
+const run = (
+  headers: Record<string, string>,
+  method = 'POST',
+  allowed: string | undefined = ALLOWED,
+) => {
+  const callback = jest.fn();
+  corsOptions(allowed)({ method, headers } as unknown as Request, callback);
+  const [err, options] = callback.mock.calls[0] as [Error | null, CorsOptions];
+  return { err, options };
 };
 
 describe('corsOptions', () => {
   it('allows every custom header the frontend sends, including Idempotency-Key', () => {
-    expect(corsOptions('http://localhost:5173').allowedHeaders).toEqual([
+    expect(
+      run({ origin: 'http://localhost:5173' }).options.allowedHeaders,
+    ).toEqual([
       'Content-Type',
       'Authorization',
       'Apollo-Require-Preflight',
@@ -22,19 +29,34 @@ describe('corsOptions', () => {
   });
 
   it('allows listed origins, comma-separated with spaces', () => {
-    const allowed = 'https://quoteiq.cc, http://localhost:5173';
-    expect(check(allowed, 'http://localhost:5173')).toEqual([null, true]);
-    expect(check(allowed, 'https://quoteiq.cc')).toEqual([null, true]);
+    expect(run({ origin: 'http://localhost:5173' }).err).toBeNull();
+    expect(run({ origin: 'https://quoteiq.cc' }).err).toBeNull();
   });
 
-  it('allows requests without an Origin header', () => {
-    expect(check('https://quoteiq.cc', undefined)).toEqual([null, true]);
+  it('allows requests without an Origin header (probes, curl, same-origin)', () => {
+    expect(run({}).err).toBeNull();
+    expect(run({ 'sec-fetch-site': 'same-site' }).err).toBeNull();
   });
 
-  it('rejects other origins, and every origin when none is configured', () => {
-    expect(check('https://quoteiq.cc', 'https://evil.example')[0]).toEqual(
-      new Error('Not allowed by CORS'),
-    );
-    expect(check(undefined, 'https://quoteiq.cc')[0]).toBeInstanceOf(Error);
+  it('rejects other origins with a 403, not a server error', () => {
+    const { err } = run({ origin: 'https://evil.example' });
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err?.message).toBe('Origin not allowed');
+  });
+
+  it('rejects every origin when none is configured', () => {
+    expect(
+      run({ origin: 'https://quoteiq.cc' }, 'POST', '').err,
+    ).toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects a cross-site write that carries no Origin', () => {
+    const { err } = run({ 'sec-fetch-site': 'cross-site' });
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err?.message).toBe('Cross-site request blocked');
+  });
+
+  it('lets a cross-site GET without Origin through (Apollo csrfPrevention covers GraphQL GETs)', () => {
+    expect(run({ 'sec-fetch-site': 'cross-site' }, 'GET').err).toBeNull();
   });
 });
