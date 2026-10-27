@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { createHash } from 'node:crypto';
 import { AIService, SUMMARY_PROMPT_VERSION } from './ai.service';
+import { AiQuotaService, runAsAiUser } from './ai-quota.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { ConversionLabel, Recommendation } from './ai-insight.entity';
@@ -111,6 +112,7 @@ const mockCircuitRejections = { inc: jest.fn() };
 const mockTokens = { inc: jest.fn() };
 const mockTruncated = { inc: jest.fn() };
 const mockModelAvailable = { set: jest.fn() };
+const mockQuota = { record: jest.fn().mockResolvedValue(undefined) };
 // Pin the models the mocked Groq catalog offers (the real defaults are covered in model-catalog.spec)
 process.env.GROQ_COMPLETION_MODELS =
   'llama-3.1-70b-versatile,llama-3.1-8b-instant,llama3-8b-8192';
@@ -127,6 +129,7 @@ const newBareService = () =>
     mockTokens as never,
     mockTruncated as never,
     mockModelAvailable as never,
+    mockQuota as never,
   );
 
 const mockQuotation = {
@@ -238,6 +241,7 @@ describe('AIService', () => {
           provide: 'PROM_METRIC_AI_MODEL_AVAILABLE',
           useValue: mockModelAvailable,
         },
+        { provide: AiQuotaService, useValue: mockQuota },
       ],
     }).compile();
 
@@ -645,6 +649,29 @@ describe('AIService', () => {
       });
     });
   });
+  describe('charging tokens to the user', () => {
+    const withUsage = {
+      ...mockGroqResponse,
+      usage: { prompt_tokens: 432, completion_tokens: 343 },
+    };
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+      mockCreate.mockResolvedValue(withUsage);
+    });
+
+    it('charges prompt + completion tokens to the user the request runs for', async () => {
+      await runAsAiUser('u-42', () => service.generateQuotationSummary('q-1'));
+      expect(mockQuota.record).toHaveBeenCalledWith('u-42', 775);
+    });
+
+    it('charges nobody for work outside a user request (e.g. the queue consumer)', async () => {
+      await service.generateQuotationSummary('q-1');
+      expect(mockQuota.record).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Groq circuit breaker', () => {
     const groqDown = () =>
       new InternalServerError(503, undefined, 'overloaded', new Headers());

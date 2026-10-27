@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import OpenAI from 'openai';
 import { AIService } from '../src/modules/ai/ai.service';
+import type { AiQuotaService } from '../src/modules/ai/ai-quota.service';
 import { AppLogger } from '../src/common/logger/logger.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import type { Counter, Gauge } from 'prom-client';
@@ -231,6 +232,8 @@ async function main() {
     makeNoopCounter(),
     makeNoopCounter(),
     makeNoopGauge(),
+    // Evals run outside a user request, so nothing is charged to a quota
+    { record: () => Promise.resolve() } as unknown as AiQuotaService,
   );
   await aiService.onModuleInit(); // loads available Groq models — normally run by Nest's lifecycle
 

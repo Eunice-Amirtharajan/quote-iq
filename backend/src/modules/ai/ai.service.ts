@@ -36,6 +36,7 @@ import { InsightType, QuotationStatus } from '@prisma/client';
 import OpenAI from 'openai';
 import { escapeXml, describeError } from '../../common/helper/helper';
 import { CatalogStatus, ModelCatalog, modelPinsFromEnv } from './model-catalog';
+import { AiQuotaService, currentAiUser } from './ai-quota.service';
 import { SpanStatusCode } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
 
@@ -212,6 +213,7 @@ export class AIService implements OnModuleInit {
     private readonly truncatedCounter: Counter<string>,
     @InjectMetric('ai_model_available')
     private readonly modelAvailable: Gauge<string>,
+    private readonly quota: AiQuotaService,
   ) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY is not set');
@@ -1255,6 +1257,9 @@ Answer in 2–4 sentences. Be direct and factual.`;
         { provider, model, feature, kind: 'completion' },
         completionTokens,
       );
+    // Charge the user the request runs for (set by AiQuotaInterceptor); background work has none
+    const userId = currentAiUser();
+    if (userId) void this.quota.record(userId, promptTokens + completionTokens);
   }
 
   /** One OpenAI embedding, metered under its feature. */

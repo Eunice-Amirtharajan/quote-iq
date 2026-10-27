@@ -11,6 +11,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
 import { corsOptions } from '../src/common/cors/cors-options';
+import { PrismaService } from '../src/prisma/prisma.service';
 
 const FRONTEND_ORIGIN = 'http://localhost:5173';
 
@@ -152,6 +153,40 @@ describe('QuoteIQ E2E', () => {
       expect(res.body.errors[0].message).toBe(
         'Flood selects 400 fields; the limit is 150',
       );
+    });
+  });
+
+  describe('AI — per-user daily token budget', () => {
+    it('refuses AI requests with a 429 once the user has spent today’s budget', async () => {
+      const prisma = app.get(PrismaService);
+      const marcus = await prisma.user.findUniqueOrThrow({
+        where: { email: 'marcus@quoteiq.com' },
+      });
+      const day = new Date(new Date().toISOString().slice(0, 10));
+      await prisma.aiUsage.upsert({
+        where: { userId_day: { userId: marcus.id, day } },
+        create: { userId: marcus.id, day, tokens: 200_000 },
+        update: { tokens: 200_000 },
+      });
+      try {
+        const res = await request(app.getHttpServer())
+          .post('/graphql')
+          .set('Cookie', managerCookie)
+          .send({
+            query: `mutation { askAboutQuotation(quotationId: "${e2eClientId}", question: "Is the margin fine?") { answer } }`,
+          });
+        const error = res.body.errors[0];
+        expect(error.message).toBe(
+          "You've reached today's AI limit. It resets at midnight UTC.",
+        );
+        // How Nest + Apollo deliver a 429; the frontend reads extensions.status
+        expect(error.extensions).toMatchObject({
+          code: 'INTERNAL_SERVER_ERROR',
+          status: 429,
+        });
+      } finally {
+        await prisma.aiUsage.deleteMany({ where: { userId: marcus.id } });
+      }
     });
   });
 

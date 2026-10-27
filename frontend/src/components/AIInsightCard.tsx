@@ -90,8 +90,8 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
           {error ? "Retry" : "Generate Insight"}
         </button>
         {error && (
-          <p className="text-xs text-red-500 mt-2">
-            Analysis failed. Please try again.
+          <p role="alert" className="text-xs text-red-500 mt-2">
+            {userFacingMessage(error, "Analysis failed. Please try again.")}
           </p>
         )}
       </div>
