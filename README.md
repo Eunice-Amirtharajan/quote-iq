@@ -284,6 +284,7 @@ quote-iq/
 │       │   ├── correlation/ # AsyncLocalStorage correlation-ID propagation
 │       │   ├── decorators/  # @CurrentUser, @Roles
 │       │   ├── guards/      # JwtAuthGuard, RolesGuard, GqlThrottlerGuard
+│       │   ├── lifecycle/   # Graceful shutdown: fail readiness, drain, close, exit
 │       │   ├── logger/      # Winston logger with correlation-ID injection
 │       │   ├── mail/        # Nodemailer MailService + HTML email templates
 │       │   ├── metrics/     # Prometheus Histogram + Counter providers
@@ -298,6 +299,7 @@ quote-iq/
 │       │   ├── documents/   # PDF upload, VirusTotal scan, extraction, embedding
 │       │   ├── events/      # RabbitMQ AMQP publisher (CloudAMQP)
 │       │   ├── gateway/     # WebSocket gateway — real-time push to frontend
+│       │   ├── health/      # GET /health/ready readiness check (DB, RabbitMQ, shutdown)
 │       │   ├── idempotency/ # Idempotency-Key store for create mutations (same transaction, unique per user)
 │       │   ├── outbox/      # Transactional outbox: OutboxEvent relay to RabbitMQ
 │       │   ├── queue-consumer/ # AMQP consumer, OTel trace extraction, embedding trigger
@@ -368,13 +370,17 @@ E2E tests are excluded from hooks — they require Docker and run in CI instead.
 |---|---|---|
 | Distributed tracing | OpenTelemetry → Grafana Cloud Tempo | 8 manual spans across ai.service, documents.service, quotations.service, queue-consumer.service; W3C trace propagation across AMQP boundary; local dev via Jaeger |
 | Uptime monitoring + alerts | UptimeRobot (free) | Probes `GET /health` (backend) and `https://quoteiq.cc` (frontend) every 5 min — email alert on down/recovery |
-| Container health check + auto-restart | Railway (built-in) | `GET /health` every 30s — Railway restarts container automatically if it fails |
+| Container health check + auto-restart | Railway (built-in) | Deploy health check on `GET /health/ready` — a new deploy only goes live once it can reach the database |
 | CPU / memory / logs | Railway dashboard | Real-time metrics and stdout logs |
 | Frontend performance | Vercel Analytics | Web Vitals (LCP, CLS, FID) — `@vercel/analytics` injected in `main.tsx` |
 | Metrics | Prometheus + prom-client | `GET /metrics` exposes default Node.js metrics + custom app metrics: resolver latency histogram (`createQuotation`, `quotations`), Groq model invocations counter with `model`/`tier`/`outcome` labels, circuit breaker state gauge and rejections counter |
 | Dashboards | Grafana | Local via Docker Compose — resolver p95 latency, Groq fallback rate gauge, request volume, heap usage. See [`observability/`](observability/) |
 
-The `/health` endpoint (`GET https://api.quoteiq.cc/health`) returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.
+The `/health` endpoint (`GET https://api.quoteiq.cc/health`) is the liveness check: it returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.
+
+`GET /health/ready` is the readiness check: `200` with `{ "status": "ok" | "degraded", "checks": { "database", "rabbitmq" } }` when the database is reachable, `503` when it isn't or when the instance is shutting down. RabbitMQ being down only makes it `degraded`, because quote events wait in the outbox.
+
+**Graceful shutdown:** on SIGTERM the backend fails readiness, keeps serving for 5s while the load balancer stops routing to it, stops accepting connections, lets in-flight requests finish, then closes WebSockets, the outbox timer, Prisma, Redis and RabbitMQ and exits 0 (hard limit 25s).
 
 ### Running Prometheus + Grafana locally
 

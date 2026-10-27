@@ -87,6 +87,16 @@ describe('QuoteIQ E2E', () => {
     await app.close();
   });
 
+  describe('Health — readiness', () => {
+    it('GET /health/ready answers 200 with the database up', async () => {
+      const res = await request(app.getHttpServer()).get('/health/ready');
+      expect(res.status).toBe(200);
+      // RabbitMQ connects in the background, so it may still be down: that is 'degraded', not 503
+      expect(['ok', 'degraded']).toContain(res.body.status);
+      expect(res.body.checks.database).toBe('up');
+    });
+  });
+
   describe('Authentication', () => {
     it('login with valid credentials sets HttpOnly cookie', async () => {
       const response = await request(app.getHttpServer())
