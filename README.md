@@ -373,8 +373,8 @@ E2E tests are excluded from hooks — they require Docker and run in CI instead.
 | Container health check + auto-restart | Railway (built-in) | Deploy health check on `GET /health/ready` — a new deploy only goes live once it can reach the database |
 | CPU / memory / logs | Railway dashboard | Real-time metrics and stdout logs |
 | Frontend performance | Vercel Analytics | Web Vitals (LCP, CLS, FID) — `@vercel/analytics` injected in `main.tsx` |
-| Metrics | Prometheus + prom-client | `GET /metrics` exposes default Node.js metrics + custom app metrics: resolver latency histogram (`createQuotation`, `quotations`), Groq model invocations counter with `model`/`tier`/`outcome` labels, circuit breaker state gauge and rejections counter |
-| Dashboards | Grafana | Local via Docker Compose — resolver p95 latency, Groq fallback rate gauge, request volume, heap usage. See [`observability/`](observability/) |
+| Metrics | Prometheus + prom-client | `GET /metrics` exposes default Node.js metrics + custom app metrics: resolver latency histogram (`createQuotation`, `quotations`), Groq model invocations counter with `model`/`tier`/`outcome` labels, circuit breaker state gauge and rejections counter, AI token usage per provider/model/feature (`ai_tokens_total`) and completions cut off by their token cap. Alert rules for token spikes and truncation in [`observability/alerts.yml`](observability/alerts.yml) |
+| Dashboards | Grafana | Local via Docker Compose — resolver p95 latency, Groq fallback rate gauge, request volume, heap usage, AI tokens per feature and estimated AI spend. See [`observability/`](observability/) |
 
 The `/health` endpoint (`GET https://api.quoteiq.cc/health`) is the liveness check: it returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.
 

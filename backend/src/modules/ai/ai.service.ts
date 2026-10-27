@@ -11,6 +11,7 @@ import Groq from 'groq-sdk';
 import { APIError } from 'groq-sdk/core/error';
 import {
   CircuitBreaker,
+  CircuitOpenError,
   CircuitState,
 } from '../../common/resilience/circuit-breaker';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -53,6 +54,38 @@ const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
 // Per-attempt timeouts; the fallback chain moves to the next model when one is hit
 const GROQ_COMPLETION_TIMEOUT_MS = 25_000;
 const GROQ_CLASSIFIER_TIMEOUT_MS = 10_000;
+// Output caps per feature, so a runaway answer can't run to the model's limit. The largest Groq
+// models are reasoning models (gpt-oss): hidden reasoning tokens count against the cap too.
+// Measured on gpt-oss-120b (2026-10-27): rerank ~130 (110 reasoning), summary 314-505,
+// quotation Q&A 180-213. Caps are ~3x the largest seen; a cut-off JSON answer fails the request.
+type GroqFeature =
+  | 'summary'
+  | 'rerank'
+  | 'quotation_qa'
+  | 'lessons_qa'
+  | 'playbook_qa';
+const MAX_OUTPUT_TOKENS: Record<GroqFeature, number> = {
+  summary: 1500, // JSON: summary, key points, risks
+  rerank: 400, // JSON array of 3 indices, plus reasoning
+  quotation_qa: 800, // 2–4 sentences
+  lessons_qa: 1200, // JSON: answer + cited entries
+  playbook_qa: 1000, // 2–4 sentences + source citations
+};
+// The intent classifier answers Y/N in one token, so it needs a model that doesn't reason first:
+// a reasoning model spends that token on reasoning and returns nothing. First available wins.
+const CLASSIFIER_MODELS = [
+  'qwen/qwen3.8-27b',
+  'allam-2-7b',
+  'llama-3.1-8b-instant',
+];
+const NON_CHAT_MODEL_MARKERS = ['whisper', 'embed', 'tts', 'orpheus', 'guard'];
+type ChatMessage = { role: 'system' | 'user'; content: string };
+const EMBEDDING_MODEL = 'text-embedding-3-small';
+type EmbeddingFeature =
+  | 'quotation_embedding'
+  | 'document_embedding'
+  | 'playbook_search'
+  | 'lessons_search';
 // Open after 5 failed calls in a row, probe again after 30s
 const GROQ_BREAKER_FAILURE_THRESHOLD = 5;
 const GROQ_BREAKER_OPEN_MS = 30_000;
@@ -117,6 +150,10 @@ const WinLossStatsSchema = z.object({
   byClient: z.array(ClientStatSchema),
 });
 
+function toPgVector(embedding: number[]): string {
+  return '[' + embedding.join(',') + ']';
+}
+
 export type LessonsLearnedType = z.infer<typeof LessonsLearnedResponseSchema>;
 
 @Injectable()
@@ -156,6 +193,10 @@ export class AIService implements OnModuleInit {
     private readonly circuitState: Gauge<string>,
     @InjectMetric('circuit_breaker_rejections_total')
     private readonly circuitRejections: Counter<string>,
+    @InjectMetric('ai_tokens_total')
+    private readonly tokensCounter: Counter<string>,
+    @InjectMetric('ai_completions_truncated_total')
+    private readonly truncatedCounter: Counter<string>,
   ) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY is not set');
@@ -275,9 +316,9 @@ strong contradicting signals. Justify your reasoning.
 `.trim();
   }
   private isChatModel(id: string): boolean {
-    return (
-      !id.includes('whisper') && !id.includes('embed') && !id.includes('tts')
-    );
+    // Groq lists speech (whisper, orpheus, tts), embedding and safety-classifier models
+    // (prompt-guard, safeguard) next to chat models; none of them can answer a prompt
+    return !NON_CHAT_MODEL_MARKERS.some((marker) => id.includes(marker));
   }
 
   private rankedModels(): string[] {
@@ -291,7 +332,28 @@ strong contradicting signals. Justify your reasoning.
     });
   }
 
-  private async callGroq(prompt: string): Promise<string> {
+  private callGroq(prompt: string, feature: GroqFeature): Promise<string> {
+    return this.runGroqChain([{ role: 'user', content: prompt }], feature);
+  }
+
+  private queryGroqModels(
+    systemPrompt: string,
+    question: string,
+    feature: GroqFeature,
+  ): Promise<string> {
+    return this.runGroqChain(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: question },
+      ],
+      feature,
+    );
+  }
+
+  private async runGroqChain(
+    messages: ChatMessage[],
+    feature: GroqFeature,
+  ): Promise<string> {
     if (this.availableModels.size === 0) {
       throw new InternalServerErrorException(
         'No Groq chat models are currently available',
@@ -300,7 +362,7 @@ strong contradicting signals. Justify your reasoning.
     // The whole fallback chain is one breaker call: it fails only when every model failed
     const ranked = this.rankedModels();
     return this.groqBreaker.execute(() =>
-      this.tryModelsInOrder(ranked, prompt),
+      this.tryModelsInOrder(ranked, messages, feature),
     );
   }
 
@@ -310,7 +372,8 @@ strong contradicting signals. Justify your reasoning.
    */
   private async tryModelsInOrder(
     models: string[],
-    prompt: string,
+    messages: ChatMessage[],
+    feature: GroqFeature,
     index = 0,
   ): Promise<string> {
     const model = models[index];
@@ -318,31 +381,48 @@ strong contradicting signals. Justify your reasoning.
       return await this.completeWithModel(
         model,
         index === 0 ? 'primary' : 'fallback',
-        prompt,
+        messages,
+        feature,
       );
     } catch (err) {
       const isLast = index === models.length - 1;
       if (isLast || !this.isTransientError(err)) throw err;
-      return this.tryModelsInOrder(models, prompt, index + 1);
+      return this.tryModelsInOrder(models, messages, feature, index + 1);
     }
   }
 
-  /** One completion attempt on one model, with logging and the per-model metric. */
+  /** One completion attempt on one model, with logging, token metering and the per-model metric. */
   private async completeWithModel(
     model: string,
     tier: 'primary' | 'fallback',
-    prompt: string,
+    messages: ChatMessage[],
+    feature: GroqFeature,
   ): Promise<string> {
     try {
       this.logger.info(`Trying Groq model: ${model}`, AIService.name);
       const response = await this.groq.chat.completions.create(
         {
           model,
-          messages: [{ role: 'user', content: prompt }],
+          messages,
           temperature: 0.3,
+          max_tokens: MAX_OUTPUT_TOKENS[feature],
         },
         { timeout: GROQ_COMPLETION_TIMEOUT_MS },
       );
+      this.recordTokens(
+        'groq',
+        model,
+        feature,
+        response.usage?.prompt_tokens,
+        response.usage?.completion_tokens,
+      );
+      if (response.choices[0]?.finish_reason === 'length') {
+        this.truncatedCounter.inc({ model, feature });
+        this.logger.warn(
+          `Groq ${feature} answer from ${model} hit the ${MAX_OUTPUT_TOKENS[feature]}-token cap and was cut off`,
+          AIService.name,
+        );
+      }
       const text = response.choices[0]?.message?.content?.trim() ?? '';
       this.logger.info(
         `Groq response received from model: ${model}`,
@@ -446,7 +526,7 @@ strong contradicting signals. Justify your reasoning.
     );
 
     try {
-      const text = await this.callGroq(prompt);
+      const text = await this.callGroq(prompt, 'summary');
       // Strip markdown code fences if the model wraps JSON in ```json ... ```
       const cleaned = text
         .replace(/^```(?:json)?\s*/i, '')
@@ -945,10 +1025,36 @@ strong contradicting signals. Justify your reasoning.
    * Saves the full embedding + rerank + answer pipeline for real questions only.
    */
   private async isGenuineQuestion(question: string): Promise<boolean> {
+    // The classifier only saves cost, so it fails open: with no suitable model, or on any
+    // error other than an open circuit, the question is answered rather than refused
+    const model = CLASSIFIER_MODELS.find((m) => this.availableModels.has(m));
+    if (!model) {
+      this.logger.warn(
+        'No intent-classifier model available, answering without the noise filter',
+        AIService.name,
+      );
+      return true;
+    }
+    try {
+      return await this.classifyWithModel(model, question);
+    } catch (err) {
+      if (err instanceof CircuitOpenError) throw err;
+      this.logger.warn(
+        `Intent classifier failed on ${model}, answering without the noise filter: ${err instanceof Error ? err.message : String(err)}`,
+        AIService.name,
+      );
+      return true;
+    }
+  }
+
+  private async classifyWithModel(
+    model: string,
+    question: string,
+  ): Promise<boolean> {
     const response = await this.groqBreaker.execute(() =>
       this.groq.chat.completions.create(
         {
-          model: 'llama-3.1-8b-instant',
+          model,
           max_tokens: 1,
           temperature: 0,
           messages: [
@@ -965,6 +1071,13 @@ Answer "Y" for: any real question, even short ones like "What is ROI?" or "How?"
         },
         { timeout: GROQ_CLASSIFIER_TIMEOUT_MS },
       ),
+    );
+    this.recordTokens(
+      'groq',
+      response.model,
+      'intent_classifier',
+      response.usage?.prompt_tokens,
+      response.usage?.completion_tokens,
     );
     const verdict = response.choices[0]?.message?.content?.trim().toUpperCase();
     return verdict === 'Y';
@@ -1053,6 +1166,45 @@ ${clientHistoryBlock}
 Answer in 2–4 sentences. Be direct and factual.`;
   }
 
+  /** Counts tokens per provider, model and feature: what each AI feature costs. */
+  private recordTokens(
+    provider: 'groq' | 'openai',
+    model: string,
+    feature: string,
+    promptTokens = 0,
+    completionTokens = 0,
+  ): void {
+    if (promptTokens > 0)
+      this.tokensCounter.inc(
+        { provider, model, feature, kind: 'prompt' },
+        promptTokens,
+      );
+    if (completionTokens > 0)
+      this.tokensCounter.inc(
+        { provider, model, feature, kind: 'completion' },
+        completionTokens,
+      );
+  }
+
+  /** One OpenAI embedding, metered under its feature. */
+  private async embed(
+    input: string,
+    feature: EmbeddingFeature,
+    signal?: AbortSignal,
+  ): Promise<number[]> {
+    const body = { model: EMBEDDING_MODEL, input };
+    const resp = signal
+      ? await this.openAI.embeddings.create(body, { signal })
+      : await this.openAI.embeddings.create(body);
+    this.recordTokens(
+      'openai',
+      EMBEDDING_MODEL,
+      feature,
+      resp.usage?.prompt_tokens,
+    );
+    return resp.data[0].embedding;
+  }
+
   /**
    * Errors worth trying the next model for, and that count against the circuit breaker:
    * no response at all (connection failure, timeout, abort), 408, 429 and 5xx.
@@ -1077,45 +1229,6 @@ Answer in 2–4 sentences. Be direct and factual.`;
       err.name === 'AbortError' ||
       err.name === 'TimeoutError'
     );
-  }
-
-  private async queryGroqModels(
-    systemPrompt: string,
-    question: string,
-  ): Promise<string> {
-    return this.groqBreaker.execute(async () => {
-      let lastError: unknown;
-      for (const model of this.rankedModels()) {
-        try {
-          const response = await this.groq.chat.completions.create(
-            {
-              model,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: question },
-              ],
-              temperature: 0.3,
-            },
-            { timeout: GROQ_COMPLETION_TIMEOUT_MS },
-          );
-          const answer = response.choices[0]?.message?.content?.trim() ?? '';
-          this.logger.info(
-            `NL answer received from model: ${model}`,
-            AIService.name,
-          );
-          return answer;
-        } catch (err) {
-          const isTransient = this.isTransientError(err);
-          this.logger.warn(
-            `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
-            AIService.name,
-          );
-          lastError = err;
-          if (!isTransient) throw err;
-        }
-      }
-      throw lastError;
-    });
   }
 
   async askAboutQuotation(
@@ -1188,7 +1301,11 @@ Answer in 2–4 sentences. Be direct and factual.`;
       AIService.name,
     );
 
-    const answer = await this.queryGroqModels(systemPrompt, trimmed);
+    const answer = await this.queryGroqModels(
+      systemPrompt,
+      trimmed,
+      'quotation_qa',
+    );
     return { answer };
   }
 
@@ -1250,11 +1367,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
   async searchLessonsLearned(
     query: string,
   ): Promise<Array<{ source: string; content: string; score: number }>> {
-    const embeddingResponse = await this.openAI.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: query,
-    });
-    const vector = '[' + embeddingResponse.data[0].embedding.join(',') + ']';
+    const vector = toPgVector(await this.embed(query, 'lessons_search'));
 
     const [vectorResults, keywordResults] = await Promise.all([
       this.prisma.$queryRaw<Array<{ source: string; content: string }>>`
@@ -1304,11 +1417,13 @@ Answer in 2–4 sentences. Be direct and factual.`;
       await Promise.all(
         batch.map(async (chunk) => {
           try {
-            const resp = await this.openAI.embeddings.create(
-              { model: 'text-embedding-3-small', input: chunk.content },
-              { signal: AbortSignal.timeout(10_000) },
+            const vector = toPgVector(
+              await this.embed(
+                chunk.content,
+                'document_embedding',
+                AbortSignal.timeout(10_000),
+              ),
             );
-            const vector = '[' + resp.data[0].embedding.join(',') + ']';
             await this.prisma.$executeRaw`
               UPDATE "DocumentChunk"
               SET embedding = ${vector}::vector
@@ -1339,11 +1454,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
     }>;
     bestDistance: number;
   }> {
-    const embeddingResponse = await this.openAI.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: query,
-    });
-    const vector = '[' + embeddingResponse.data[0].embedding.join(',') + ']';
+    const vector = toPgVector(await this.embed(query, 'playbook_search'));
 
     const [vectorResults, keywordResults] = await Promise.all([
       this.prisma.$queryRaw<
@@ -1456,7 +1567,7 @@ Passages:
 ${numbered}`;
 
     try {
-      const raw = await this.callGroq(prompt);
+      const raw = await this.callGroq(prompt, 'rerank');
       const cleaned = raw
         .replace(/^```(?:json)?\s*/i, '')
         .replace(/```\s*$/i, '')
@@ -1531,7 +1642,11 @@ Be concise — 2–4 sentences. Always cite the source number(s) you used, e.g. 
 ${context}
 </playbook>`;
 
-    const answer = await this.queryGroqModels(systemPrompt, trimmed);
+    const answer = await this.queryGroqModels(
+      systemPrompt,
+      trimmed,
+      'playbook_qa',
+    );
 
     const citations: PlaybookCitationType[] = reranked.map((c) => ({
       documentTitle: c.documentTitle,
@@ -1597,7 +1712,11 @@ Respond ONLY with a JSON object:
 ${context}
 </entries>`;
 
-      const answer = await this.queryGroqModels(systemPrompt, trimmed);
+      const answer = await this.queryGroqModels(
+        systemPrompt,
+        trimmed,
+        'lessons_qa',
+      );
       const parsedAnswer = LessonsLearnedResponseSchema.parse(
         JSON.parse(answer),
       );
@@ -1652,11 +1771,9 @@ ${context}
       `outcome: ${quotation.status}`,
     ].join('\n');
 
-    const resp = await this.openAI.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: searchText,
-    });
-    const vector = '[' + resp.data[0].embedding.join(',') + ']';
+    const vector = toPgVector(
+      await this.embed(searchText, 'quotation_embedding'),
+    );
 
     await this.prisma.$executeRaw`
       INSERT INTO "QuotationEmbedding" ("id", "quotationId", "searchText", "embedding", "updatedAt")

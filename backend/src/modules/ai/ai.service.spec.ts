@@ -8,6 +8,7 @@ import {
   APIUserAbortError,
   BadRequestError,
   InternalServerError,
+  NotFoundError,
   RateLimitError,
 } from 'groq-sdk/core/error';
 import Groq from 'groq-sdk';
@@ -106,6 +107,8 @@ const mockLogger = {
 };
 const mockCircuitState = { set: jest.fn() };
 const mockCircuitRejections = { inc: jest.fn() };
+const mockTokens = { inc: jest.fn() };
+const mockTruncated = { inc: jest.fn() };
 
 // Constructs the service directly, without the Nest testing module
 const newBareService = () =>
@@ -115,6 +118,8 @@ const newBareService = () =>
     {} as never,
     mockCircuitState as never,
     mockCircuitRejections as never,
+    mockTokens as never,
+    mockTruncated as never,
   );
 
 const mockQuotation = {
@@ -217,6 +222,11 @@ describe('AIService', () => {
           provide: 'PROM_METRIC_CIRCUIT_BREAKER_REJECTIONS_TOTAL',
           useValue: mockCircuitRejections,
         },
+        { provide: 'PROM_METRIC_AI_TOKENS_TOTAL', useValue: mockTokens },
+        {
+          provide: 'PROM_METRIC_AI_COMPLETIONS_TRUNCATED_TOTAL',
+          useValue: mockTruncated,
+        },
       ],
     }).compile();
 
@@ -255,6 +265,227 @@ describe('AIService', () => {
     });
   });
 
+  describe('AI cost controls', () => {
+    const withUsage = (content: string, finish_reason = 'stop') => ({
+      model: 'llama-3.1-70b-versatile',
+      choices: [{ message: { content }, finish_reason }],
+      usage: { prompt_tokens: 120, completion_tokens: 45 },
+    });
+    const callsFor = (feature: string) =>
+      mockTokens.inc.mock.calls.filter(
+        ([labels]) => (labels as { feature: string }).feature === feature,
+      );
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it.each([
+      ['summary', 1500],
+      ['rerank', 400],
+      ['quotation_qa', 800],
+      ['lessons_qa', 1200],
+      ['playbook_qa', 1000],
+    ] as const)('caps %s output at %d tokens', async (feature, cap) => {
+      mockCreate.mockResolvedValue(withUsage('ok'));
+      await service['queryGroqModels']('system', 'question', feature);
+      expect(mockCreate.mock.calls[0][0]).toMatchObject({ max_tokens: cap });
+    });
+
+    it('counts prompt and completion tokens per provider, model and feature', async () => {
+      mockCreate.mockResolvedValue(
+        withUsage(mockGroqResponse.choices[0].message.content),
+      );
+      await service.generateQuotationSummary('q-1');
+      const labels = {
+        provider: 'groq',
+        model: 'llama-3.1-70b-versatile',
+        feature: 'summary',
+      };
+      expect(mockTokens.inc).toHaveBeenCalledWith(
+        { ...labels, kind: 'prompt' },
+        120,
+      );
+      expect(mockTokens.inc).toHaveBeenCalledWith(
+        { ...labels, kind: 'completion' },
+        45,
+      );
+    });
+
+    it('meters the intent classifier and the Q&A answer separately', async () => {
+      mockCreate.mockResolvedValueOnce({
+        ...withUsage('Y'),
+        model: 'llama-3.1-8b-instant',
+        usage: { prompt_tokens: 90, completion_tokens: 1 },
+      });
+      mockCreate.mockResolvedValue(withUsage('Margin looks fine.'));
+      await service.askAboutQuotation('q-1', 'Is the margin reasonable?');
+      expect(callsFor('intent_classifier')).toEqual([
+        [
+          {
+            provider: 'groq',
+            model: 'llama-3.1-8b-instant',
+            feature: 'intent_classifier',
+            kind: 'prompt',
+          },
+          90,
+        ],
+        [
+          {
+            provider: 'groq',
+            model: 'llama-3.1-8b-instant',
+            feature: 'intent_classifier',
+            kind: 'completion',
+          },
+          1,
+        ],
+      ]);
+      expect(callsFor('quotation_qa')).toHaveLength(2);
+    });
+
+    it('records nothing when the provider returns no usage', async () => {
+      await service.generateQuotationSummary('q-1');
+      expect(mockTokens.inc).not.toHaveBeenCalled();
+    });
+
+    it('flags an answer cut off by its cap', async () => {
+      mockCreate.mockResolvedValue(withUsage('Margin looks', 'length'));
+      await service['queryGroqModels']('system', 'question', 'quotation_qa');
+      expect(mockTruncated.inc).toHaveBeenCalledWith({
+        model: 'llama-3.1-70b-versatile',
+        feature: 'quotation_qa',
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Groq quotation_qa answer from llama-3.1-70b-versatile hit the 800-token cap and was cut off',
+        AIService.name,
+      );
+    });
+
+    it('meters OpenAI embedding tokens under their feature', async () => {
+      mockPrismaService.quotation.findUnique.mockResolvedValue({
+        ...mockQuotation,
+        items: [],
+        client: { name: 'Acme' },
+      });
+      mockEmbeddingsCreate.mockResolvedValueOnce({
+        data: [{ embedding: Array(1536).fill(0.1) }],
+        usage: { prompt_tokens: 37, total_tokens: 37 },
+      });
+      await service.generateQuotationEmbedding('q-1');
+      expect(mockTokens.inc).toHaveBeenCalledWith(
+        {
+          provider: 'openai',
+          model: 'text-embedding-3-small',
+          feature: 'quotation_embedding',
+          kind: 'prompt',
+        },
+        37,
+      );
+    });
+
+    it('fails Q&A with a clear error when no Groq models are loaded', async () => {
+      mockModelsList.mockResolvedValueOnce({
+        data: [{ id: 'whisper-large-v3' }],
+      });
+      await service.onModuleInit();
+      await expect(
+        service['queryGroqModels']('system', 'question', 'playbook_qa'),
+      ).rejects.toThrow('No Groq chat models are currently available');
+    });
+  });
+  describe('model selection', () => {
+    const loadModels = async (ids: string[]) => {
+      mockModelsList.mockResolvedValueOnce({ data: ids.map((id) => ({ id })) });
+      await service.onModuleInit();
+    };
+    const ask = () =>
+      service.askAboutQuotation('q-1', 'Is the margin reasonable?');
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('never sends prompts to speech, embedding or safety-classifier models', async () => {
+      await loadModels([
+        'openai/gpt-oss-120b',
+        'meta-llama/llama-prompt-guard-2-86m',
+        'openai/gpt-oss-safeguard-20b',
+        'canopylabs/orpheus-v1-english',
+        'whisper-large-v3',
+        'qwen/qwen3.8-27b',
+      ]);
+      expect(service['rankedModels']()).toEqual([
+        'openai/gpt-oss-120b',
+        'qwen/qwen3.8-27b',
+      ]);
+    });
+
+    it('classifies with the first available non-reasoning model', async () => {
+      await loadModels([
+        'openai/gpt-oss-120b',
+        'allam-2-7b',
+        'qwen/qwen3.8-27b',
+      ]);
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      });
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'Fine.' } }],
+      });
+      await ask();
+      expect(mockCreate.mock.calls[0][0]).toMatchObject({
+        model: 'qwen/qwen3.8-27b',
+        max_tokens: 1,
+      });
+    });
+
+    it('answers without the classifier when no classifier model is available', async () => {
+      await loadModels(['openai/gpt-oss-120b']);
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'Fine.' } }],
+      });
+      const result = await ask();
+      expect(result.answer).toBe('Fine.');
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockCreate.mock.calls[0][0]).toMatchObject({
+        model: 'openai/gpt-oss-120b',
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'No intent-classifier model available, answering without the noise filter',
+        AIService.name,
+      );
+    });
+
+    it('fails open when the classifier call errors (e.g. a retired model)', async () => {
+      mockCreate.mockRejectedValueOnce(
+        new NotFoundError(404, undefined, 'model_not_found', new Headers()),
+      );
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'Fine.' } }],
+      });
+      const result = await ask();
+      expect(result.answer).toBe('Fine.');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Intent classifier failed on llama-3.1-8b-instant',
+        ),
+        AIService.name,
+      );
+    });
+
+    it('still fails fast when the circuit is open', async () => {
+      mockCreate.mockRejectedValue(
+        new InternalServerError(503, undefined, 'overloaded', new Headers()),
+      );
+      for (let i = 0; i < 5; i++)
+        await service.generateQuotationSummary('q-1').catch(() => undefined);
+      mockCreate.mockClear();
+      await expect(ask()).rejects.toThrow(CircuitOpenError);
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+  });
   describe('Groq circuit breaker', () => {
     const groqDown = () =>
       new InternalServerError(503, undefined, 'overloaded', new Headers());
