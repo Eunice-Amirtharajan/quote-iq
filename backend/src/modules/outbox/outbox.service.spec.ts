@@ -268,12 +268,14 @@ describe('OutboxService', () => {
       const before = Date.now();
       await service.relay();
       await service.relay();
+      const after = Date.now();
       expect(mockPrisma.outboxEvent.deleteMany).toHaveBeenCalledTimes(1);
       const where = mockPrisma.outboxEvent.deleteMany.mock.calls[0][0].where;
       expect(where.status).toBe(OutboxStatus.PUBLISHED);
-      expect(before - where.publishedAt.lt.getTime()).toBeGreaterThanOrEqual(
-        7 * 864e5,
-      );
+      // cutoff = (time of the cleanup) - 7 days
+      const cutoff = where.publishedAt.lt.getTime();
+      expect(cutoff).toBeGreaterThanOrEqual(before - 7 * 864e5);
+      expect(cutoff).toBeLessThanOrEqual(after - 7 * 864e5);
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('removed 4 published events'),
         OutboxService.name,

@@ -123,8 +123,15 @@ function stableStringify(value: unknown): string {
   if (value === null || typeof value !== 'object')
     return JSON.stringify(value) ?? 'null';
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  const entries = Object.entries(value as Record<string, unknown>)
+  const fields = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`;
+    .sort(([a], [b]) => compareCodeUnits(a, b))
+    .map(([k, v]) => [JSON.stringify(k), stableStringify(v)].join(':'));
+  return `{${fields.join(',')}}`;
+}
+
+// Plain UTF-16 order, not localeCompare: the hash must not depend on the server's locale
+function compareCodeUnits(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
 }

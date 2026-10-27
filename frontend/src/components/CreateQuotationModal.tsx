@@ -5,6 +5,7 @@ import { QUOTATIONS_QUERY, QUOTATION_QUERY } from "../graphql/queries";
 import { useAuth } from "../hooks/useAuth";
 import ClientSelector from "./ClientSelector";
 import { sanitizeText } from "../utils/sanitize";
+import { newIdempotencyKey } from "../lib/idempotency-key";
 
 interface LineItem {
   description: string;
@@ -36,10 +37,7 @@ const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
 
 // One Idempotency-Key per distinct submission: a double-click or a retry of the same input reuses
 // it, so the server returns the quotation it already created instead of a duplicate. Editing the
-// form before resubmitting is a new request and gets a new key.
-function newIdempotencyKey(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+// form before resubmitting is a new request and gets a new key (newIdempotencyKey).
 
 function toLineItems(
   items: ExistingQuotation["items"],

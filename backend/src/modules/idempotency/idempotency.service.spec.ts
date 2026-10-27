@@ -65,6 +65,20 @@ describe('IdempotencyService', () => {
       expect(service.hashRequest({ title: 'T', items: [2, 1] })).not.toBe(base);
     });
 
+    it('keeps the exact hash format, so keys stored before a deploy still match after it', () => {
+      expect(
+        service.hashRequest({
+          title: 'T',
+          b: [1, { z: null, a: 'x' }],
+          notes: undefined,
+          é: 2,
+          A: true,
+        }),
+      ).toBe(
+        'cb3bd7769b72cd5885f49bc218fe1dd5773193df1acb7fa91181a1c0e456bf20',
+      );
+    });
+
     it('distinguishes null from a missing field', () => {
       expect(service.hashRequest({ notes: null })).not.toBe(
         service.hashRequest({}),

@@ -232,13 +232,8 @@ export class QuotationsService {
     return v.replace(/<[^>]*>/g, '').trim(); // NOSONAR
   }
 
-  async create(
-    input: CreateQuotationInput,
-    user: UserType,
-    idempotencyHeader?: string | string[],
-  ): Promise<QuotationType> {
-    // Validated first: a malformed key is rejected before anything else happens
-    const idempotencyKey = this.idempotency.parseKey(idempotencyHeader);
+  /** Sanitises and validates createQuotation input; throws BadRequestException on the first problem. */
+  private static validateCreateInput(input: CreateQuotationInput) {
     const title = QuotationsService.stripTags(input.title);
     if (!title || title.length > 100) {
       throw new BadRequestException(
@@ -276,6 +271,19 @@ export class QuotationsService {
       }
       return { ...item, description };
     });
+
+    return { title, clientId, notes, taxRate, sanitizedItems };
+  }
+
+  async create(
+    input: CreateQuotationInput,
+    user: UserType,
+    idempotencyHeader?: string | string[],
+  ): Promise<QuotationType> {
+    // Validated first: a malformed key is rejected before anything else happens
+    const idempotencyKey = this.idempotency.parseKey(idempotencyHeader);
+    const { title, clientId, notes, taxRate, sanitizedItems } =
+      QuotationsService.validateCreateInput(input);
 
     // Idempotency: a retry or double-submit carrying the same key gets the original quotation
     // back instead of a second one (and a second scoring event)
