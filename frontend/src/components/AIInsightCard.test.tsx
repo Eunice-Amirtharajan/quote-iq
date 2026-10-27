@@ -283,14 +283,18 @@ describe("AIInsightCard", () => {
   });
 
   describe("when a question fails", () => {
-    const askFails = (question: string, message: string, code: string) => [
+    const askFails = (
+      question: string,
+      message: string,
+      extensions: Record<string, unknown>,
+    ) => [
       ...successMock,
       {
         request: {
           query: ASK_ABOUT_QUOTATION_MUTATION,
           variables: { quotationId: "q-1", question },
         },
-        result: { errors: [new GraphQLError(message, { extensions: { code } })] },
+        result: { errors: [new GraphQLError(message, { extensions })] },
       },
     ];
     const ask = async (question: string) => {
@@ -303,7 +307,9 @@ describe("AIInsightCard", () => {
     it("shows the server's message for a rejected question", async () => {
       renderCard(
         mockManager,
-        askFails("hi", "Please ask a question related to this quotation.", "BAD_REQUEST"),
+        askFails("hi", "Please ask a question related to this quotation.", {
+          code: "BAD_REQUEST",
+        }),
       );
       await ask("hi");
       expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -317,12 +323,27 @@ describe("AIInsightCard", () => {
         askFails(
           "Is it profitable?",
           "The AI service is temporarily unavailable, try again in 30s",
-          "SERVICE_UNAVAILABLE",
+          { code: "INTERNAL_SERVER_ERROR", status: 503 },
         ),
       );
       await ask("Is it profitable?");
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "The AI service is temporarily unavailable, try again in 30s",
+      );
+    });
+
+    it("shows the daily-limit message when the user is over their AI budget", async () => {
+      renderCard(
+        mockManager,
+        askFails(
+          "Is it profitable?",
+          "You've reached today's AI limit. It resets at midnight UTC.",
+          { code: "INTERNAL_SERVER_ERROR", status: 429 },
+        ),
+      );
+      await ask("Is it profitable?");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "You've reached today's AI limit. It resets at midnight UTC.",
       );
     });
 
@@ -332,7 +353,7 @@ describe("AIInsightCard", () => {
         askFails(
           "Is it profitable?",
           '404 {"error":{"code":"model_not_found"}}',
-          "INTERNAL_SERVER_ERROR",
+          { code: "INTERNAL_SERVER_ERROR" },
         ),
       );
       await ask("Is it profitable?");
@@ -340,5 +361,42 @@ describe("AIInsightCard", () => {
       expect(alert).toHaveTextContent("Couldn't get an answer. Please try again.");
       expect(alert).not.toHaveTextContent("model_not_found");
     });
+  });
+});
+
+describe("AIInsightCard — summary errors", () => {
+  const summaryFails = (message: string, extensions: Record<string, unknown>) => [
+    {
+      request: {
+        query: QUOTATION_SUMMARY_MUTATION,
+        variables: { quotationId: "q-1" },
+      },
+      result: { errors: [new GraphQLError(message, { extensions })] },
+    },
+  ];
+
+  it("shows the limit message when generating a summary is rate-limited", async () => {
+    renderCard(
+      mockManager,
+      summaryFails("Too many AI requests. Try again in 45s.", {
+        code: "INTERNAL_SERVER_ERROR",
+        status: 429,
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many AI requests. Try again in 45s.",
+    );
+  });
+
+  it("keeps the generic message for a server error", async () => {
+    renderCard(
+      mockManager,
+      summaryFails("AI response could not be parsed", { code: "INTERNAL_SERVER_ERROR" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Analysis failed. Please try again.",
+    );
   });
 });

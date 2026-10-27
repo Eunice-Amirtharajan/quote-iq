@@ -61,6 +61,11 @@ import {
       help: 'Whether each pinned Groq model is offered by Groq (1) or not (0), by role',
       labelNames: ['role', 'model'],
     }),
+    makeCounterProvider({
+      name: 'ai_quota_rejections_total',
+      help: 'AI requests refused by the per-user limits, by reason (rate, budget)',
+      labelNames: ['reason'],
+    }),
   ],
   exports: [
     'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
@@ -72,6 +77,7 @@ import {
     'PROM_METRIC_AI_TOKENS_TOTAL',
     'PROM_METRIC_AI_COMPLETIONS_TRUNCATED_TOTAL',
     'PROM_METRIC_AI_MODEL_AVAILABLE',
+    'PROM_METRIC_AI_QUOTA_REJECTIONS_TOTAL',
   ],
 })
 export class MetricsModule {}

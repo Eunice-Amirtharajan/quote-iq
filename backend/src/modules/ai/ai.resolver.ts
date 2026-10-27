@@ -1,6 +1,7 @@
 import { Resolver, Mutation, Query, Args, ID } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, UseInterceptors } from '@nestjs/common';
 import { AIService } from './ai.service';
+import { AiQuotaInterceptor } from './ai-quota.interceptor';
 import {
   ConversionScoreType,
   QuotationAnswerType,
@@ -27,6 +28,7 @@ export class AIResolver {
   })
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER)
+  @UseInterceptors(AiQuotaInterceptor)
   async quotationSummary(
     @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
     quotationId: string,
@@ -70,6 +72,7 @@ export class AIResolver {
   })
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER)
+  @UseInterceptors(AiQuotaInterceptor)
   async askAboutQuotation(
     @Args('quotationId', { type: /* istanbul ignore next */ () => ID })
     quotationId: string,
@@ -82,6 +85,7 @@ export class AIResolver {
   @Query(/* istanbul ignore next */ () => LessonsLearnedAnswerType)
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_MANAGER)
+  @UseInterceptors(AiQuotaInterceptor)
   async askLessonsLearned(
     @Args('question') question: string,
   ): Promise<LessonsLearnedAnswerType> {
@@ -94,6 +98,7 @@ export class AIResolver {
   })
   @UseGuards(RolesGuard)
   @Roles(Role.SALES_REP, Role.SALES_MANAGER)
+  @UseInterceptors(AiQuotaInterceptor)
   async askPlaybook(
     @Args('question', { type: /* istanbul ignore next */ () => String })
     question: string,

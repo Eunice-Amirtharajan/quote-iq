@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AIResolver } from './ai.resolver';
 import { AIService } from './ai.service';
+import { AiQuotaService } from './ai-quota.service';
 import { Recommendation } from './ai-insight.entity';
 
 const mockAIService = {
@@ -23,7 +24,12 @@ describe('AIResolver', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AIResolver, { provide: AIService, useValue: mockAIService }],
+      providers: [
+        AIResolver,
+        { provide: AIService, useValue: mockAIService },
+        // The quota interceptor on the AI operations is built with the resolver
+        { provide: AiQuotaService, useValue: { assertAllowed: jest.fn() } },
+      ],
     }).compile();
 
     resolver = module.get<AIResolver>(AIResolver);
