@@ -1,0 +1,25 @@
+# Prometheus alert rules. Loaded by the local Prometheus (docker-compose); the same expressions
+# work as Grafana Cloud alert rules in production.
+groups:
+  - name: ai-cost
+    rules:
+      # Normal use is a few thousand tokens per question (a playbook answer is ~2k prompt tokens).
+      # 500k tokens in an hour is ~250 playbook questions: a runaway script or a retry loop.
+      - alert: AiTokenSpike
+        expr: sum(increase(ai_tokens_total[1h])) > 500000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'AI token usage above 500k/hour'
+          description: 'Check the "Groq Tokens per Minute by Feature" panel for which feature is driving it.'
+
+      # A cut-off answer fails the request when it's JSON (summary, lessons, rerank).
+      - alert: AiCompletionsTruncated
+        expr: sum(increase(ai_completions_truncated_total[1h])) > 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'More than 5 AI answers per hour hit their max_tokens cap'
+          description: 'A cap in MAX_OUTPUT_TOKENS (ai.service.ts) is likely too tight for its feature.'

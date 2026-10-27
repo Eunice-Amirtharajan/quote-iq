@@ -46,6 +46,16 @@ import {
       help: 'Calls failed fast without reaching the downstream because the circuit was open',
       labelNames: ['breaker'],
     }),
+    makeCounterProvider({
+      name: 'ai_tokens_total',
+      help: 'LLM and embedding tokens by provider, model, feature and kind (prompt, completion)',
+      labelNames: ['provider', 'model', 'feature', 'kind'],
+    }),
+    makeCounterProvider({
+      name: 'ai_completions_truncated_total',
+      help: 'Completions cut off by their max_tokens cap, by model and feature',
+      labelNames: ['model', 'feature'],
+    }),
   ],
   exports: [
     'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
@@ -54,6 +64,8 @@ import {
     'PROM_METRIC_OUTBOX_BACKLOG_EVENTS',
     'PROM_METRIC_CIRCUIT_BREAKER_STATE',
     'PROM_METRIC_CIRCUIT_BREAKER_REJECTIONS_TOTAL',
+    'PROM_METRIC_AI_TOKENS_TOTAL',
+    'PROM_METRIC_AI_COMPLETIONS_TRUNCATED_TOTAL',
   ],
 })
 export class MetricsModule {}
