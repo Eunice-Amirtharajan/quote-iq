@@ -1,0 +1,123 @@
+name: LLM Eval
+
+# Quality gate for AI changes: runs the askPlaybook eval (real Groq answers, gpt-4o-mini as judge)
+# on pull requests that can change answer quality, and fails on a regression against the
+# committed baseline (backend/evals/baseline.json). See ADR §60.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/src/modules/ai/**'           # prompts, model pins, retrieval, rerank
+      - 'backend/src/modules/documents/**'    # chunking and embedding of the playbook
+      - 'backend/src/prisma/seed-documents.ts'
+      - 'backend/evals/**'
+      - 'docs/sample-playbook/**'
+      - '.github/workflows/llm-eval.yml'
+  workflow_dispatch:
+
+# One eval at a time across all PRs: they share Groq's per-organisation rate limit
+concurrency:
+  group: llm-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    name: LLM eval gate (askPlaybook)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_DB: quoteiq_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      # The gate's decision logic, tested before spending any API calls
+      - name: Unit-test the gate
+        working-directory: backend
+        run: npm run test:evals
+
+      - name: Check API keys are available
+        id: keys
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$GROQ_API_KEY" ] || [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::GROQ_API_KEY / OPENAI_API_KEY not available (e.g. a fork PR) — eval skipped"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate Prisma client
+        if: steps.keys.outputs.available == 'true'
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Run migrations
+        if: steps.keys.outputs.available == 'true'
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Seed test database (users + client)
+        if: steps.keys.outputs.available == 'true'
+        working-directory: backend
+        run: npx tsx src/prisma/seed-ci.ts
+
+      - name: Seed playbook documents (real embeddings)
+        if: steps.keys.outputs.available == 'true'
+        working-directory: backend
+        run: npx tsx src/prisma/seed-documents.ts
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      # Scores every scenario; the gate below decides pass/fail against the baseline
+      - name: Run eval (retries while Groq rate-limits)
+        if: steps.keys.outputs.available == 'true'
+        working-directory: backend
+        run: npm run eval
+        continue-on-error: true
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Gate against the baseline
+        if: steps.keys.outputs.available == 'true'
+        working-directory: backend
+        run: npm run eval:gate
+
+      - name: Upload eval results
+        if: always() && steps.keys.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-eval-results
+          path: backend/evals/results.json
+          retention-days: 30
