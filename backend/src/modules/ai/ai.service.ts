@@ -298,46 +298,71 @@ strong contradicting signals. Justify your reasoning.
       );
     }
     // The whole fallback chain is one breaker call: it fails only when every model failed
-    return this.groqBreaker.execute(async () => {
-      let lastError: unknown;
-      const ranked = this.rankedModels();
-      const primaryModel = ranked[0];
-      for (const model of ranked) {
-        const tier = model === primaryModel ? 'primary' : 'fallback';
-        try {
-          this.logger.info(`Trying Groq model: ${model}`, AIService.name);
-          const response = await this.groq.chat.completions.create(
-            {
-              model,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.3,
-            },
-            { timeout: GROQ_COMPLETION_TIMEOUT_MS },
-          );
-          const text = response.choices[0]?.message?.content?.trim() ?? '';
-          this.logger.info(
-            `Groq response received from model: ${model}`,
-            AIService.name,
-          );
-          this.groqCounter.inc({ model, outcome: 'success', tier });
-          return text;
-        } catch (err) {
-          const isTransient = this.isTransientError(err);
-          this.logger.warn(
-            `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
-            AIService.name,
-          );
-          this.groqCounter.inc({
-            model,
-            outcome: isTransient ? 'transient_error' : 'error',
-            tier,
-          });
-          lastError = err;
-          if (!isTransient) throw err;
-        }
-      }
-      throw lastError;
-    });
+    const ranked = this.rankedModels();
+    return this.groqBreaker.execute(() =>
+      this.tryModelsInOrder(ranked, prompt),
+    );
+  }
+
+  /**
+   * Fallback chain: one model at a time, largest first. A transient error moves on to the next
+   * model; any other error, or a failure of the last model, is thrown.
+   */
+  private async tryModelsInOrder(
+    models: string[],
+    prompt: string,
+    index = 0,
+  ): Promise<string> {
+    const model = models[index];
+    try {
+      return await this.completeWithModel(
+        model,
+        index === 0 ? 'primary' : 'fallback',
+        prompt,
+      );
+    } catch (err) {
+      const isLast = index === models.length - 1;
+      if (isLast || !this.isTransientError(err)) throw err;
+      return this.tryModelsInOrder(models, prompt, index + 1);
+    }
+  }
+
+  /** One completion attempt on one model, with logging and the per-model metric. */
+  private async completeWithModel(
+    model: string,
+    tier: 'primary' | 'fallback',
+    prompt: string,
+  ): Promise<string> {
+    try {
+      this.logger.info(`Trying Groq model: ${model}`, AIService.name);
+      const response = await this.groq.chat.completions.create(
+        {
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+        },
+        { timeout: GROQ_COMPLETION_TIMEOUT_MS },
+      );
+      const text = response.choices[0]?.message?.content?.trim() ?? '';
+      this.logger.info(
+        `Groq response received from model: ${model}`,
+        AIService.name,
+      );
+      this.groqCounter.inc({ model, outcome: 'success', tier });
+      return text;
+    } catch (err) {
+      const isTransient = this.isTransientError(err);
+      this.logger.warn(
+        `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
+        AIService.name,
+      );
+      this.groqCounter.inc({
+        model,
+        outcome: isTransient ? 'transient_error' : 'error',
+        tier,
+      });
+      throw err;
+    }
   }
 
   async generateQuotationSummary(
