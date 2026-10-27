@@ -34,7 +34,7 @@ import {
 import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
 import OpenAI from 'openai';
-import { escapeXml } from '../../common/helper/helper';
+import { escapeXml, describeError } from '../../common/helper/helper';
 import { SpanStatusCode } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
 
@@ -574,7 +574,7 @@ strong contradicting signals. Justify your reasoning.
       }
       this.logger.error(
         `Failed to generate summary for quotation: ${quotationId}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         AIService.name,
       );
       throw error;
@@ -1357,7 +1357,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
     } catch (error) {
       this.logger.error(
         `Failed to get conversion score`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         AIService.name,
       );
       throw error;
@@ -1727,7 +1727,7 @@ ${context}
     } catch (error) {
       this.logger.error(
         `Failed to retrieve the lessons learned response`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         AIService.name,
       );
       throw error;

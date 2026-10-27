@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { QUOTATION_SUMMARY_MUTATION, ASK_ABOUT_QUOTATION_MUTATION } from "../graphql/mutations";
 import { useAuth } from "../hooks/useAuth";
+import { userFacingMessage } from "../lib/graphql-error";
 
 interface QuotationSummary {
   summary: string;
@@ -28,7 +29,10 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
     quotationSummary: QuotationSummary;
   }>(QUOTATION_SUMMARY_MUTATION);
 
-  const [askQuestion, { data: answerData, loading: askLoading }] =
+  const [
+    askQuestion,
+    { data: answerData, loading: askLoading, error: askError },
+  ] =
     useMutation<{ askAboutQuotation: { answer: string } }>(
       ASK_ABOUT_QUOTATION_MUTATION,
     );
@@ -163,7 +167,12 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
             {askLoading ? "…" : "Ask"}
           </button>
         </div>
-        {answerData?.askAboutQuotation.answer && (
+        {askError && (
+          <p role="alert" className="mt-2 text-xs text-red-500">
+            {userFacingMessage(askError, "Couldn't get an answer. Please try again.")}
+          </p>
+        )}
+        {!askError && answerData?.askAboutQuotation.answer && (
           <p className="mt-2 text-xs text-gray-600 leading-relaxed">
             {answerData.askAboutQuotation.answer}
           </p>

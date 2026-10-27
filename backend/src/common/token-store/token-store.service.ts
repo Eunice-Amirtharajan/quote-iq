@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
+import { describeError } from '../helper/helper';
 
 @Injectable()
 export class TokenStoreService implements OnModuleDestroy {
@@ -11,7 +12,7 @@ export class TokenStoreService implements OnModuleDestroy {
     if (process.env.REDIS_URL) {
       this.redis = new Redis(process.env.REDIS_URL, { lazyConnect: false });
       this.redis.on('error', (err) =>
-        this.logger.error('Redis connection error', err instanceof Error ? err.stack : String(err)),
+        this.logger.error('Redis connection error', describeError(err)),
       );
     } else {
       this.logger.warn('REDIS_URL not set — using in-memory token store (tokens lost on restart)');

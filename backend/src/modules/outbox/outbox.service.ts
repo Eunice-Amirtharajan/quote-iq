@@ -15,6 +15,7 @@ import { AppLogger } from '../../common/logger/logger.service';
 import { getCorrelationId } from '../../common/correlation/correlation.store';
 import { tracer } from '../../common/tracing/tracer';
 import { EXCHANGE } from '../events/events.module';
+import { describeError } from '../../common/helper/helper';
 
 export const OUTBOX_MAX_ATTEMPTS = 10;
 // A claimed row is invisible to other relays for this long; if the process dies mid-publish,
@@ -103,7 +104,7 @@ export class OutboxService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.error(
         'Outbox relay run failed',
-        err instanceof Error ? err.stack : String(err),
+        describeError(err),
         OutboxService.name,
       );
       return 0;

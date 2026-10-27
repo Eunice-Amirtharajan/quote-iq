@@ -1,5 +1,7 @@
 jest.mock('ioredis');
 import { Test, TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
+import Redis from 'ioredis';
 import { TokenStoreService } from './token-store.service';
 
 describe('TokenStoreService (in-memory path)', () => {
@@ -63,5 +65,38 @@ describe('TokenStoreService (in-memory path)', () => {
     await service.set('key', 'second', 60);
     const result = await service.get('key');
     expect(result).toBe('second');
+  });
+});
+
+describe('TokenStoreService (Redis path)', () => {
+  const savedRedisUrl = process.env.REDIS_URL;
+
+  afterEach(() => {
+    if (savedRedisUrl === undefined) delete process.env.REDIS_URL;
+    else process.env.REDIS_URL = savedRedisUrl;
+    jest.restoreAllMocks();
+  });
+
+  it('logs Redis connection errors with their details, not [object Object]', () => {
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    const logError = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    new TokenStoreService();
+    const redis = jest.mocked(Redis).mock.instances.at(-1) as unknown as {
+      on: jest.Mock;
+    };
+    const [event, handler] = redis.on.mock.calls[0] as [
+      string,
+      (err: unknown) => void,
+    ];
+    expect(event).toBe('error');
+
+    handler({ code: 'ECONNREFUSED', port: 6379 });
+
+    expect(logError).toHaveBeenCalledWith(
+      'Redis connection error',
+      "{ code: 'ECONNREFUSED', port: 6379 }",
+    );
   });
 });

@@ -63,7 +63,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
 
       - name: Install dependencies
         working-directory: backend
@@ -111,6 +113,16 @@ jobs:
           CORS_ORIGIN: http://localhost:3000
           JWT_EXPIRES_IN: 7d
           RABBITMQ_URL: amqp://guest:guest@localhost:5672
+
+      # Frontend unit tests (Vitest). Playwright covers the UI end to end, but only this run
+      # produces frontend coverage for SonarCloud; without it every new frontend line counts as uncovered
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend unit tests with coverage
+        working-directory: frontend
+        run: npx vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
 
       - name: SonarCloud analysis
         uses: SonarSource/sonarcloud-github-action@383f7e52eae3ab0510c3cb0e7d9d150bbaeab838 # v3.1.0
