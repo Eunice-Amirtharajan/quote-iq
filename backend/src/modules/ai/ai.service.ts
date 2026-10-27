@@ -105,6 +105,8 @@ export type QuotationSummaryResult = QuotationSummary & {
   model: string | null;
   promptVersion: string | null;
   generatedAt: Date;
+  /** True when served from an older stored summary because a fresh one couldn't be generated */
+  stale: boolean;
 };
 type QuotationWithRelations = QuotationType & {
   createdBy: NonNullable<QuotationType['createdBy']>;
@@ -163,6 +165,14 @@ const WinLossStatsSchema = z.object({
 /** Groq answers 404 for a model it has retired; another model may still work. */
 function isModelGone(err: unknown): boolean {
   return err instanceof APIError && err.status === 404;
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 function toPgVector(embedding: number[]): string {
@@ -495,7 +505,48 @@ strong contradicting signals. Justify your reasoning.
     }
   }
 
+  /**
+   * The current summary: from cache, or freshly generated. If generating fails (Groq down, circuit
+   * open, unparseable output) and an older summary is stored — expired, or from an earlier prompt
+   * version — that one is served marked stale instead of an error.
+   */
   async generateQuotationSummary(
+    quotationId: string,
+  ): Promise<QuotationSummaryResult> {
+    try {
+      return await this.currentSummary(quotationId);
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      const stored = await this.storedSummary(quotationId);
+      if (!stored) throw err;
+      this.logger.warn(
+        `Serving the stored summary for ${quotationId} from ${stored.generatedAt.toISOString()}: a fresh one failed: ${err instanceof Error ? err.message : String(err)}`,
+        AIService.name,
+      );
+      return stored;
+    }
+  }
+
+  /** The stored summary whatever its age or prompt version, marked stale; undefined if none or unreadable. */
+  private async storedSummary(
+    quotationId: string,
+  ): Promise<QuotationSummaryResult | undefined> {
+    const row = await this.prisma.aIInsight.findFirst({
+      where: { quotationId, insightType: InsightType.SUMMARY },
+    });
+    if (!row) return undefined;
+    const parsed = QuotationSummarySchema.safeParse(safeJsonParse(row.content));
+    if (!parsed.success) return undefined;
+    return {
+      ...parsed.data,
+      model: row.model,
+      promptVersion: row.promptVersion,
+      generatedAt: row.generatedAt,
+      stale: true,
+    };
+  }
+
+  private async currentSummary(
     quotationId: string,
   ): Promise<QuotationSummaryResult> {
     this.logger.info(
@@ -518,6 +569,7 @@ strong contradicting signals. Justify your reasoning.
           model: cached.model,
           promptVersion: cached.promptVersion,
           generatedAt: cached.generatedAt,
+          stale: false,
         };
       } catch {
         // Cache row is corrupt or schema-stale — delete and regenerate
@@ -633,6 +685,7 @@ strong contradicting signals. Justify your reasoning.
         model: provenance.model,
         promptVersion: provenance.promptVersion,
         generatedAt: provenance.generatedAt,
+        stale: false,
       };
     } catch (error) {
       if (error instanceof SyntaxError || error instanceof ZodError) {

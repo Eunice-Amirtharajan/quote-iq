@@ -467,6 +467,11 @@ type QuotationSummaryType {
   """Risk factors to consider"""
   riskFactors: [String!]!
 
+  """
+  True when AI was unavailable and this older stored summary is served instead
+  """
+  stale: Boolean!
+
   """AI assessment of the deal"""
   summary: String!
 }
