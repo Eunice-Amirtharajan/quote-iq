@@ -73,6 +73,15 @@ const MAX_OUTPUT_TOKENS: Record<GroqFeature, number> = {
   lessons_qa: 1200, // JSON: answer + cited entries
   playbook_qa: 1000, // 2–4 sentences + source citations
 };
+// Simple, well-specified tasks don't need the model to think at length: hidden reasoning was ~95%
+// of rerank's output tokens. 'minimal' asks for the least reasoning the model family supports.
+const REASONING: Record<GroqFeature, 'minimal' | 'default'> = {
+  summary: 'default', // judgement over client history; keep full reasoning
+  rerank: 'minimal', // pick 3 passage numbers
+  quotation_qa: 'minimal', // 2–4 sentences from one quotation's data
+  lessons_qa: 'default',
+  playbook_qa: 'minimal', // answer from the given excerpts, or refuse
+};
 type ChatMessage = { role: 'system' | 'user'; content: string };
 /** A completion and where it came from: the model that answered and its token cost. */
 interface GroqCompletion {
@@ -161,6 +170,21 @@ const WinLossStatsSchema = z.object({
   byDealSize: z.array(BucketStatSchema),
   byClient: z.array(ClientStatSchema),
 });
+
+/**
+ * reasoning_effort for one model. The values differ per family (gpt-oss: low/medium/high;
+ * qwen3: none/default) and the fallback chain can switch family mid-request, so it is chosen per
+ * model; an unknown family gets no parameter rather than a value it would reject with a 400.
+ */
+function reasoningParams(
+  model: string,
+  level: 'minimal' | 'default',
+): { reasoning_effort?: 'low' | 'none' } {
+  if (level === 'default') return {};
+  if (model.startsWith('openai/gpt-oss')) return { reasoning_effort: 'low' };
+  if (model.startsWith('qwen/qwen3')) return { reasoning_effort: 'none' };
+  return {};
+}
 
 /** Groq answers 404 for a model it has retired; another model may still work. */
 function isModelGone(err: unknown): boolean {
@@ -461,6 +485,7 @@ strong contradicting signals. Justify your reasoning.
           messages,
           temperature: 0.3,
           max_tokens: MAX_OUTPUT_TOKENS[feature],
+          ...reasoningParams(model, REASONING[feature]),
         },
         { timeout: GROQ_COMPLETION_TIMEOUT_MS },
       );
