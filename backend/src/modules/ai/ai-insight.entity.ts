@@ -50,6 +50,12 @@ export class QuotationSummaryType {
 
   @Field(() => Date, { description: 'When this summary was generated' })
   generatedAt!: Date;
+
+  @Field(() => Boolean, {
+    description:
+      'True when AI was unavailable and this older stored summary is served instead',
+  })
+  stale!: boolean;
 }
 
 @ObjectType({

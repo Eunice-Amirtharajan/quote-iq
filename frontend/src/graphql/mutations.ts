@@ -86,6 +86,8 @@ export const QUOTATION_SUMMARY_MUTATION = gql`
       riskFactors
       model
       promptVersion
+      generatedAt
+      stale
     }
   }
 `;

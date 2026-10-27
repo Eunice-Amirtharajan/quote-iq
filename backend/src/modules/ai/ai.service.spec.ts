@@ -542,6 +542,104 @@ describe('AIService', () => {
       expect(mockCreate).not.toHaveBeenCalled();
     });
   });
+  describe('stale summary fallback', () => {
+    const generatedAt = new Date('2026-10-20T09:00:00Z');
+    const storedRow = (over: Record<string, unknown> = {}) => ({
+      id: 'ins-1',
+      content: mockGroqResponse.choices[0].message.content,
+      model: 'openai/gpt-oss-120b',
+      promptVersion: SUMMARY_PROMPT_VERSION,
+      generatedAt,
+      ...over,
+    });
+    const groqDown = () =>
+      new InternalServerError(503, undefined, 'overloaded', new Headers());
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('marks a summary served from the fresh cache as not stale', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce(storedRow());
+      const result = await service.generateQuotationSummary('q-1');
+      expect(result.stale).toBe(false);
+    });
+
+    it('serves the expired stored summary, marked stale, when Groq is down', async () => {
+      mockPrismaService.aIInsight.findFirst
+        .mockResolvedValueOnce(null) // no fresh summary (expired)
+        .mockResolvedValueOnce(storedRow()); // but an older one is stored
+      mockCreate.mockRejectedValue(groqDown());
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result).toMatchObject({
+        summary: 'Test summary',
+        model: 'openai/gpt-oss-120b',
+        generatedAt,
+        stale: true,
+      });
+      expect(mockPrismaService.aIInsight.findFirst).toHaveBeenLastCalledWith({
+        where: { quotationId: 'q-1', insightType: 'SUMMARY' },
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Serving the stored summary for q-1 from 2026-10-20T09:00:00.000Z',
+        ),
+        AIService.name,
+      );
+    });
+
+    it('serves a summary from an older prompt version rather than nothing', async () => {
+      mockPrismaService.aIInsight.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(storedRow({ promptVersion: 'summary-v0' }));
+      mockCreate.mockRejectedValue(groqDown());
+      const result = await service.generateQuotationSummary('q-1');
+      expect(result).toMatchObject({
+        promptVersion: 'summary-v0',
+        stale: true,
+      });
+    });
+
+    it('serves the stored summary when the fresh answer is unparseable', async () => {
+      mockPrismaService.aIInsight.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(storedRow());
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'not json' } }],
+      });
+      await expect(
+        service.generateQuotationSummary('q-1'),
+      ).resolves.toMatchObject({ stale: true });
+    });
+
+    it('still fails when there is no stored summary to fall back to', async () => {
+      mockCreate.mockRejectedValue(groqDown());
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'overloaded',
+      );
+    });
+
+    it('still fails when the stored summary is unreadable', async () => {
+      mockPrismaService.aIInsight.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(storedRow({ content: '{not json' }));
+      mockCreate.mockRejectedValue(groqDown());
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'overloaded',
+      );
+    });
+
+    it('never falls back for a quotation that no longer exists', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(null);
+      await expect(service.generateQuotationSummary('q-gone')).rejects.toThrow(
+        'Quotation q-gone not found',
+      );
+      expect(mockPrismaService.aIInsight.findFirst).toHaveBeenCalledTimes(1);
+    });
+  });
   describe('summary provenance and prompt versioning', () => {
     const withUsage = {
       ...mockGroqResponse,

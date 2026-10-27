@@ -11,6 +11,9 @@ interface QuotationSummary {
   riskFactors: string[];
   model?: string | null;
   promptVersion?: string | null;
+  generatedAt?: string;
+  /** Served from an older stored summary because AI was unavailable */
+  stale?: boolean;
 }
 
 const RECOMMENDATION_STYLES = {
@@ -21,6 +24,14 @@ const RECOMMENDATION_STYLES = {
 
 interface Props {
   quotationId: string;
+}
+
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-DE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 // Which model and prompt version produced the summary, so an odd answer can be traced
@@ -98,7 +109,16 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
     );
   }
 
-  const { summary, recommendation, keyPoints, riskFactors, model, promptVersion } =
+  const {
+    summary,
+    recommendation,
+    keyPoints,
+    riskFactors,
+    model,
+    promptVersion,
+    generatedAt,
+    stale,
+  } =
     data.quotationSummary;
   const style = RECOMMENDATION_STYLES[recommendation];
 
@@ -114,6 +134,16 @@ export default function AIInsightCard({ quotationId }: Readonly<Props>) {
           </span>
         </div>
       </div>
+
+      {stale && (
+        <p
+          role="status"
+          className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3"
+        >
+          AI is unavailable right now. Showing the summary from{" "}
+          {generatedAt ? formatDay(generatedAt) : "earlier"}, which may be outdated.
+        </p>
+      )}
 
       <p className="text-sm text-gray-600 mb-4 leading-relaxed">{summary}</p>
 

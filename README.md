@@ -124,6 +124,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 8. **Scoped NL Q&A** — `askAboutQuotation` uses the system/user message split to confine Groq strictly to one quotation's data; off-topic questions receive a fixed refusal without any additional DB query
 9. **Per-user AI limits** — 20 AI requests per minute and 200k tokens per day per user; tokens are charged to the user the request runs for (via `AsyncLocalStorage`), stored per UTC day, and over-limit requests get a clear 429 message in the UI
 10. **Eval as a PR gate** — PRs that touch prompts, retrieval, documents or model pins run the askPlaybook eval (Groq answers, gpt-4o-mini judge, 23 scenarios) and fail on a regression against a committed baseline: average score, pass count, zero hallucinations on out-of-scope questions, false refusals and retrieval coverage. Rate-limit errors are retried and reported as "could not grade", never as a regression
+11. **Degrades instead of failing** — if a fresh summary can't be generated (Groq down, circuit open, unparseable answer), the last stored summary is served with a visible "may be outdated" notice and its date instead of an error
 
 ### RAG Pipeline (F1a — Playbook / Lessons Learned)
 1. **Upload** — PDF validated (magic bytes + MIME), scanned (VirusTotal), text extracted
