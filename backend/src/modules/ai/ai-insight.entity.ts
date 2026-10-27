@@ -35,6 +35,21 @@ export class QuotationSummaryType {
 
   @Field(() => [String], { description: 'Risk factors to consider' })
   riskFactors!: string[];
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Groq model that generated this summary',
+  })
+  model?: string | null;
+
+  @Field(() => String, {
+    nullable: true,
+    description: 'Version of the summary prompt that generated it',
+  })
+  promptVersion?: string | null;
+
+  @Field(() => Date, { description: 'When this summary was generated' })
+  generatedAt!: Date;
 }
 
 @ObjectType({
@@ -180,7 +195,9 @@ export class PlaybookAnswerType {
   citations!: PlaybookCitationType[];
 }
 
-@ObjectType({ description: 'A similar past quotation returned by hybrid search' })
+@ObjectType({
+  description: 'A similar past quotation returned by hybrid search',
+})
 export class SimilarQuotationType {
   @Field(() => ID)
   id!: string;
@@ -197,6 +214,8 @@ export class SimilarQuotationType {
   @Field(() => String)
   status!: string;
 
-  @Field(() => Float, { description: 'RRF fusion score (higher = more similar)' })
+  @Field(() => Float, {
+    description: 'RRF fusion score (higher = more similar)',
+  })
   score!: number;
 }

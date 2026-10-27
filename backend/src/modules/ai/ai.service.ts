@@ -73,6 +73,16 @@ const MAX_OUTPUT_TOKENS: Record<GroqFeature, number> = {
   playbook_qa: 1000, // 2–4 sentences + source citations
 };
 type ChatMessage = { role: 'system' | 'user'; content: string };
+/** A completion and where it came from: the model that answered and its token cost. */
+interface GroqCompletion {
+  text: string;
+  model: string;
+  promptTokens?: number;
+  completionTokens?: number;
+}
+// Bump when buildPrompt's wording, the output schema or the summary cap changes: cached summaries
+// from another version are regenerated. The guard test in ai.service.spec.ts fails until you do.
+export const SUMMARY_PROMPT_VERSION = 'summary-v1';
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 type EmbeddingFeature =
   | 'quotation_embedding'
@@ -89,6 +99,12 @@ const CIRCUIT_STATE_VALUE: Record<CircuitState, number> = {
 };
 
 export type QuotationSummary = z.infer<typeof QuotationSummarySchema>;
+/** A summary plus where it came from (null for model/version only on rows from before provenance). */
+export type QuotationSummaryResult = QuotationSummary & {
+  model: string | null;
+  promptVersion: string | null;
+  generatedAt: Date;
+};
 type QuotationWithRelations = QuotationType & {
   createdBy: NonNullable<QuotationType['createdBy']>;
   items: NonNullable<QuotationType['items']>;
@@ -353,28 +369,32 @@ strong contradicting signals. Justify your reasoning.
     );
   }
 
-  private callGroq(prompt: string, feature: GroqFeature): Promise<string> {
+  private callGroq(
+    prompt: string,
+    feature: GroqFeature,
+  ): Promise<GroqCompletion> {
     return this.runGroqChain([{ role: 'user', content: prompt }], feature);
   }
 
-  private queryGroqModels(
+  private async queryGroqModels(
     systemPrompt: string,
     question: string,
     feature: GroqFeature,
   ): Promise<string> {
-    return this.runGroqChain(
+    const { text } = await this.runGroqChain(
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: question },
       ],
       feature,
     );
+    return text;
   }
 
   private async runGroqChain(
     messages: ChatMessage[],
     feature: GroqFeature,
-  ): Promise<string> {
+  ): Promise<GroqCompletion> {
     const models = this.models.models('completion');
     if (models.length === 0) {
       throw new InternalServerErrorException(
@@ -396,7 +416,7 @@ strong contradicting signals. Justify your reasoning.
     messages: ChatMessage[],
     feature: GroqFeature,
     index = 0,
-  ): Promise<string> {
+  ): Promise<GroqCompletion> {
     const model = models[index];
     try {
       return await this.completeWithModel(
@@ -420,7 +440,7 @@ strong contradicting signals. Justify your reasoning.
     tier: 'primary' | 'fallback',
     messages: ChatMessage[],
     feature: GroqFeature,
-  ): Promise<string> {
+  ): Promise<GroqCompletion> {
     try {
       this.logger.info(`Trying Groq model: ${model}`, AIService.name);
       const response = await this.groq.chat.completions.create(
@@ -452,7 +472,12 @@ strong contradicting signals. Justify your reasoning.
         AIService.name,
       );
       this.groqCounter.inc({ model, outcome: 'success', tier });
-      return text;
+      return {
+        text,
+        model,
+        promptTokens: response.usage?.prompt_tokens,
+        completionTokens: response.usage?.completion_tokens,
+      };
     } catch (err) {
       const isTransient = this.isTransientError(err);
       this.logger.warn(
@@ -470,7 +495,7 @@ strong contradicting signals. Justify your reasoning.
 
   async generateQuotationSummary(
     quotationId: string,
-  ): Promise<QuotationSummary> {
+  ): Promise<QuotationSummaryResult> {
     this.logger.info(
       `Generating quotation summary for: ${quotationId}`,
       AIService.name,
@@ -480,11 +505,18 @@ strong contradicting signals. Justify your reasoning.
         quotationId,
         insightType: InsightType.SUMMARY,
         expiresAt: { gt: new Date() },
+        // A summary from another prompt version is a miss: it was produced by different instructions
+        promptVersion: SUMMARY_PROMPT_VERSION,
       },
     });
     if (cached) {
       try {
-        return QuotationSummarySchema.parse(JSON.parse(cached.content));
+        return {
+          ...QuotationSummarySchema.parse(JSON.parse(cached.content)),
+          model: cached.model,
+          promptVersion: cached.promptVersion,
+          generatedAt: cached.generatedAt,
+        };
       } catch {
         // Cache row is corrupt or schema-stale — delete and regenerate
         await this.prisma.aIInsight.delete({ where: { id: cached.id } });
@@ -549,7 +581,15 @@ strong contradicting signals. Justify your reasoning.
     );
 
     try {
-      const text = await this.callGroq(prompt, 'summary');
+      const completion = await this.callGroq(prompt, 'summary');
+      const text = completion.text;
+      const provenance = {
+        model: completion.model,
+        promptVersion: SUMMARY_PROMPT_VERSION,
+        promptTokens: completion.promptTokens,
+        completionTokens: completion.completionTokens,
+        generatedAt: new Date(),
+      };
       // Strip markdown code fences if the model wraps JSON in ```json ... ```
       const cleaned = text
         .replace(/^```(?:json)?\s*/i, '')
@@ -578,13 +618,20 @@ strong contradicting signals. Justify your reasoning.
           insightType: InsightType.SUMMARY,
           content: JSON.stringify(validated),
           expiresAt: new Date(Date.now() + INSIGHT_TTL_MS),
+          ...provenance,
         },
         update: {
           content: JSON.stringify(validated),
           expiresAt: new Date(Date.now() + INSIGHT_TTL_MS),
+          ...provenance,
         },
       });
-      return validated;
+      return {
+        ...validated,
+        model: provenance.model,
+        promptVersion: provenance.promptVersion,
+        generatedAt: provenance.generatedAt,
+      };
     } catch (error) {
       if (error instanceof SyntaxError || error instanceof ZodError) {
         this.logger.warn(
@@ -1591,7 +1638,7 @@ Passages:
 ${numbered}`;
 
     try {
-      const raw = await this.callGroq(prompt, 'rerank');
+      const { text: raw } = await this.callGroq(prompt, 'rerank');
       const cleaned = raw
         .replace(/^```(?:json)?\s*/i, '')
         .replace(/```\s*$/i, '')

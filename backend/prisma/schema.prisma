@@ -115,6 +115,12 @@ model AIInsight {
   expiresAt   DateTime
   quotationId String?
   quotation   Quotation?  @relation(fields:[quotationId], references:[id], onDelete: Cascade)
+  // Provenance of LLM output: which model and prompt version produced it, at what token cost.
+  // A row whose promptVersion differs from the current one is a cache miss.
+  model            String?
+  promptVersion    String?
+  promptTokens     Int?
+  completionTokens Int?
   @@unique([quotationId, insightType])
   @@index([quotationId])
 }
