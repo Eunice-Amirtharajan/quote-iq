@@ -9,6 +9,8 @@ import * as path from 'node:path';
 import OpenAI from 'openai';
 import { AIService } from '../src/modules/ai/ai.service';
 import type { AiQuotaService } from '../src/modules/ai/ai-quota.service';
+import { CircuitOpenError } from '../src/common/resilience/circuit-breaker';
+import { APIError } from 'groq-sdk/core/error';
 import { AppLogger } from '../src/common/logger/logger.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import type { Counter, Gauge } from 'prom-client';
@@ -40,6 +42,7 @@ interface EvalResult {
   actualAnswer: string;
   actualCitations: string[];
   verdict: JudgeVerdict;
+  infraError: boolean;
   durationMs: number;
 }
 
@@ -110,11 +113,15 @@ async function runScenario(
   let actualAnswer: string;
   let actualCitations: string[] = [];
 
+  let infraError = false;
   try {
-    const response = await aiService.askPlaybook(scenario.question);
+    const response = await askWithBackoff(aiService, scenario.question);
     actualAnswer = response.answer;
     actualCitations = response.citations.map((c) => c.documentTitle);
   } catch (err) {
+    // Still rate-limited (or Groq down) after retries: an infrastructure failure, not a quality
+    // result — the gate reports it separately instead of as a low score
+    infraError = waitBeforeRetryMs(err) !== undefined;
     // askPlaybook throws BadRequestException when no READY documents exist —
     // treat as the answer text so the judge can still score it; a thrown
     // "no documents available" error is a distinct, visible failure mode.
@@ -122,14 +129,58 @@ async function runScenario(
       err instanceof Error ? `[THREW] ${err.message}` : String(err);
   }
 
-  const verdict = await judgeAnswer(openai, scenario, actualAnswer);
+  // Don't ask the judge to grade an error message: it would score it as a wrong answer
+  const verdict: JudgeVerdict = infraError
+    ? { score: 1, reason: 'Not graded: Groq unavailable after retries' }
+    : await judgeAnswer(openai, scenario, actualAnswer);
   return {
     scenario,
     actualAnswer,
     actualCitations,
     verdict,
+    infraError,
     durationMs: Date.now() - start,
   };
+}
+
+const MAX_RETRIES = 6;
+const DEFAULT_RATE_LIMIT_WAIT_MS = 20_000;
+const MAX_WAIT_MS = 60_000;
+
+/**
+ * askPlaybook, retried while Groq rate-limits. The free tier's tokens-per-minute limit is per
+ * organisation, and each scenario makes ~3 Groq calls, so a back-to-back run hits it: without
+ * this the eval measured Groq's rate limit, not answer quality.
+ */
+async function askWithBackoff(aiService: AIService, question: string) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await aiService.askPlaybook(question);
+    } catch (err) {
+      const waitMs = waitBeforeRetryMs(err);
+      if (waitMs === undefined || attempt >= MAX_RETRIES) throw err;
+      console.log(
+        `  Groq unavailable (${err instanceof Error ? err.message.slice(0, 60) : 'error'}…), retrying in ${Math.round(waitMs / 1000)}s`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+}
+
+/** How long to wait before retrying, or undefined when the error isn't worth retrying. */
+function waitBeforeRetryMs(err: unknown): number | undefined {
+  // Our own breaker opened after repeated 429s: wait until it lets a trial call through
+  if (err instanceof CircuitOpenError) return err.retryAfterMs + 1_000;
+  if (err instanceof APIError && err.status === 429) {
+    const headers = err.headers as Headers | undefined;
+    const retryAfter = Number(headers?.get('retry-after'));
+    const waitMs =
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000 + 500
+        : DEFAULT_RATE_LIMIT_WAIT_MS;
+    return Math.min(waitMs, MAX_WAIT_MS);
+  }
+  return undefined;
 }
 
 function printSummary(results: EvalResult[]): {
@@ -196,6 +247,7 @@ function writeResults(
           category: r.scenario.category,
           question: r.scenario.question,
           score: r.verdict.score,
+          infraError: r.infraError,
           reason: r.verdict.reason,
           actualCitations: r.actualCitations,
           expectedSourceDocuments: r.scenario.expectedSourceDocuments ?? [],
