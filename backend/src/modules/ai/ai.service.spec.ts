@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AIService } from './ai.service';
+import { createHash } from 'node:crypto';
+import { AIService, SUMMARY_PROMPT_VERSION } from './ai.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { ConversionLabel, Recommendation } from './ai-insight.entity';
@@ -535,6 +536,113 @@ describe('AIService', () => {
       mockCreate.mockClear();
       await expect(ask()).rejects.toThrow(CircuitOpenError);
       expect(mockCreate).not.toHaveBeenCalled();
+    });
+  });
+  describe('summary provenance and prompt versioning', () => {
+    const withUsage = {
+      ...mockGroqResponse,
+      usage: { prompt_tokens: 432, completion_tokens: 343 },
+    };
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('guards the summary prompt: changing it requires bumping SUMMARY_PROMPT_VERSION', () => {
+      const prompt = service['buildPrompt'](
+        {
+          quotationNumber: 'QT-2026-0001',
+          status: 'DRAFT',
+          total: 714,
+          taxRate: 19,
+          createdAt: new Date('2026-01-15T10:00:00Z'),
+          createdBy: { name: 'Marcus Klein' },
+          title: 'Guard fixture',
+          notes: null,
+          client: { name: 'Bauer GmbH' },
+          items: [
+            {
+              description: 'Consulting',
+              quantity: 4,
+              unitPrice: 150,
+              lineTotal: 600,
+            },
+          ],
+        } as never,
+        0,
+        0,
+        0,
+        0,
+        'FOLLOW_UP',
+      );
+      const hash = createHash('sha256').update(prompt).digest('hex');
+      // If this fails you changed the summary prompt: bump SUMMARY_PROMPT_VERSION in
+      // ai.service.ts so cached summaries from the old prompt are regenerated, then update both values here.
+      expect({ version: SUMMARY_PROMPT_VERSION, hash }).toEqual({
+        version: 'summary-v1',
+        hash: 'bdb9183bd672305a46d03557af9b58fcfe58bf912a0549373c4cb046ecc7b7de',
+      });
+    });
+
+    it('only reuses a cached summary from the current prompt version', async () => {
+      await service.generateQuotationSummary('q-1');
+      expect(mockPrismaService.aIInsight.findFirst).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          promptVersion: SUMMARY_PROMPT_VERSION,
+        }),
+      });
+    });
+
+    it('stores and returns the model, prompt version and token cost of a new summary', async () => {
+      mockCreate.mockResolvedValue(withUsage);
+      const result = await service.generateQuotationSummary('q-1');
+
+      const provenance = {
+        model: 'llama-3.1-70b-versatile',
+        promptVersion: SUMMARY_PROMPT_VERSION,
+        promptTokens: 432,
+        completionTokens: 343,
+        generatedAt: expect.any(Date),
+      };
+      const upsert = mockPrismaService.aIInsight.upsert.mock.calls[0][0];
+      expect(upsert.create).toMatchObject(provenance);
+      expect(upsert.update).toMatchObject(provenance);
+      expect(result).toMatchObject({
+        summary: 'Test summary',
+        model: 'llama-3.1-70b-versatile',
+        promptVersion: SUMMARY_PROMPT_VERSION,
+        generatedAt: expect.any(Date),
+      });
+    });
+
+    it('records the fallback model when the primary one failed', async () => {
+      mockCreate
+        .mockRejectedValueOnce(
+          new InternalServerError(503, undefined, 'overloaded', new Headers()),
+        )
+        .mockResolvedValue(withUsage);
+      const result = await service.generateQuotationSummary('q-1');
+      expect(result.model).toBe('llama-3.1-8b-instant');
+    });
+
+    it('returns the stored provenance with a cached summary', async () => {
+      const generatedAt = new Date('2026-10-27T09:00:00Z');
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce({
+        id: 'ins-1',
+        content: mockGroqResponse.choices[0].message.content,
+        model: 'openai/gpt-oss-120b',
+        promptVersion: SUMMARY_PROMPT_VERSION,
+        generatedAt,
+      });
+      const result = await service.generateQuotationSummary('q-1');
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        summary: 'Test summary',
+        model: 'openai/gpt-oss-120b',
+        promptVersion: SUMMARY_PROMPT_VERSION,
+        generatedAt,
+      });
     });
   });
   describe('Groq circuit breaker', () => {

@@ -84,6 +84,8 @@ export const QUOTATION_SUMMARY_MUTATION = gql`
       recommendation
       keyPoints
       riskFactors
+      model
+      promptVersion
     }
   }
 `;

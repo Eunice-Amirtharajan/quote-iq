@@ -449,8 +449,17 @@ enum QuotationStatus {
 
 """AI-generated quotation intelligence summary"""
 type QuotationSummaryType {
+  """When this summary was generated"""
+  generatedAt: DateTime!
+
   """Key positive signals"""
   keyPoints: [String!]!
+
+  """Groq model that generated this summary"""
+  model: String
+
+  """Version of the summary prompt that generated it"""
+  promptVersion: String
 
   """Action recommendation"""
   recommendation: Recommendation!
