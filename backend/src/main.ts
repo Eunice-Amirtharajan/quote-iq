@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { TokenStoreService } from './common/token-store/token-store.service';
 import cookieParser from 'cookie-parser';
+import { corsOptions } from './common/cors/cors-options';
 import helmet from 'helmet';
 
 const KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes — Neon pauses at 5 min idle
@@ -48,32 +49,7 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
-  const allowedOrigins = new Set(
-    (process.env.CORS_ORIGIN ?? '')
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
-  );
-  app.enableCors({
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean) => void,
-    ) => {
-      // Allow requests with no Origin header (Railway health checks, curl, same-origin)
-      if (!origin || allowedOrigins.has(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'Apollo-Require-Preflight',
-    ],
-  });
+  app.enableCors(corsOptions(process.env.CORS_ORIGIN));
 
   // Health check — registered before listen() so Railway probes it immediately on deploy.
   // No DB call — never fails due to Neon cold start.

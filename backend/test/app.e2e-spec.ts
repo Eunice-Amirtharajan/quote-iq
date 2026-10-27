@@ -1,10 +1,18 @@
+import { randomUUID } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  INestApplication,
+} from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
+import { corsOptions } from '../src/common/cors/cors-options';
+
+const FRONTEND_ORIGIN = 'http://localhost:5173';
 
 class NoopThrottlerGuard implements CanActivate {
   canActivate(_context: ExecutionContext): boolean {
@@ -33,6 +41,8 @@ describe('QuoteIQ E2E', () => {
 
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
+    // Same CORS config as main.ts, so browser preflights can be tested
+    app.enableCors(corsOptions(FRONTEND_ORIGIN));
     await app.init();
 
     // Login as manager to create a shared test client
@@ -41,7 +51,9 @@ describe('QuoteIQ E2E', () => {
       .send({
         query: `mutation { login(email: "marcus@quoteiq.com", password: "password123") { id } }`,
       });
-    managerCookie = (managerLoginRes.headers['set-cookie'] as unknown as string[])[0];
+    managerCookie = (
+      managerLoginRes.headers['set-cookie'] as unknown as string[]
+    )[0];
 
     // Login as rep
     const repLoginRes = await request(app.getHttpServer())
@@ -436,6 +448,99 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
+  describe('Quotations — Idempotency-Key', () => {
+    it('lets the browser send the Idempotency-Key header cross-origin (CORS preflight)', async () => {
+      const res = await request(app.getHttpServer())
+        .options('/graphql')
+        .set('Origin', FRONTEND_ORIGIN)
+        .set('Access-Control-Request-Method', 'POST')
+        .set(
+          'Access-Control-Request-Headers',
+          'content-type,apollo-require-preflight,idempotency-key',
+        );
+      expect(res.status).toBe(204);
+      expect(res.headers['access-control-allow-origin']).toBe(FRONTEND_ORIGIN);
+      expect(
+        (res.headers['access-control-allow-headers'] as string).toLowerCase(),
+      ).toContain('idempotency-key');
+    });
+
+    const created: string[] = [];
+    const create = (key: string, title: string) =>
+      request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .set('Idempotency-Key', key)
+        .send({
+          query: `mutation { createQuotation(input: { title: "${title}" clientId: "${e2eClientId}" taxRate: 0 items: [{ description: "Item" quantity: 1 unitPrice: 100 }] }) { id quotationNumber title } }`,
+        });
+    const countByTitle = async (title: string) => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `{ quotations(filter: { search: "${title}" }) { id title } }`,
+        });
+      return (res.body.data.quotations as { title: string }[]).filter(
+        (q) => q.title === title,
+      ).length;
+    };
+
+    afterAll(async () => {
+      for (const id of created) {
+        await request(app.getHttpServer())
+          .post('/graphql')
+          .set('Cookie', authCookie)
+          .send({ query: `mutation { deleteQuotation(id: "${id}") }` });
+      }
+    });
+
+    it('returns the original quotation when the same request is retried with its key', async () => {
+      const key = randomUUID();
+      const title = `E2E Idempotent ${key.slice(0, 8)}`;
+      const first = await create(key, title).expect(200);
+      const retry = await create(key, title).expect(200);
+      const q1 = first.body.data.createQuotation;
+      created.push(q1.id);
+      expect(retry.body.data.createQuotation).toEqual(q1);
+      expect(await countByTitle(title)).toBe(1);
+    });
+
+    it('creates exactly one quotation when requests with the same key arrive at once', async () => {
+      const key = randomUUID();
+      const title = `E2E Concurrent ${key.slice(0, 8)}`;
+      const responses = await Promise.all([
+        create(key, title),
+        create(key, title),
+        create(key, title),
+      ]);
+      const ids = responses.map((r) => r.body.data?.createQuotation?.id);
+      created.push(ids[0]);
+      expect(new Set(ids).size).toBe(1);
+      expect(ids[0]).toBeDefined();
+      expect(await countByTitle(title)).toBe(1);
+    });
+
+    it('rejects a key reused for a different request', async () => {
+      const key = randomUUID();
+      const first = await create(key, `E2E Original ${key.slice(0, 8)}`).expect(
+        200,
+      );
+      created.push(first.body.data.createQuotation.id);
+      const reuse = await create(key, `E2E Different ${key.slice(0, 8)}`);
+      expect(reuse.body.errors?.[0]?.message).toContain(
+        'already used for a different request',
+      );
+    });
+
+    it('rejects a malformed key', async () => {
+      const res = await create('bad key', 'E2E Malformed');
+      expect(res.body.errors?.[0]?.message).toContain(
+        'Idempotency-Key must be',
+      );
+    });
+  });
+
   describe('Quotations — role enforcement', () => {
     it('manager can approve a SENT quotation', async () => {
       const response = await request(app.getHttpServer())
@@ -504,7 +609,9 @@ describe('QuoteIQ E2E', () => {
       const deleteRes = await request(app.getHttpServer())
         .post('/graphql')
         .set('Cookie', authCookie)
-        .send({ query: `mutation { deleteQuotation(id: "${deleteTargetId}") }` })
+        .send({
+          query: `mutation { deleteQuotation(id: "${deleteTargetId}") }`,
+        })
         .expect(200);
 
       expect(deleteRes.body.errors).toBeUndefined();
@@ -592,7 +699,10 @@ describe('QuoteIQ E2E', () => {
         .expect(200);
 
       expect(response.body.errors).toBeUndefined();
-      const reps = response.body.data.salesReps as { id: string; name: string }[];
+      const reps = response.body.data.salesReps as {
+        id: string;
+        name: string;
+      }[];
       expect(Array.isArray(reps)).toBe(true);
       expect(reps.length).toBeGreaterThan(0);
       expect(reps[0]).toHaveProperty('id');
@@ -621,7 +731,10 @@ describe('QuoteIQ E2E', () => {
         .send({ query: `query { salesReps { id name } }` })
         .expect(200);
 
-      const reps = repsRes.body.data.salesReps as { id: string; name: string }[];
+      const reps = repsRes.body.data.salesReps as {
+        id: string;
+        name: string;
+      }[];
       const repId = reps[0].id;
 
       const response = await request(app.getHttpServer())
@@ -916,7 +1029,8 @@ describe('QuoteIQ E2E', () => {
         note: string | null;
       }[];
       const editEntry = history.find(
-        (h) => h.fromStatus === 'DRAFT' && h.toStatus === 'DRAFT' && h.note !== null,
+        (h) =>
+          h.fromStatus === 'DRAFT' && h.toStatus === 'DRAFT' && h.note !== null,
       );
       expect(editEntry).toBeDefined();
       expect(editEntry!.note).toContain('title');
@@ -1007,17 +1121,25 @@ describe('QuoteIQ E2E', () => {
       expect(Array.isArray(data.repPerformance)).toBe(true);
       expect(Array.isArray(data.clientConcentration)).toBe(true);
       expect(data.approvalRateTrend).toHaveLength(12);
-      expect(data.dealVelocity.map((v: { transition: string }) => v.transition)).toEqual([
+      expect(
+        data.dealVelocity.map((v: { transition: string }) => v.transition),
+      ).toEqual([
         'DRAFT_TO_SENT',
         'SENT_TO_APPROVED',
         'SENT_TO_REJECTED',
         'FULL_CYCLE',
       ]);
       expect(data.staleQuotations.thresholdDays).toBe(14);
-      expect(data.staleQuotations.items.length).toBeLessThanOrEqual(data.staleQuotations.totalCount);
+      expect(data.staleQuotations.items.length).toBeLessThanOrEqual(
+        data.staleQuotations.totalCount,
+      );
       expect(data.quarterlyHistory).toHaveLength(4);
       expect(data.quarterlyHistory[3].isCurrent).toBe(true);
-      expect(data.repDealSizeWinRates.buckets).toEqual(['<5k', '5k–20k', '>20k']);
+      expect(data.repDealSizeWinRates.buckets).toEqual([
+        '<5k',
+        '5k–20k',
+        '>20k',
+      ]);
       expect(data.repDealSizeWinRates.teamAverage).toHaveLength(3);
     });
 
@@ -1033,7 +1155,12 @@ describe('QuoteIQ E2E', () => {
               dealVelocity(range: $range) { transition sampleSize }
             }
           `,
-          variables: { range: { from: '2020-01-01T00:00:00.000Z', to: new Date().toISOString() } },
+          variables: {
+            range: {
+              from: '2020-01-01T00:00:00.000Z',
+              to: new Date().toISOString(),
+            },
+          },
         })
         .expect(200);
 

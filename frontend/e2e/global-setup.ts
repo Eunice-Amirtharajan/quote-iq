@@ -18,8 +18,9 @@ function resolveDatabaseUrl(): string | undefined {
 /**
  * Refuse to run against a non-local database. The suite creates clients, quotes and users,
  * and earlier local runs against the dev backend left test clients in the shared Neon DB.
+ * global-teardown runs it too: Playwright runs teardown even when setup throws.
  */
-function assertLocalDatabase() {
+export function assertLocalDatabase() {
   const url = resolveDatabaseUrl();
   if (!url || process.env.E2E_ALLOW_REMOTE_DB === '1') return;
 

@@ -1,4 +1,14 @@
-import { Resolver, Query, Mutation, Args, ID, Int } from '@nestjs/graphql';
+import {
+  Resolver,
+  Query,
+  Mutation,
+  Args,
+  ID,
+  Int,
+  Context,
+} from '@nestjs/graphql';
+import type { Request } from 'express';
+import { IDEMPOTENCY_HEADER } from '../idempotency/idempotency.service';
 import {
   NotFoundException,
   ForbiddenException,
@@ -82,12 +92,18 @@ export class QuotationsResolver {
   async createQuotation(
     @Args('input') input: CreateQuotationInput,
     @CurrentUser() user: UserType,
+    @Context('req') req?: Request,
   ): Promise<QuotationType> {
     const end = this.resolverDuration.startTimer({
       resolver: 'createQuotation',
     });
     try {
-      const result = await this.quotationsService.create(input, user);
+      // Optional Idempotency-Key header: retries with the same key return the same quotation
+      const result = await this.quotationsService.create(
+        input,
+        user,
+        req?.headers[IDEMPOTENCY_HEADER],
+      );
       end({ status: 'success' });
       return result;
     } catch (err) {
@@ -152,6 +168,10 @@ export class QuotationsResolver {
     quotationId: string,
     @CurrentUser() user: UserType,
   ): Promise<QuotationSnapshotType[]> {
-    return this.quotationsService.findSnapshots(quotationId, user.id, user.role);
+    return this.quotationsService.findSnapshots(
+      quotationId,
+      user.id,
+      user.role,
+    );
   }
 }

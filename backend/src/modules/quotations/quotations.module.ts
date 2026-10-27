@@ -6,9 +6,16 @@ import { MailModule } from '../../common/mail/mail.module';
 import { EventsModule } from '../events/events.module';
 import { AIModule } from '../ai/ai.module';
 import { OutboxModule } from '../outbox/outbox.module';
+import { IdempotencyModule } from '../idempotency/idempotency.module';
 
 @Module({
-  imports: [MailModule, EventsModule, AIModule, OutboxModule],
+  imports: [
+    MailModule,
+    EventsModule,
+    AIModule,
+    OutboxModule,
+    IdempotencyModule,
+  ],
   providers: [QuotationsService, QuotationsResolver, PublicQuotationsResolver],
 })
 export class QuotationsModule {}

@@ -1,6 +1,9 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MockedProvider } from '@apollo/client/testing/react';
+import { ApolloClient, ApolloLink, InMemoryCache } from '@apollo/client';
+import { ApolloProvider } from '@apollo/client/react';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import CreateQuotationModal from './CreateQuotationModal';
 import { QUOTATIONS_QUERY, QUOTATION_QUERY, CLIENTS_QUERY } from '../graphql/queries';
@@ -190,6 +193,62 @@ describe('CreateQuotationModal', () => {
     await user.click(screen.getByText('Create Quotation'));
 
     expect(await screen.findByText('Client not found')).toBeInTheDocument();
+  });
+
+  describe('Idempotency-Key', () => {
+    // MockedProvider ignores request headers, so record them with a real client and link
+    function renderRecording(createReplies: Array<'fail' | 'ok'>) {
+      const keys: string[] = [];
+      const link = new ApolloLink((operation) => {
+        if (operation.operationName === 'Clients') {
+          return of({ data: { clients: [CLIENT_ACME, CLIENT_OLD] } });
+        }
+        if (operation.operationName === 'CreateQuotation') {
+          keys.push(operation.getContext().headers?.['Idempotency-Key']);
+          if (createReplies.shift() === 'fail') return throwError(() => new Error('Network down'));
+          return of({ data: { createQuotation: { __typename: 'QuotationType', ...createdQuotation, client: { __typename: 'ClientType', id: 'c-1', name: 'Acme Corp' } } } });
+        }
+        return of({ data: { quotations: [] } });
+      });
+      const client = new ApolloClient({ link, cache: new InMemoryCache() });
+      render(
+        <ApolloProvider client={client}>
+          <CreateQuotationModal onClose={mockOnClose} onCreated={mockOnCreated} />
+        </ApolloProvider>,
+      );
+      return keys;
+    }
+
+    async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+      await user.type(screen.getByPlaceholderText(/Software Development/i), 'New Service');
+      await selectClient(user, 'Acme Corp');
+      await user.type(screen.getAllByPlaceholderText('Description')[0], 'Consulting');
+      await user.type(screen.getAllByPlaceholderText('0.00')[0], '1000');
+      await user.click(screen.getByText('Create Quotation'));
+    }
+
+    it('sends the same key when the same input is retried after a failure', async () => {
+      const user = userEvent.setup();
+      const keys = renderRecording(['fail', 'ok']);
+      await fillAndSubmit(user);
+      expect(await screen.findByText('Network down')).toBeInTheDocument();
+      await user.click(screen.getByText('Create Quotation'));
+      await waitFor(() => expect(mockOnCreated).toHaveBeenCalledWith('q-new'));
+      expect(keys).toHaveLength(2);
+      expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+      expect(keys[1]).toBe(keys[0]);
+    });
+
+    it('sends a new key once the input is edited', async () => {
+      const user = userEvent.setup();
+      const keys = renderRecording(['fail', 'ok']);
+      await fillAndSubmit(user);
+      expect(await screen.findByText('Network down')).toBeInTheDocument();
+      await user.type(screen.getByPlaceholderText(/Software Development/i), ' v2');
+      await user.click(screen.getByText('Create Quotation'));
+      await waitFor(() => expect(keys).toHaveLength(2));
+      expect(keys[1]).not.toBe(keys[0]);
+    });
   });
 
   it('shows validation error when quantity is empty', async () => {

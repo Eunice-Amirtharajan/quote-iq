@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "@apollo/client/react";
 import { CREATE_QUOTATION_MUTATION, UPDATE_QUOTATION_MUTATION } from "../graphql/mutations";
 import { QUOTATIONS_QUERY, QUOTATION_QUERY } from "../graphql/queries";
 import { useAuth } from "../hooks/useAuth";
 import ClientSelector from "./ClientSelector";
 import { sanitizeText } from "../utils/sanitize";
+import { newIdempotencyKey } from "../lib/idempotency-key";
 
 interface LineItem {
   description: string;
@@ -33,6 +34,10 @@ const DESC_MAX = 200;
 const NOTES_MAX = 500;
 const ITEMS_MAX = 10;
 const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
+
+// One Idempotency-Key per distinct submission: a double-click or a retry of the same input reuses
+// it, so the server returns the quotation it already created instead of a duplicate. Editing the
+// form before resubmitting is a new request and gets a new key (newIdempotencyKey).
 
 function toLineItems(
   items: ExistingQuotation["items"],
@@ -63,6 +68,7 @@ export default function CreateQuotationModal({
     quotation ? toLineItems(quotation.items) : [{ ...EMPTY_ITEM }],
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const idempotency = useRef<{ key: string; input: string } | null>(null);
 
   const [createQuotation, { loading: creating }] = useMutation<{
     createQuotation: { id: string };
@@ -151,16 +157,20 @@ export default function CreateQuotationModal({
         },
       });
     } else {
+      const input = {
+        title: title.trim(),
+        clientId,
+        notes: sanitizedNotes,
+        taxRate: Number(taxRate),
+        items: parsedItems,
+      };
+      const inputJson = JSON.stringify(input);
+      if (idempotency.current?.input !== inputJson) {
+        idempotency.current = { key: newIdempotencyKey(), input: inputJson };
+      }
       createQuotation({
-        variables: {
-          input: {
-            title: title.trim(),
-            clientId,
-            notes: sanitizedNotes,
-            taxRate: Number(taxRate),
-            items: parsedItems,
-          },
-        },
+        variables: { input },
+        context: { headers: { "Idempotency-Key": idempotency.current.key } },
       });
     }
   };

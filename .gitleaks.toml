@@ -20,4 +20,6 @@ regexes = [
   '''test-openai-key''',
   # Prisma example connection string in docs
   '''postgresql://postgres:postgres@localhost''',
+  # Fixed UUID used as a fake Idempotency-Key in unit tests (a request id, not a credential)
+  '''a8f5f167-0e8b-4d3c-9f0a-5c2b1e7d4a91''',
 ]
