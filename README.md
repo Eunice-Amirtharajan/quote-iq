@@ -37,7 +37,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 **Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on 503/429 errors — self-healing without manual intervention.
 
-**RabbitMQ (CloudAMQP) for async embedding** — F2 quotation embedding is triggered asynchronously via AMQP so it never blocks the GraphQL create/update response. A separate `QueueConsumerModule` processes the `quote.created` / `quote.updated` events and calls `AIService.generateQuotationEmbedding()`. W3C traceparent headers (`traceparent`, `tracestate`) are injected into AMQP message headers via `propagation.inject()` so distributed traces span across the publish/consume boundary.
+**RabbitMQ (CloudAMQP) for async embedding** — F2 quotation embedding is triggered asynchronously via AMQP so it never blocks the GraphQL create/update response. `createQuotation` writes the `quote.created` event to a **transactional outbox** in the same DB transaction as the quotation, and `OutboxService` publishes it (retried until the broker confirms, so a RabbitMQ outage never loses a score). A separate `QueueConsumerModule` processes `quote.created` and calls `AIService.generateQuotationEmbedding()`. W3C traceparent headers (`traceparent`, `tracestate`) are injected into AMQP message headers via `propagation.inject()` so distributed traces span across the publish/consume boundary.
 
 **Railway over Render** — Railway supports Docker-based deploys which gives full control over the runtime environment, and has better free-tier reliability than Render (no spin-down on inactivity).
 
@@ -86,7 +86,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 - `ALLOW_UPLOAD` env var gates the upload endpoint; disabled in the public demo to prevent arbitrary uploads
 
 ### Async Embedding Pipeline (F2 — RabbitMQ)
-- Every `createQuotation` / `updateQuotation` publishes a `quote.created` event to CloudAMQP (RabbitMQ)
+- `createQuotation` writes a `quote.created` event to the `OutboxEvent` table in the same transaction as the quotation; `OutboxService` publishes it to CloudAMQP (RabbitMQ) right after the commit and on a 5s safety-net timer, with publisher confirms, `FOR UPDATE SKIP LOCKED` leases and exponential backoff
 - `QueueConsumerModule` consumes the event and generates an OpenAI embedding for the quotation, stored in `QuotationEmbedding` (pgvector)
 - W3C trace context propagated across the AMQP boundary via `propagation.inject()` / `propagation.extract()` — single distributed trace spans publish + consume
 - Real-time status updates pushed to the frontend via WebSocket (`GatewayModule`)
@@ -128,7 +128,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 
 ### Quotation Embedding Pipeline (F2 — Async)
 
-1. **Trigger** — `createQuotation` / `updateQuotation` publishes `quote.created` to CloudAMQP
+1. **Trigger** — `createQuotation` commits the quotation and a `quote.created` outbox row together; `OutboxService` publishes it to CloudAMQP
 2. **Propagation** — `propagation.inject()` embeds W3C `traceparent` into AMQP headers for cross-service tracing
 3. **Consume** — `QueueConsumerModule` extracts trace context via `propagation.extract()` and calls `AIService.generateQuotationEmbedding()`
 4. **Embed** — quotation text (title + client + items) embedded with OpenAI `text-embedding-3-small`, stored in `QuotationEmbedding.embedding`
@@ -296,8 +296,9 @@ quote-iq/
 │       │   ├── documents/   # PDF upload, VirusTotal scan, extraction, embedding
 │       │   ├── events/      # RabbitMQ AMQP publisher (CloudAMQP)
 │       │   ├── gateway/     # WebSocket gateway — real-time push to frontend
+│       │   ├── outbox/      # Transactional outbox: OutboxEvent relay to RabbitMQ
 │       │   ├── queue-consumer/ # AMQP consumer, OTel trace extraction, embedding trigger
-│       │   ├── quotations/  # Quotation CRUD, status workflow, AMQP publish on create/update
+│       │   ├── quotations/  # Quotation CRUD, status workflow, outbox event on create
 │       │   └── users/       # User lookup
 │       ├── prisma/          # PrismaService with Neon WebSocket adapter + keepalive ping
 │       └── tracing.ts       # OTel SDK bootstrap — OTLP exporter, Grafana Cloud auth headers
