@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
+import { GraphQLError } from "graphql";
 import AIInsightCard from "./AIInsightCard";
 import { QUOTATION_SUMMARY_MUTATION, ASK_ABOUT_QUOTATION_MUTATION } from "../graphql/mutations";
 import { AuthContext, type User } from "../context/auth-context";
@@ -242,5 +243,64 @@ describe("AIInsightCard", () => {
       "Is it profitable?{Enter}",
     );
     expect(await screen.findByText("Yes, very profitable.")).toBeInTheDocument();
+  });
+  describe("when a question fails", () => {
+    const askFails = (question: string, message: string, code: string) => [
+      ...successMock,
+      {
+        request: {
+          query: ASK_ABOUT_QUOTATION_MUTATION,
+          variables: { quotationId: "q-1", question },
+        },
+        result: { errors: [new GraphQLError(message, { extensions: { code } })] },
+      },
+    ];
+    const ask = async (question: string) => {
+      await userEvent.click(screen.getByRole("button", { name: /generate insight/i }));
+      await screen.findByText("Strong deal with good client history.");
+      await userEvent.type(screen.getByPlaceholderText(/e\.g\. Is the margin/i), question);
+      await userEvent.click(screen.getByRole("button", { name: /^Ask$/ }));
+    };
+
+    it("shows the server's message for a rejected question", async () => {
+      renderCard(
+        mockManager,
+        askFails("hi", "Please ask a question related to this quotation.", "BAD_REQUEST"),
+      );
+      await ask("hi");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Please ask a question related to this quotation.",
+      );
+    });
+
+    it("shows the 'temporarily unavailable' message when AI is down", async () => {
+      renderCard(
+        mockManager,
+        askFails(
+          "Is it profitable?",
+          "The AI service is temporarily unavailable, try again in 30s",
+          "SERVICE_UNAVAILABLE",
+        ),
+      );
+      await ask("Is it profitable?");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "The AI service is temporarily unavailable, try again in 30s",
+      );
+    });
+
+    it("hides internal error details behind a generic message", async () => {
+      renderCard(
+        mockManager,
+        askFails(
+          "Is it profitable?",
+          '404 {"error":{"code":"model_not_found"}}',
+          "INTERNAL_SERVER_ERROR",
+        ),
+      );
+      await ask("Is it profitable?");
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Couldn't get an answer. Please try again.");
+      expect(alert).not.toHaveTextContent("model_not_found");
+    });
   });
 });
