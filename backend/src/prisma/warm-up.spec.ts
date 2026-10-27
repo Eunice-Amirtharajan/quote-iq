@@ -39,6 +39,28 @@ describe('warmUpDatabase', () => {
     );
   });
 
+  it('uses 3 attempts 2s apart by default', async () => {
+    jest.useFakeTimers();
+    try {
+      const ping = jest.fn().mockRejectedValue(new Error('down'));
+      const result = warmUpDatabase(ping, logger);
+      await jest.advanceTimersByTimeAsync(4_000);
+      await expect(result).resolves.toBe(false);
+      expect(ping).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('falls back to the error name when the message is empty', async () => {
+    const ping = jest.fn().mockRejectedValue(new TypeError(''));
+    await warmUpDatabase(ping, logger, { attempts: 1, delayMs: 1 });
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Database not ready (attempt 1/1): TypeError',
+      'DatabaseWarmUp',
+    );
+  });
+
   it('reports the cause line of a multi-line Prisma error', async () => {
     const prismaMessage = [
       '',
