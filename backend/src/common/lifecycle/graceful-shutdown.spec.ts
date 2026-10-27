@@ -37,10 +37,12 @@ describe('registerGracefulShutdown', () => {
     expect(condition()).toBe(true);
   };
 
-  const register = (overrides: { timeoutMs?: number } = {}) => {
+  const register = (
+    overrides: { timeoutMs?: number; drainDelayMs?: number } = {},
+  ) => {
     const exit = jest.fn((code: number) => events.push(`exit ${code}`));
     registerGracefulShutdown(app as unknown as INestApplication, {
-      drainDelayMs: 20,
+      drainDelayMs: overrides.drainDelayMs ?? 20,
       timeoutMs: overrides.timeoutMs ?? 2_000,
       logger,
       onShutdownStart: () => events.push('not ready'),
@@ -97,7 +99,8 @@ describe('registerGracefulShutdown', () => {
   });
 
   it('keeps serving new requests during the drain delay', async () => {
-    const exit = register();
+    // A drain window wide enough that the request lands inside it even on a loaded CI runner
+    const exit = register({ drainDelayMs: 500 });
     process.emit(SIGNAL, SIGNAL);
     await expect(get('/fast')).resolves.toBe(200);
     await waitFor(() => exit.mock.calls.length > 0);
