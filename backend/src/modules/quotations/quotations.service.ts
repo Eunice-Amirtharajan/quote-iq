@@ -29,6 +29,7 @@ import {
   IdempotencyService,
 } from '../idempotency/idempotency.service';
 import { AIService } from '../ai/ai.service';
+import { describeError } from '../../common/helper/helper';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -135,7 +136,7 @@ export class QuotationsService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving all quotations for:${user.id}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         QuotationsService.name,
       );
       throw error;
@@ -155,7 +156,7 @@ export class QuotationsService {
     } catch (error) {
       this.logger.error(
         `Failed to fetch owner for quotation id:${id}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         QuotationsService.name,
       );
       throw error;
@@ -172,7 +173,7 @@ export class QuotationsService {
     } catch (error) {
       this.logger.error(
         `Failed to retrieve quotation with id:${id}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         QuotationsService.name,
       );
       throw error;
@@ -220,7 +221,7 @@ export class QuotationsService {
     } catch (error) {
       this.logger.error(
         `Failed to retrieve quotation with token:${token}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         QuotationsService.name,
       );
       throw error;
@@ -375,7 +376,7 @@ export class QuotationsService {
       }
       this.logger.error(
         `Failed to create quotation — title: "${title}" clientId: "${clientId}" userId: ${user.id}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         QuotationsService.name,
       );
       throw error;
@@ -477,7 +478,7 @@ export class QuotationsService {
         .catch((err: unknown) =>
           this.logger.error(
             `Failed to regenerate embedding on status change for quotationId:${id}`,
-            err instanceof Error ? err.stack : String(err),
+            describeError(err),
             QuotationsService.name,
           ),
         );
@@ -487,7 +488,7 @@ export class QuotationsService {
       if (!(error instanceof HttpException)) {
         this.logger.error(
           `Unexpected error while updating the quotation: "${id}"`,
-          error instanceof Error ? error.stack : String(error),
+          describeError(error),
           QuotationsService.name,
         );
       }
@@ -574,7 +575,7 @@ export class QuotationsService {
       if (error instanceof HttpException) throw error;
       this.logger.error(
         `Unexpected error while deleting the quotation: "${id}"`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         QuotationsService.name,
       );
       throw error;

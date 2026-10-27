@@ -19,6 +19,7 @@ import {
   inviteEmailHtml,
   passwordResetEmailHtml,
 } from '../../common/mail/mail.templates';
+import { describeError } from '../../common/helper/helper';
 
 const INVITE_TTL = 60 * 60 * 24; // 24 hours
 const RESET_TTL = 60 * 60; // 1 hour
@@ -81,7 +82,7 @@ export class AuthService {
     } catch (error) {
       this.logger.error(
         `Unexpected error during login — userId: ${user.id}`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         AuthService.name,
       );
       throw error;
@@ -108,7 +109,7 @@ export class AuthService {
     } catch (error) {
       this.logger.error(
         `Logout failed`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         AuthService.name,
       );
       throw error;

@@ -13,6 +13,7 @@ import {
 } from './dashboard.entity';
 import { Prisma, QuotationStatus, Role, User } from '@prisma/client';
 import { AppLogger } from '../../common/logger/logger.service';
+import { describeError } from '../../common/helper/helper';
 
 const TOP_REPS = 10;
 const MAX_REPS = 20;
@@ -200,7 +201,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving quotation stats`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -325,7 +326,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving rep performance`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -381,7 +382,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving client concentration`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -445,7 +446,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving approval rate trend`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -521,7 +522,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving deal velocity`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -589,7 +590,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving stale quotations`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -692,7 +693,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving quarterly history`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;
@@ -811,7 +812,7 @@ export class DashboardService {
     } catch (error) {
       this.logger.error(
         `Failed while retrieving rep × deal-size win rates`,
-        error instanceof Error ? error.stack : String(error),
+        describeError(error),
         DashboardService.name,
       );
       throw error;

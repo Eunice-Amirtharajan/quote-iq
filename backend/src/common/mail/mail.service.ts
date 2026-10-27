@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { describeError } from '../helper/helper';
 
 @Injectable()
 export class MailService {
@@ -37,10 +38,7 @@ export class MailService {
         html,
       })
       .catch((err: unknown) =>
-        this.logger.error(
-          `Failed to send email to ${to}`,
-          err instanceof Error ? err.stack : String(err),
-        ),
+        this.logger.error(`Failed to send email to ${to}`, describeError(err)),
       );
   }
 }

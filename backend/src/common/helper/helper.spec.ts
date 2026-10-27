@@ -1,4 +1,4 @@
-import { escapeXml } from './helper';
+import { describeError, escapeXml } from './helper';
 
 describe('escapeXml', () => {
   it('escapes ampersand first to avoid double-encoding', () => {
@@ -45,5 +45,37 @@ describe('escapeXml', () => {
     const result = escapeXml(malicious);
     expect(result).not.toContain('</quotation_data>');
     expect(result).toContain('&lt;/quotation_data&gt;');
+  });
+});
+
+describe('describeError', () => {
+  it('uses the stack of an Error', () => {
+    const err = new Error('boom');
+    expect(describeError(err)).toBe(err.stack);
+  });
+
+  it('falls back to name and message when an Error has no stack', () => {
+    const err = new TypeError('bad input');
+    err.stack = undefined;
+    expect(describeError(err)).toBe('TypeError: bad input');
+  });
+
+  it('shows the fields of a plain-object error instead of [object Object]', () => {
+    // Shape of what Prisma's Neon driver adapter throws
+    const err = {
+      kind: 'postgres',
+      code: '57P01',
+      message: 'Connection terminated unexpectedly',
+    };
+    const text = describeError(err);
+    expect(text).not.toBe('[object Object]');
+    expect(text).toContain("kind: 'postgres'");
+    expect(text).toContain('Connection terminated unexpectedly');
+  });
+
+  it('prints primitives as text', () => {
+    expect(describeError('timeout')).toBe('timeout');
+    expect(describeError(undefined)).toBe('undefined');
+    expect(describeError(null)).toBe('null');
   });
 });

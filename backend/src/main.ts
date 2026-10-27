@@ -2,6 +2,7 @@ import './tracing'; // must be first — registers OTel SDK before any instrumen
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
+import { warmUpDatabase } from './prisma/warm-up';
 import { TokenStoreService } from './common/token-store/token-store.service';
 import { AppLogger } from './common/logger/logger.service';
 import { registerGracefulShutdown } from './common/lifecycle/graceful-shutdown';
@@ -100,6 +101,10 @@ async function bootstrap() {
     );
   }
 
+  // Before listen(): onModuleInit hooks (outbox relay, AI model load) run inside listen()
+  const prisma = app.get(PrismaService);
+  await warmUpDatabase(() => prisma.$queryRaw`SELECT 1`, app.get(AppLogger));
+
   await app.listen(process.env.PORT ?? 4000);
   const health = app.get(HealthService);
   registerGracefulShutdown(app, {
@@ -108,7 +113,6 @@ async function bootstrap() {
     logger: app.get(AppLogger),
     onShutdownStart: () => health.markShuttingDown(),
   });
-  const prisma = app.get(PrismaService);
   startDbKeepalive(prisma);
 }
 bootstrap().catch((err: unknown) => {

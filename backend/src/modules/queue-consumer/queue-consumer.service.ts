@@ -7,6 +7,7 @@ import { AppLogger } from '../../common/logger/logger.service';
 import { correlationStore } from '../../common/correlation/correlation.store';
 import { context, propagation, SpanStatusCode } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
+import { describeError } from '../../common/helper/helper';
 
 const MAX_RETRIES = 3;
 
@@ -72,7 +73,7 @@ export class QueueConsumerService {
             span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
             this.logger.error(
               `Failed to process quote.created — quotationId:${quotationId} attempt:${deathCount + 1}${isPermanent ? ' (permanent — sending to DLQ)' : ''}`,
-              err instanceof Error ? err.stack : String(err),
+              describeError(err),
               QueueConsumerService.name,
             );
             // Permanent failures (quotation deleted) go straight to DLQ — never requeue.

@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import type { Server } from 'node:http';
+import { describeError } from '../helper/helper';
 
 const CONTEXT = 'GracefulShutdown';
 const IN_FLIGHT_POLL_MS = 100;
@@ -83,11 +84,7 @@ export function registerGracefulShutdown(
       exit(0);
     } catch (err) {
       clearTimeout(deadline);
-      logger.error(
-        'Shutdown failed',
-        err instanceof Error ? err.stack : String(err),
-        CONTEXT,
-      );
+      logger.error('Shutdown failed', describeError(err), CONTEXT);
       exit(1);
     }
   }
