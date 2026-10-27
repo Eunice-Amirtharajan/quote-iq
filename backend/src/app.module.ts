@@ -22,6 +22,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { TokenStoreModule } from './common/token-store/token-store.module';
 import { HealthModule } from './modules/health/health.module';
+import { queryLimits } from './common/graphql/query-limits';
 
 @Module({
   imports: [
@@ -42,7 +43,11 @@ import { HealthModule } from './modules/health/health.module';
       sortSchema: true,
       introspection: process.env.NODE_ENV !== 'production',
       playground: process.env.NODE_ENV !== 'production',
-      csrfPrevention: false,
+      // Rejects GraphQL GETs and simple (non-preflighted) requests unless they carry a header a
+      // cross-site form or link can't set; the frontend always sends Apollo-Require-Preflight
+      csrfPrevention: true,
+      // Every frontend operation is at most depth 4 and 31 fields (measured 2026-10-27)
+      validationRules: [queryLimits({ maxDepth: 8, maxFields: 150 })],
       formatError: (err: import('graphql').GraphQLFormattedError) => {
         const msg = err.message ?? '';
         const isDbDown =
