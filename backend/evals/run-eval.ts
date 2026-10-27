@@ -230,6 +230,7 @@ async function main() {
     makeNoopCounter(),
     makeNoopCounter(),
     makeNoopCounter(),
+    makeNoopGauge(),
   );
   await aiService.onModuleInit(); // loads available Groq models — normally run by Nest's lifecycle
 

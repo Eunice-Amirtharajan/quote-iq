@@ -56,6 +56,11 @@ import {
       help: 'Completions cut off by their max_tokens cap, by model and feature',
       labelNames: ['model', 'feature'],
     }),
+    makeGaugeProvider({
+      name: 'ai_model_available',
+      help: 'Whether each pinned Groq model is offered by Groq (1) or not (0), by role',
+      labelNames: ['role', 'model'],
+    }),
   ],
   exports: [
     'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
@@ -66,6 +71,7 @@ import {
     'PROM_METRIC_CIRCUIT_BREAKER_REJECTIONS_TOTAL',
     'PROM_METRIC_AI_TOKENS_TOTAL',
     'PROM_METRIC_AI_COMPLETIONS_TRUNCATED_TOTAL',
+    'PROM_METRIC_AI_MODEL_AVAILABLE',
   ],
 })
 export class MetricsModule {}

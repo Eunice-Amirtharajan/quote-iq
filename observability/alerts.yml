@@ -23,3 +23,16 @@ groups:
         annotations:
           summary: 'More than 5 AI answers per hour hit their max_tokens cap'
           description: 'A cap in MAX_OUTPUT_TOKENS (ai.service.ts) is likely too tight for its feature.'
+
+  - name: ai-models
+    rules:
+      # A pinned model Groq no longer offers (checked at startup, or a 404 at runtime). The app keeps
+      # working on the remaining pins, but the pin list needs a deliberate update.
+      - alert: AiPinnedModelUnavailable
+        expr: min by (role, model) (ai_model_available) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Pinned Groq {{ $labels.role }} model {{ $labels.model }} is not available'
+          description: 'Update GROQ_COMPLETION_MODELS / GROQ_CLASSIFIER_MODELS (defaults in model-catalog.ts) after checking the replacement with the eval.'

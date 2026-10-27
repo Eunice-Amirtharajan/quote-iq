@@ -109,6 +109,11 @@ const mockCircuitState = { set: jest.fn() };
 const mockCircuitRejections = { inc: jest.fn() };
 const mockTokens = { inc: jest.fn() };
 const mockTruncated = { inc: jest.fn() };
+const mockModelAvailable = { set: jest.fn() };
+// Pin the models the mocked Groq catalog offers (the real defaults are covered in model-catalog.spec)
+process.env.GROQ_COMPLETION_MODELS =
+  'llama-3.1-70b-versatile,llama-3.1-8b-instant,llama3-8b-8192';
+process.env.GROQ_CLASSIFIER_MODELS = 'llama-3.1-8b-instant';
 
 // Constructs the service directly, without the Nest testing module
 const newBareService = () =>
@@ -120,6 +125,7 @@ const newBareService = () =>
     mockCircuitRejections as never,
     mockTokens as never,
     mockTruncated as never,
+    mockModelAvailable as never,
   );
 
 const mockQuotation = {
@@ -226,6 +232,10 @@ describe('AIService', () => {
         {
           provide: 'PROM_METRIC_AI_COMPLETIONS_TRUNCATED_TOTAL',
           useValue: mockTruncated,
+        },
+        {
+          provide: 'PROM_METRIC_AI_MODEL_AVAILABLE',
+          useValue: mockModelAvailable,
         },
       ],
     }).compile();
@@ -407,38 +417,79 @@ describe('AIService', () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
     });
 
-    it('never sends prompts to speech, embedding or safety-classifier models', async () => {
-      await loadModels([
-        'openai/gpt-oss-120b',
-        'meta-llama/llama-prompt-guard-2-86m',
-        'openai/gpt-oss-safeguard-20b',
-        'canopylabs/orpheus-v1-english',
-        'whisper-large-v3',
-        'qwen/qwen3.8-27b',
-      ]);
-      expect(service['rankedModels']()).toEqual([
-        'openai/gpt-oss-120b',
-        'qwen/qwen3.8-27b',
-      ]);
+    it('reports which pinned models Groq offers, as a gauge and an error log', async () => {
+      await loadModels(['llama-3.1-70b-versatile', 'llama-3.1-8b-instant']);
+      expect(mockModelAvailable.set).toHaveBeenCalledWith(
+        { role: 'completion', model: 'llama-3.1-70b-versatile' },
+        1,
+      );
+      expect(mockModelAvailable.set).toHaveBeenCalledWith(
+        { role: 'completion', model: 'llama3-8b-8192' },
+        0,
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Pinned Groq completion models not offered by Groq: llama3-8b-8192. Update the pins (GROQ_COMPLETION_MODELS).',
+        undefined,
+        AIService.name,
+      );
     });
 
-    it('classifies with the first available non-reasoning model', async () => {
+    it('falls back to discovered models, loudly, when no pinned completion model is offered', async () => {
       await loadModels([
-        'openai/gpt-oss-120b',
-        'allam-2-7b',
         'qwen/qwen3.8-27b',
+        'meta-llama/llama-prompt-guard-2-86m',
       ]);
-      mockCreate.mockResolvedValueOnce({
-        choices: [{ message: { content: 'Y' } }],
-      });
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'Fine.' } }],
-      });
-      await ask();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'No pinned completion model is available, falling back to discovered models',
+        undefined,
+        AIService.name,
+      );
+      mockCreate.mockResolvedValue(mockGroqResponse);
+      await service.generateQuotationSummary('q-1');
       expect(mockCreate.mock.calls[0][0]).toMatchObject({
         model: 'qwen/qwen3.8-27b',
-        max_tokens: 1,
       });
+    });
+
+    it('moves past a model Groq retired at runtime (404) and skips it afterwards', async () => {
+      mockCreate.mockRejectedValueOnce(
+        new NotFoundError(404, undefined, 'model_not_found', new Headers()),
+      );
+      mockCreate.mockResolvedValue(mockGroqResponse);
+
+      await service.generateQuotationSummary('q-1');
+      expect(mockCreate.mock.calls.map(([body]) => body.model)).toEqual([
+        'llama-3.1-70b-versatile',
+        'llama-3.1-8b-instant',
+      ]);
+      expect(mockModelAvailable.set).toHaveBeenLastCalledWith(
+        { role: 'completion', model: 'llama-3.1-70b-versatile' },
+        0,
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Groq model llama-3.1-70b-versatile no longer exists (404), removed until the next restart',
+        undefined,
+        AIService.name,
+      );
+
+      mockCreate.mockClear();
+      mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
+      await service.generateQuotationSummary('q-1');
+      expect(mockCreate.mock.calls[0][0]).toMatchObject({
+        model: 'llama-3.1-8b-instant',
+      });
+    });
+
+    it('does not count a retired model against the circuit breaker', async () => {
+      mockCreate.mockRejectedValue(
+        new NotFoundError(404, undefined, 'model_not_found', new Headers()),
+      );
+      for (let i = 0; i < 6; i++)
+        await service.generateQuotationSummary('q-1').catch(() => undefined);
+      expect(mockCircuitState.set).not.toHaveBeenCalledWith(
+        { breaker: 'groq' },
+        2,
+      );
     });
 
     it('answers without the classifier when no classifier model is available', async () => {
