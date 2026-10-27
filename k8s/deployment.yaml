@@ -58,7 +58,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: 4000
             initialDelaySeconds: 15
             periodSeconds: 10
@@ -70,6 +70,8 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+      # The app fails readiness, drains for 5s and exits within 25s of SIGTERM
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001

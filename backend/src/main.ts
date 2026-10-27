@@ -3,11 +3,20 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { TokenStoreService } from './common/token-store/token-store.service';
+import { AppLogger } from './common/logger/logger.service';
+import { registerGracefulShutdown } from './common/lifecycle/graceful-shutdown';
+import { HealthService } from './modules/health/health.service';
 import cookieParser from 'cookie-parser';
 import { corsOptions } from './common/cors/cors-options';
 import helmet from 'helmet';
 
 const KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes — Neon pauses at 5 min idle
+// Production: give the load balancer time to see readiness fail before the server closes
+const SHUTDOWN_DRAIN_DELAY_MS = Number(
+  process.env.SHUTDOWN_DRAIN_DELAY_MS ??
+    (process.env.NODE_ENV === 'production' ? 5_000 : 0),
+);
+const SHUTDOWN_TIMEOUT_MS = 25_000; // below the 30s k8s/Railway grace period before SIGKILL
 
 function startDbKeepalive(prisma: PrismaService) {
   setInterval(() => {
@@ -16,7 +25,7 @@ function startDbKeepalive(prisma: PrismaService) {
         `[PrismaService] Keepalive ping failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     });
-  }, KEEPALIVE_INTERVAL_MS);
+  }, KEEPALIVE_INTERVAL_MS).unref();
 }
 
 function assertEnvVariables(key: string) {
@@ -51,8 +60,8 @@ async function bootstrap() {
   app.use(cookieParser());
   app.enableCors(corsOptions(process.env.CORS_ORIGIN));
 
-  // Health check — registered before listen() so Railway probes it immediately on deploy.
-  // No DB call — never fails due to Neon cold start.
+  // Liveness check — registered before listen() so it answers as soon as the port is open.
+  // No DB call — never fails due to Neon cold start. Readiness is GET /health/ready (HealthModule).
   app
     .getHttpAdapter()
     .get(
@@ -92,6 +101,13 @@ async function bootstrap() {
   }
 
   await app.listen(process.env.PORT ?? 4000);
+  const health = app.get(HealthService);
+  registerGracefulShutdown(app, {
+    drainDelayMs: SHUTDOWN_DRAIN_DELAY_MS,
+    timeoutMs: SHUTDOWN_TIMEOUT_MS,
+    logger: app.get(AppLogger),
+    onShutdownStart: () => health.markShuttingDown(),
+  });
   const prisma = app.get(PrismaService);
   startDbKeepalive(prisma);
 }

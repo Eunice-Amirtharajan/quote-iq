@@ -28,4 +28,4 @@ USER appuser
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && exec node dist/main"]
