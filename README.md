@@ -35,7 +35,7 @@ Demo credentials: Manager `marcus@quoteiq.com` / Sales Rep `anna@quoteiq.com` �
 
 **Neon WebSocket driver over pg pool** — Neon free tier pauses compute after 5 minutes of inactivity. The `PrismaNeon` WebSocket adapter maintains a lightweight connection and supports full Prisma transactions (implicit and explicit), including nested writes and `update+include`. A 4-minute keepalive ping prevents cold starts on the free tier. The initial implementation used `PrismaNeonHttp` (stateless HTTP per query) but was switched to `PrismaNeon` when nested Prisma writes — which use implicit transactions — failed with "Transactions are not supported in HTTP mode".
 
-**Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on 503/429 errors — self-healing without manual intervention.
+**Groq over Gemini** — Groq's free tier runs Llama 3.3 70B on dedicated inference hardware with significantly better availability than Gemini's free tier. The `callGroq()` helper walks through a ranked model list (Llama 3.3 70B → Llama 3.1 8B → Mixtral) and automatically fails over on timeouts, 429 and 5xx errors — self-healing without manual intervention. A **circuit breaker** wraps every Groq call: after 5 failed calls in a row it fails fast with a 503 for 30s instead of making each user wait on a degraded API, then lets one trial call through to check Groq is back.
 
 **RabbitMQ (CloudAMQP) for async embedding** — F2 quotation embedding is triggered asynchronously via AMQP so it never blocks the GraphQL create/update response. `createQuotation` writes the `quote.created` event to a **transactional outbox** in the same DB transaction as the quotation, and `OutboxService` publishes it (retried until the broker confirms, so a RabbitMQ outage never loses a score). A separate `QueueConsumerModule` processes `quote.created` and calls `AIService.generateQuotationEmbedding()`. W3C traceparent headers (`traceparent`, `tracestate`) are injected into AMQP message headers via `propagation.inject()` so distributed traces span across the publish/consume boundary.
 
@@ -117,7 +117,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 3. **Hard override** — if rules say RECONSIDER, that verdict is locked regardless of Groq output. Structured data cannot be overridden by qualitative reads
 4. **Zod validates** every AI response before it's used — TypeScript types don't protect at runtime
 5. **Prompt injection protection** — user-supplied content (notes, item descriptions, client name from `client.name`) is isolated inside `<quotation_data>` and `<client_data>` XML tags with explicit instructions to treat tag contents as data only
-6. **Self-healing fallback** — if the primary model (Llama 3.3 70B) is overloaded, the service automatically retries with Llama 3.1 8B then Mixtral 8x7B
+6. **Self-healing fallback** — if the primary model (Llama 3.3 70B) is overloaded or times out (25s per attempt), the service automatically retries with Llama 3.1 8B then Mixtral 8x7B. If whole calls keep failing, the Groq circuit breaker opens and requests fail fast for 30s
 7. **Scoped NL Q&A** — `askAboutQuotation` uses the system/user message split to confine Groq strictly to one quotation's data; off-topic questions receive a fixed refusal without any additional DB query
 
 ### RAG Pipeline (F1a — Playbook / Lessons Learned)
@@ -287,6 +287,7 @@ quote-iq/
 │       │   ├── logger/      # Winston logger with correlation-ID injection
 │       │   ├── mail/        # Nodemailer MailService + HTML email templates
 │       │   ├── metrics/     # Prometheus Histogram + Counter providers
+│       │   ├── resilience/  # CircuitBreaker (closed / open / half-open), used for Groq
 │       │   ├── token-store/ # TokenStoreService — Redis (ioredis) + in-memory fallback
 │       │   └── tracing/     # tracer.ts — shared OTel tracer singleton
 │       ├── modules/
@@ -370,7 +371,7 @@ E2E tests are excluded from hooks — they require Docker and run in CI instead.
 | Container health check + auto-restart | Railway (built-in) | `GET /health` every 30s — Railway restarts container automatically if it fails |
 | CPU / memory / logs | Railway dashboard | Real-time metrics and stdout logs |
 | Frontend performance | Vercel Analytics | Web Vitals (LCP, CLS, FID) — `@vercel/analytics` injected in `main.tsx` |
-| Metrics | Prometheus + prom-client | `GET /metrics` exposes default Node.js metrics + custom app metrics: resolver latency histogram (`createQuotation`, `quotations`), Groq model invocations counter with `model`/`tier`/`outcome` labels |
+| Metrics | Prometheus + prom-client | `GET /metrics` exposes default Node.js metrics + custom app metrics: resolver latency histogram (`createQuotation`, `quotations`), Groq model invocations counter with `model`/`tier`/`outcome` labels, circuit breaker state gauge and rejections counter |
 | Dashboards | Grafana | Local via Docker Compose — resolver p95 latency, Groq fallback rate gauge, request volume, heap usage. See [`observability/`](observability/) |
 
 The `/health` endpoint (`GET https://api.quoteiq.cc/health`) returns `{ "status": "ok" }` immediately with no DB call — safe for high-frequency probing.

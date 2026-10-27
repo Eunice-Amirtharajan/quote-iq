@@ -3,6 +3,15 @@ import { AIService } from './ai.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { ConversionLabel, Recommendation } from './ai-insight.entity';
+import {
+  APIConnectionTimeoutError,
+  APIUserAbortError,
+  BadRequestError,
+  InternalServerError,
+  RateLimitError,
+} from 'groq-sdk/core/error';
+import Groq from 'groq-sdk';
+import { CircuitOpenError } from '../../common/resilience/circuit-breaker';
 
 const mockGroqResponse = {
   choices: [
@@ -95,6 +104,18 @@ const mockLogger = {
   error: jest.fn(),
   debug: jest.fn(),
 };
+const mockCircuitState = { set: jest.fn() };
+const mockCircuitRejections = { inc: jest.fn() };
+
+// Constructs the service directly, without the Nest testing module
+const newBareService = () =>
+  new AIService(
+    mockPrismaService as never,
+    mockLogger as never,
+    {} as never,
+    mockCircuitState as never,
+    mockCircuitRejections as never,
+  );
 
 const mockQuotation = {
   id: 'q-1',
@@ -129,7 +150,7 @@ describe('AIService — onModuleInit edge cases', () => {
 
   it('logs error and clears models when Groq returns no usable chat models', async () => {
     mockModelsList.mockResolvedValueOnce({ data: [{ id: 'whisper-1' }] }); // no chat model
-    const svc = new AIService(mockPrismaService as never, mockLogger as never, {} as never);
+    const svc = newBareService();
     await svc.onModuleInit();
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining('No usable chat models'),
@@ -139,7 +160,7 @@ describe('AIService — onModuleInit edge cases', () => {
 
   it('logs error when Groq models.list throws', async () => {
     mockModelsList.mockRejectedValueOnce(new Error('Groq unreachable'));
-    const svc = new AIService(mockPrismaService as never, mockLogger as never, {} as never);
+    const svc = newBareService();
     await svc.onModuleInit();
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining('could not be loaded'),
@@ -153,7 +174,7 @@ describe('AIService — missing API key', () => {
     const savedKey = process.env.GROQ_API_KEY;
     delete process.env.GROQ_API_KEY;
     expect(
-      () => new AIService(mockPrismaService as never, mockLogger as never, {} as never),
+      () => newBareService(),
     ).toThrow('GROQ_API_KEY is not set');
     process.env.GROQ_API_KEY = savedKey;
   });
@@ -164,7 +185,7 @@ describe('AIService — missing API key', () => {
     process.env.GROQ_API_KEY = 'test-key';
     delete process.env.OPENAI_API_KEY;
     expect(
-      () => new AIService(mockPrismaService as never, mockLogger as never, {} as never),
+      () => newBareService(),
     ).toThrow('OPENAI_API_KEY is not set');
     process.env.GROQ_API_KEY = savedGroq;
     process.env.OPENAI_API_KEY = savedOpenAI;
@@ -187,6 +208,14 @@ describe('AIService', () => {
         {
           provide: 'PROM_METRIC_GROQ_MODEL_REQUESTS_TOTAL',
           useValue: { inc: jest.fn() },
+        },
+        {
+          provide: 'PROM_METRIC_CIRCUIT_BREAKER_STATE',
+          useValue: mockCircuitState,
+        },
+        {
+          provide: 'PROM_METRIC_CIRCUIT_BREAKER_REJECTIONS_TOTAL',
+          useValue: mockCircuitRejections,
         },
       ],
     }).compile();
@@ -226,6 +255,139 @@ describe('AIService', () => {
     });
   });
 
+  describe('Groq circuit breaker', () => {
+    const groqDown = () =>
+      new InternalServerError(503, undefined, 'overloaded', new Headers());
+    const summarise = () =>
+      service.generateQuotationSummary('q-1').catch((e: unknown) => e);
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('builds the Groq client without SDK retries and sends a per-attempt timeout', async () => {
+      expect(jest.mocked(Groq)).toHaveBeenLastCalledWith({
+        apiKey: 'test-key',
+        maxRetries: 0,
+      });
+      await service.generateQuotationSummary('q-1');
+      expect(mockCreate).toHaveBeenCalledWith(expect.anything(), {
+        timeout: 25_000,
+      });
+    });
+
+    it.each([
+      ['a timeout', new APIConnectionTimeoutError()],
+      ['an aborted request', new APIUserAbortError()],
+      [
+        'a 429',
+        new RateLimitError(429, undefined, 'rate limited', new Headers()),
+      ],
+      ['a 5xx', new InternalServerError(500, undefined, 'boom', new Headers())],
+    ])('falls back to the next model after %s', async (_label, err) => {
+      mockCreate.mockRejectedValueOnce(err);
+      const result = await service.generateQuotationSummary('q-1');
+      expect(result.summary).toBe('Test summary');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not try other models after a 400', async () => {
+      mockCreate.mockRejectedValue(
+        new BadRequestError(400, undefined, 'bad prompt', new Headers()),
+      );
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'bad prompt',
+      );
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('opens after 5 failed calls and then fails fast without calling Groq', async () => {
+      mockCreate.mockRejectedValue(groqDown());
+      for (let i = 0; i < 5; i++) await summarise();
+      expect(mockCreate).toHaveBeenCalledTimes(15); // 5 calls x 3 models
+      expect(mockCircuitState.set).toHaveBeenLastCalledWith(
+        { breaker: 'groq' },
+        2,
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Groq circuit breaker is now open',
+        undefined,
+        AIService.name,
+      );
+      mockCreate.mockClear();
+
+      const err = await summarise();
+
+      expect(err).toBeInstanceOf(CircuitOpenError);
+      expect((err as Error).message).toBe(
+        'The AI service is temporarily unavailable, try again in 30s',
+      );
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockCircuitRejections.inc).toHaveBeenCalledWith({
+        breaker: 'groq',
+      });
+    });
+
+    it('does not open on errors Groq answered with', async () => {
+      mockCreate.mockRejectedValue(
+        new BadRequestError(400, undefined, 'bad prompt', new Headers()),
+      );
+      for (let i = 0; i < 6; i++) await summarise();
+      expect(mockCreate).toHaveBeenCalledTimes(6);
+      expect(mockCircuitState.set).not.toHaveBeenCalledWith(
+        { breaker: 'groq' },
+        2,
+      );
+    });
+
+    it('closes again after a successful trial call once the window has passed', async () => {
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+      try {
+        mockCreate.mockRejectedValue(groqDown());
+        for (let i = 0; i < 5; i++) await summarise();
+        jest.advanceTimersByTime(30_000);
+        mockCreate.mockResolvedValue(mockGroqResponse);
+
+        const result = await service.generateQuotationSummary('q-1');
+
+        expect(result.summary).toBe('Test summary');
+        expect(mockCircuitState.set).toHaveBeenLastCalledWith(
+          { breaker: 'groq' },
+          0,
+        );
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          'Groq circuit breaker is now half_open',
+          AIService.name,
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('shares one breaker across summaries and quotation Q&A', async () => {
+      mockCreate.mockRejectedValue(groqDown());
+      for (let i = 0; i < 5; i++) await summarise();
+      mockCreate.mockClear();
+
+      await expect(
+        service.askAboutQuotation('q-1', 'Is the margin reasonable?'),
+      ).rejects.toThrow(CircuitOpenError);
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('sends the classifier and Q&A calls with timeouts', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      });
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'Fine.' } }],
+      });
+      await service.askAboutQuotation('q-1', 'Is the margin reasonable?');
+      expect(mockCreate.mock.calls[0][1]).toEqual({ timeout: 10_000 });
+      expect(mockCreate.mock.calls[1][1]).toEqual({ timeout: 25_000 });
+    });
+  });
   describe('generateQuotationSummary', () => {
     it('returns structured summary for valid quotation', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);

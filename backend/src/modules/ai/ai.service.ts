@@ -5,9 +5,14 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { Counter } from 'prom-client';
+import { Counter, Gauge } from 'prom-client';
 import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import Groq from 'groq-sdk';
+import { APIError } from 'groq-sdk/core/error';
+import {
+  CircuitBreaker,
+  CircuitState,
+} from '../../common/resilience/circuit-breaker';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppLogger } from '../../common/logger/logger.service';
 import { z, ZodError } from 'zod';
@@ -45,6 +50,17 @@ const QuotationSummarySchema = z.object({
 
 const DEAL_SIZE_PROCEED_THRESHOLD = 20;
 const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
+// Per-attempt timeouts; the fallback chain moves to the next model when one is hit
+const GROQ_COMPLETION_TIMEOUT_MS = 25_000;
+const GROQ_CLASSIFIER_TIMEOUT_MS = 10_000;
+// Open after 5 failed calls in a row, probe again after 30s
+const GROQ_BREAKER_FAILURE_THRESHOLD = 5;
+const GROQ_BREAKER_OPEN_MS = 30_000;
+const CIRCUIT_STATE_VALUE: Record<CircuitState, number> = {
+  closed: 0,
+  half_open: 1,
+  open: 2,
+};
 
 export type QuotationSummary = z.infer<typeof QuotationSummarySchema>;
 type QuotationWithRelations = QuotationType & {
@@ -107,6 +123,7 @@ export type LessonsLearnedType = z.infer<typeof LessonsLearnedResponseSchema>;
 export class AIService implements OnModuleInit {
   private readonly groq: Groq;
   private readonly openAI: OpenAI;
+  private readonly groqBreaker: CircuitBreaker;
   private availableModels: Set<string> = new Set();
 
   async onModuleInit() {
@@ -135,10 +152,31 @@ export class AIService implements OnModuleInit {
     private readonly logger: AppLogger,
     @InjectMetric('groq_model_requests_total')
     private readonly groqCounter: Counter<string>,
+    @InjectMetric('circuit_breaker_state')
+    private readonly circuitState: Gauge<string>,
+    @InjectMetric('circuit_breaker_rejections_total')
+    private readonly circuitRejections: Counter<string>,
   ) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY is not set');
-    this.groq = new Groq({ apiKey });
+    // No SDK retries: the model fallback chain is the retry, and stacked retries would
+    // multiply the worst-case wait and hide failures from the circuit breaker
+    this.groq = new Groq({ apiKey, maxRetries: 0 });
+    this.groqBreaker = new CircuitBreaker({
+      name: 'The AI service',
+      failureThreshold: GROQ_BREAKER_FAILURE_THRESHOLD,
+      openMs: GROQ_BREAKER_OPEN_MS,
+      isFailure: (err) => this.isTransientError(err),
+      onStateChange: (state) => {
+        this.circuitState.set({ breaker: 'groq' }, CIRCUIT_STATE_VALUE[state]);
+        const message = `Groq circuit breaker is now ${state}`;
+        if (state === 'open')
+          this.logger.error(message, undefined, AIService.name);
+        else this.logger.warn(message, AIService.name);
+      },
+      onReject: () => this.circuitRejections.inc({ breaker: 'groq' }),
+    });
+    this.circuitState.set({ breaker: 'groq' }, CIRCUIT_STATE_VALUE.closed);
     const openAIKey = process.env.OPENAI_API_KEY;
     if (!openAIKey) throw new Error('OPENAI_API_KEY is not set');
     this.openAI = new OpenAI({ apiKey: openAIKey });
@@ -259,51 +297,72 @@ strong contradicting signals. Justify your reasoning.
         'No Groq chat models are currently available',
       );
     }
-    let lastError: unknown;
+    // The whole fallback chain is one breaker call: it fails only when every model failed
     const ranked = this.rankedModels();
-    const primaryModel = ranked[0];
-    for (const model of ranked) {
-      const tier = model === primaryModel ? 'primary' : 'fallback';
-      try {
-        this.logger.info(`Trying Groq model: ${model}`, AIService.name);
-        const response = await this.groq.chat.completions.create(
-          {
-            model,
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-          },
-          { signal: AbortSignal.timeout(25_000) },
-        );
-        const text = response.choices[0]?.message?.content?.trim() ?? '';
-        this.logger.info(
-          `Groq response received from model: ${model}`,
-          AIService.name,
-        );
-        this.groqCounter.inc({ model, outcome: 'success', tier });
-        return text;
-      } catch (err) {
-        const isTransient =
-          err instanceof Error &&
-          (err.message.includes('503') ||
-            err.message.includes('overloaded') ||
-            err.message.includes('rate_limit') ||
-            err.message.includes('429') ||
-            err.name === 'AbortError' ||
-            err.name === 'TimeoutError');
-        this.logger.warn(
-          `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
-          AIService.name,
-        );
-        this.groqCounter.inc({
-          model,
-          outcome: isTransient ? 'transient_error' : 'error',
-          tier,
-        });
-        lastError = err;
-        if (!isTransient) throw err;
-      }
+    return this.groqBreaker.execute(() =>
+      this.tryModelsInOrder(ranked, prompt),
+    );
+  }
+
+  /**
+   * Fallback chain: one model at a time, largest first. A transient error moves on to the next
+   * model; any other error, or a failure of the last model, is thrown.
+   */
+  private async tryModelsInOrder(
+    models: string[],
+    prompt: string,
+    index = 0,
+  ): Promise<string> {
+    const model = models[index];
+    try {
+      return await this.completeWithModel(
+        model,
+        index === 0 ? 'primary' : 'fallback',
+        prompt,
+      );
+    } catch (err) {
+      const isLast = index === models.length - 1;
+      if (isLast || !this.isTransientError(err)) throw err;
+      return this.tryModelsInOrder(models, prompt, index + 1);
     }
-    throw lastError;
+  }
+
+  /** One completion attempt on one model, with logging and the per-model metric. */
+  private async completeWithModel(
+    model: string,
+    tier: 'primary' | 'fallback',
+    prompt: string,
+  ): Promise<string> {
+    try {
+      this.logger.info(`Trying Groq model: ${model}`, AIService.name);
+      const response = await this.groq.chat.completions.create(
+        {
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.3,
+        },
+        { timeout: GROQ_COMPLETION_TIMEOUT_MS },
+      );
+      const text = response.choices[0]?.message?.content?.trim() ?? '';
+      this.logger.info(
+        `Groq response received from model: ${model}`,
+        AIService.name,
+      );
+      this.groqCounter.inc({ model, outcome: 'success', tier });
+      return text;
+    } catch (err) {
+      const isTransient = this.isTransientError(err);
+      this.logger.warn(
+        `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
+        AIService.name,
+      );
+      this.groqCounter.inc({
+        model,
+        outcome: isTransient ? 'transient_error' : 'error',
+        tier,
+      });
+      throw err;
+    }
   }
 
   async generateQuotationSummary(
@@ -886,22 +945,27 @@ strong contradicting signals. Justify your reasoning.
    * Saves the full embedding + rerank + answer pipeline for real questions only.
    */
   private async isGenuineQuestion(question: string): Promise<boolean> {
-    const response = await this.groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 1,
-      temperature: 0,
-      messages: [
+    const response = await this.groqBreaker.execute(() =>
+      this.groq.chat.completions.create(
         {
-          role: 'system',
-          content: `You are an intent classifier. Answer only "Y" or "N".
+          model: 'llama-3.1-8b-instant',
+          max_tokens: 1,
+          temperature: 0,
+          messages: [
+            {
+              role: 'system',
+              content: `You are an intent classifier. Answer only "Y" or "N".
 Is the user's message a genuine question or information request?
 Answer "N" for: greetings (hi, hello, hey), acknowledgements (thanks, ok, great),
 test messages (test, 123, asdf), single words with no question intent, or gibberish.
 Answer "Y" for: any real question, even short ones like "What is ROI?" or "How?".`,
+            },
+            { role: 'user', content: question },
+          ],
         },
-        { role: 'user', content: question },
-      ],
-    });
+        { timeout: GROQ_CLASSIFIER_TIMEOUT_MS },
+      ),
+    );
     const verdict = response.choices[0]?.message?.content?.trim().toUpperCase();
     return verdict === 'Y';
   }
@@ -989,13 +1053,29 @@ ${clientHistoryBlock}
 Answer in 2–4 sentences. Be direct and factual.`;
   }
 
+  /**
+   * Errors worth trying the next model for, and that count against the circuit breaker:
+   * no response at all (connection failure, timeout, abort), 408, 429 and 5xx.
+   * Other 4xx mean Groq answered and rejected this request, so another model won't help.
+   */
   private isTransientError(err: unknown): boolean {
+    if (err instanceof APIError) {
+      const { status } = err;
+      return (
+        status === undefined ||
+        status === 408 ||
+        status === 429 ||
+        status >= 500
+      );
+    }
     if (!(err instanceof Error)) return false;
     return (
       err.message.includes('503') ||
       err.message.includes('overloaded') ||
       err.message.includes('rate_limit') ||
-      err.message.includes('429')
+      err.message.includes('429') ||
+      err.name === 'AbortError' ||
+      err.name === 'TimeoutError'
     );
   }
 
@@ -1003,34 +1083,39 @@ Answer in 2–4 sentences. Be direct and factual.`;
     systemPrompt: string,
     question: string,
   ): Promise<string> {
-    let lastError: unknown;
-    for (const model of this.rankedModels()) {
-      try {
-        const response = await this.groq.chat.completions.create({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: question },
-          ],
-          temperature: 0.3,
-        });
-        const answer = response.choices[0]?.message?.content?.trim() ?? '';
-        this.logger.info(
-          `NL answer received from model: ${model}`,
-          AIService.name,
-        );
-        return answer;
-      } catch (err) {
-        const isTransient = this.isTransientError(err);
-        this.logger.warn(
-          `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
-          AIService.name,
-        );
-        lastError = err;
-        if (!isTransient) throw err;
+    return this.groqBreaker.execute(async () => {
+      let lastError: unknown;
+      for (const model of this.rankedModels()) {
+        try {
+          const response = await this.groq.chat.completions.create(
+            {
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: question },
+              ],
+              temperature: 0.3,
+            },
+            { timeout: GROQ_COMPLETION_TIMEOUT_MS },
+          );
+          const answer = response.choices[0]?.message?.content?.trim() ?? '';
+          this.logger.info(
+            `NL answer received from model: ${model}`,
+            AIService.name,
+          );
+          return answer;
+        } catch (err) {
+          const isTransient = this.isTransientError(err);
+          this.logger.warn(
+            `Groq model ${model} failed — ${isTransient ? 'transient, trying next' : 'non-transient'}: ${err instanceof Error ? err.message : String(err)}`,
+            AIService.name,
+          );
+          lastError = err;
+          if (!isTransient) throw err;
+        }
       }
-    }
-    throw lastError;
+      throw lastError;
+    });
   }
 
   async askAboutQuotation(
