@@ -4,7 +4,7 @@ import { defer, firstValueFrom } from 'rxjs';
 import { AiQuotaInterceptor } from './ai-quota.interceptor';
 import { currentAiUser } from './ai-quota.service';
 
-const quota = { assertAllowed: jest.fn().mockResolvedValue(undefined) };
+const quota = { assertRate: jest.fn() };
 const interceptor = new AiQuotaInterceptor(quota as never);
 
 const withUser = (user?: { id: string }) =>
@@ -28,24 +28,24 @@ const handler = (): CallHandler & { calls: number } => {
 describe('AiQuotaInterceptor', () => {
   afterEach(() => {
     jest.restoreAllMocks();
-    quota.assertAllowed.mockReset().mockResolvedValue(undefined);
+    quota.assertRate.mockReset();
   });
 
-  it('checks the limits, then runs the resolver as the user', async () => {
+  it('checks the rate, then runs the resolver as the user', async () => {
     withUser({ id: 'u-1' });
     const next = handler();
     const ranAs = await firstValueFrom(
       interceptor.intercept({} as never, next),
     );
-    expect(quota.assertAllowed).toHaveBeenCalledWith('u-1');
+    expect(quota.assertRate).toHaveBeenCalledWith('u-1');
     expect(ranAs).toBe('u-1');
   });
 
-  it('does not run the resolver when the user is over a limit', async () => {
+  it('does not run the resolver when the user is over the rate', async () => {
     withUser({ id: 'u-1' });
-    quota.assertAllowed.mockRejectedValue(
-      new HttpException('Too many', HttpStatus.TOO_MANY_REQUESTS),
-    );
+    quota.assertRate.mockImplementation(() => {
+      throw new HttpException('Too many', HttpStatus.TOO_MANY_REQUESTS);
+    });
     const next = handler();
     await expect(
       firstValueFrom(interceptor.intercept({} as never, next)),
@@ -58,7 +58,7 @@ describe('AiQuotaInterceptor', () => {
     const ranAs = await firstValueFrom(
       interceptor.intercept({} as never, handler()),
     );
-    expect(quota.assertAllowed).not.toHaveBeenCalled();
+    expect(quota.assertRate).not.toHaveBeenCalled();
     expect(ranAs).toBeUndefined();
   });
 });

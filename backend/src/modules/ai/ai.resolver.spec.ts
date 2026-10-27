@@ -28,7 +28,7 @@ describe('AIResolver', () => {
         AIResolver,
         { provide: AIService, useValue: mockAIService },
         // The quota interceptor on the AI operations is built with the resolver
-        { provide: AiQuotaService, useValue: { assertAllowed: jest.fn() } },
+        { provide: AiQuotaService, useValue: { assertRate: jest.fn() } },
       ],
     }).compile();
 

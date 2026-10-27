@@ -4,6 +4,7 @@ import { ASK_PLAYBOOK_MUTATION } from "../graphql/mutations";
 import { HAS_READY_DOCUMENTS_QUERY } from "../graphql/queries";
 
 interface Citation {
+  sourceNumber: number;
   documentTitle: string;
   chunkIndex: number;
   excerpt: string;
@@ -13,13 +14,15 @@ interface Message {
   role: "user" | "assistant";
   text: string;
   citations?: Citation[];
+  /** False when the answer cites no source it was given: shown as a warning */
+  grounded?: boolean;
 }
 
-function CitationCard({ citation, index }: Readonly<{ citation: Citation; index: number }>) {
+function CitationCard({ citation }: Readonly<{ citation: Citation }>) {
   return (
     <div className="mt-2 border border-gray-100 rounded-lg p-3 bg-gray-50 text-xs">
       <p className="font-medium text-gray-700 mb-1">
-        [{index + 1}] {citation.documentTitle}{" "}
+        [{citation.sourceNumber}] {citation.documentTitle}{" "}
         <span className="text-gray-400 font-normal">· chunk {citation.chunkIndex}</span>
       </p>
       <p className="text-gray-500 leading-relaxed">{citation.excerpt}</p>
@@ -39,6 +42,11 @@ function AssistantBubble({ message }: Readonly<{ message: Message }>) {
         <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-800 leading-relaxed shadow-sm">
           {message.text}
         </div>
+        {message.grounded === false && (
+          <p role="note" className="mt-1.5 text-xs text-amber-700">
+            No playbook source cited for this answer — check before relying on it.
+          </p>
+        )}
         {hasCitations && (
           <button
             type="button"
@@ -49,8 +57,8 @@ function AssistantBubble({ message }: Readonly<{ message: Message }>) {
           </button>
         )}
         {showCitations &&
-          message.citations?.map((c, i) => (
-            <CitationCard key={`${c.documentTitle}-${c.chunkIndex}`} citation={c} index={i} />
+          message.citations?.map((c) => (
+            <CitationCard key={c.sourceNumber} citation={c} />
           ))}
       </div>
     </div>
@@ -68,7 +76,7 @@ export default function PlaybookPage() {
   );
 
   const [askPlaybook, { loading }] = useMutation<{
-    askPlaybook: { answer: string; citations: Citation[] };
+    askPlaybook: { answer: string; citations: Citation[]; grounded: boolean };
   }>(ASK_PLAYBOOK_MUTATION);
 
   useEffect(() => {
@@ -90,6 +98,7 @@ export default function PlaybookPage() {
           role: "assistant",
           text: result?.answer ?? "No answer returned.",
           citations: result?.citations ?? [],
+          grounded: result?.grounded,
         },
       ]);
     } catch {

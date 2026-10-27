@@ -54,6 +54,7 @@ function main() {
         falseRefusals: metrics.falseRefusals,
         retrievalScenarios: metrics.retrievalScenarios,
         retrievalFullCoverage: metrics.retrievalFullCoverage,
+        ungroundedAnswers: metrics.ungroundedAnswers,
       },
     };
     fs.writeFileSync(baselinePath, JSON.stringify(updated, null, 2) + '\n');

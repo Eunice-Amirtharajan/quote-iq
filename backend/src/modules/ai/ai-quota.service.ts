@@ -8,15 +8,22 @@ import { describeError } from '../../common/helper/helper';
 
 const MINUTE_MS = 60_000;
 
-/** The user an AI request runs for, so token metering deep in AIService can charge them. */
-const aiUserStore = new AsyncLocalStorage<string>();
+/**
+ * The AI request in progress: the user it runs for, so token metering deep in AIService can
+ * charge them, and its budget check, made once per request.
+ */
+interface AiRequest {
+  userId: string;
+  budgetCheck?: Promise<void>;
+}
+const aiRequestStore = new AsyncLocalStorage<AiRequest>();
 
 export function runAsAiUser<T>(userId: string, fn: () => T): T {
-  return aiUserStore.run(userId, fn);
+  return aiRequestStore.run({ userId }, fn);
 }
 
 export function currentAiUser(): string | undefined {
-  return aiUserStore.getStore();
+  return aiRequestStore.getStore()?.userId;
 }
 
 /**
@@ -46,8 +53,8 @@ export class AiQuotaService {
     private readonly rejections: Counter<string>,
   ) {}
 
-  /** Throws 429 when the user is over the per-minute rate or today's token budget. */
-  async assertAllowed(userId: string): Promise<void> {
+  /** Throws 429 when the user is over the per-minute rate. Checked when an AI request arrives. */
+  assertRate(userId: string): void {
     const now = Date.now();
     const window = this.windows.get(userId);
     if (!window || now - window.startedAt >= MINUTE_MS) {
@@ -63,7 +70,21 @@ export class AiQuotaService {
     } else {
       window.count += 1;
     }
+  }
 
+  /**
+   * Throws 429 when the user the current request runs for is over today's token budget.
+   * Called right before tokens are spent, not when the request arrives, so an answer served
+   * from cache is never refused. Checked once per request; no-op outside a user request.
+   */
+  assertBudget(): Promise<void> {
+    const request = aiRequestStore.getStore();
+    if (!request) return Promise.resolve();
+    request.budgetCheck ??= this.checkBudget(request.userId);
+    return request.budgetCheck;
+  }
+
+  private async checkBudget(userId: string): Promise<void> {
     const usage = await this.prisma.aiUsage.findUnique({
       where: { userId_day: { userId, day: utcDay() } },
     });

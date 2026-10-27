@@ -207,6 +207,11 @@ type DocumentType {
 
 type LessonsLearnedAnswerType {
   answer: String!
+
+  """
+  False when the answer cites no retrieved source, or cites one that was never retrieved: check it before relying on it
+  """
+  grounded: Boolean!
   sources: [String!]!
 }
 
@@ -250,6 +255,11 @@ type Mutation {
 type PlaybookAnswerType {
   answer: String!
   citations: [PlaybookCitationType!]!
+
+  """
+  False when the answer cites no retrieved source, or cites one that was never retrieved: check it before relying on it
+  """
+  grounded: Boolean!
 }
 
 """A single retrieved document chunk citation"""
@@ -262,6 +272,9 @@ type PlaybookCitationType {
 
   """Excerpt snippet from the chunk"""
   excerpt: String!
+
+  """The [n] the answer uses to cite this source"""
+  sourceNumber: Int!
 }
 
 """A public sales quotation with line items and calculated totals"""

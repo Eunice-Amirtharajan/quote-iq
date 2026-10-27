@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { AIService, SUMMARY_PROMPT_VERSION } from './ai.service';
 import { AiQuotaService, runAsAiUser } from './ai-quota.service';
@@ -112,7 +113,11 @@ const mockCircuitRejections = { inc: jest.fn() };
 const mockTokens = { inc: jest.fn() };
 const mockTruncated = { inc: jest.fn() };
 const mockModelAvailable = { set: jest.fn() };
-const mockQuota = { record: jest.fn().mockResolvedValue(undefined) };
+const mockUngrounded = { inc: jest.fn() };
+const mockQuota = {
+  record: jest.fn().mockResolvedValue(undefined),
+  assertBudget: jest.fn().mockResolvedValue(undefined),
+};
 // Pin the models the mocked Groq catalog offers (the real defaults are covered in model-catalog.spec)
 process.env.GROQ_COMPLETION_MODELS =
   'llama-3.1-70b-versatile,llama-3.1-8b-instant,llama3-8b-8192';
@@ -129,6 +134,7 @@ const newBareService = () =>
     mockTokens as never,
     mockTruncated as never,
     mockModelAvailable as never,
+    mockUngrounded as never,
     mockQuota as never,
   );
 
@@ -240,6 +246,10 @@ describe('AIService', () => {
         {
           provide: 'PROM_METRIC_AI_MODEL_AVAILABLE',
           useValue: mockModelAvailable,
+        },
+        {
+          provide: 'PROM_METRIC_AI_UNGROUNDED_ANSWERS_TOTAL',
+          useValue: mockUngrounded,
         },
         { provide: AiQuotaService, useValue: mockQuota },
       ],
@@ -819,6 +829,59 @@ describe('AIService', () => {
     it('charges nobody for work outside a user request (e.g. the queue consumer)', async () => {
       await service.generateQuotationSummary('q-1');
       expect(mockQuota.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('daily budget, checked where tokens are spent', () => {
+    const overBudget = () =>
+      new HttpException('AI limit reached', HttpStatus.TOO_MANY_REQUESTS);
+    const storedRow = {
+      id: 'ins-1',
+      content: mockGroqResponse.choices[0].message.content,
+      model: 'openai/gpt-oss-120b',
+      promptVersion: SUMMARY_PROMPT_VERSION,
+      generatedAt: new Date('2026-10-20T09:00:00Z'),
+    };
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('serves a cached summary without checking the budget', async () => {
+      mockPrismaService.aIInsight.findFirst.mockResolvedValueOnce(storedRow);
+      await service.generateQuotationSummary('q-1');
+      expect(mockQuota.assertBudget).not.toHaveBeenCalled();
+    });
+
+    it('serves the stored summary, marked stale, when the user is over budget', async () => {
+      mockPrismaService.aIInsight.findFirst
+        .mockResolvedValueOnce(null) // expired
+        .mockResolvedValueOnce(storedRow);
+      mockQuota.assertBudget.mockRejectedValueOnce(overBudget());
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      expect(result.stale).toBe(true);
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('refuses a lessons question over budget instead of skipping the classifier', async () => {
+      mockQuota.assertBudget.mockRejectedValueOnce(overBudget());
+      await expect(
+        service.askLessonsLearned('Why did we switch to Groq?'),
+      ).rejects.toThrow('AI limit reached');
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockEmbeddingsCreate).not.toHaveBeenCalled();
+    });
+
+    it('checks the budget before the first embedding of a playbook question', async () => {
+      mockPrismaService.document.count.mockResolvedValue(1);
+      mockQuota.assertBudget.mockRejectedValueOnce(overBudget());
+      await expect(service.askPlaybook('Any question?')).rejects.toThrow(
+        'AI limit reached',
+      );
+      expect(mockEmbeddingsCreate).not.toHaveBeenCalled();
     });
   });
 
@@ -1749,6 +1812,38 @@ describe('AIService', () => {
         '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
         '12. Switched from Gemini to Groq for AI completions',
       ]);
+      expect(result.grounded).toBe(true);
+    });
+
+    it('drops cited entries that were never retrieved and flags the answer', async () => {
+      mockCreate.mockReset();
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                answer: 'We moved to Groq.',
+                citedEntries: [
+                  '12. switched from Gemini to Groq for AI completions',
+                  '99. An entry the model made up',
+                ],
+              }),
+            },
+          },
+        ],
+      });
+
+      const result = await service.askLessonsLearned('Why did we switch to Groq?');
+
+      expect(result.sources).toEqual([
+        '12. Switched from Gemini to Groq for AI completions',
+      ]);
+      expect(result.grounded).toBe(false);
+      expect(mockUngrounded.inc).toHaveBeenCalledWith({
+        feature: 'lessons_qa',
+        reason: 'invented_citation',
+      });
     });
 
     it('embeds the question using OpenAI text-embedding-3-small', async () => {
@@ -1917,9 +2012,68 @@ describe('AIService', () => {
       const result = await service.askPlaybook('How should I handle pricing objections?');
 
       expect(result.answer).toContain('Handle objections');
-      expect(result.citations).toHaveLength(3);
+      // Only the cited passage, not every passage the model was given
+      expect(result.citations).toHaveLength(1);
       expect(result.citations[0].documentTitle).toBe('Sales Playbook Q1.pdf');
       expect(result.citations[0].chunkIndex).toBe(0);
+      expect(result.grounded).toBe(true);
+      expect(mockUngrounded.inc).not.toHaveBeenCalled();
+    });
+
+    it('returns cited passages in order of first mention', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Check the competitor [3] and pricing [2].' } }] });
+
+      const result = await service.askPlaybook('How do we price against competitors?');
+
+      expect(
+        result.citations.map((c) => [c.sourceNumber, c.excerpt]),
+      ).toEqual([
+        [3, 'Competitor analysis content.'],
+        [2, 'Playbook content about pricing strategy.'],
+      ]);
+      expect(result.grounded).toBe(true);
+    });
+
+    it('flags an answer citing a passage that was never provided', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Offer a discount (see [1], [7]).' } }] });
+
+      const result = await service.askPlaybook('Can I offer a discount?');
+
+      expect(result.citations).toHaveLength(1);
+      expect(result.grounded).toBe(false);
+      expect(mockUngrounded.inc).toHaveBeenCalledWith({
+        feature: 'playbook_qa',
+        reason: 'invented_citation',
+      });
+    });
+
+    it('flags an answer that cites nothing', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Always lead with value.' } }] });
+
+      const result = await service.askPlaybook('How do I open a call?');
+
+      expect(result.citations).toEqual([]);
+      expect(result.grounded).toBe(false);
+      expect(mockUngrounded.inc).toHaveBeenCalledWith({
+        feature: 'playbook_qa',
+        reason: 'no_citation',
+      });
+    });
+
+    it('treats the model refusal as grounded, with no citations', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '"I could not find a relevant answer in the uploaded playbook documents."' } }],
+      });
+
+      const result = await service.askPlaybook('What is our parental leave policy?');
+
+      expect(result.citations).toEqual([]);
+      expect(result.grounded).toBe(true);
+      expect(mockUngrounded.inc).not.toHaveBeenCalled();
     });
 
     it('returns grounded refusal when no chunks found', async () => {
@@ -1931,6 +2085,7 @@ describe('AIService', () => {
 
       expect(result.answer).toContain('could not find a relevant answer');
       expect(result.citations).toHaveLength(0);
+      expect(result.grounded).toBe(true);
     });
 
     it('embeds the question with text-embedding-3-small', async () => {
@@ -1983,11 +2138,11 @@ describe('AIService', () => {
     it('falls back to top-3 slicing when reranker returns invalid JSON', async () => {
       // reranker fails to parse → falls back to slice → LLM answer is 2nd call
       mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'not-valid-json' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer from chunks.' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer from chunks. [1][2][3][4]' } }] });
 
       const result = await service.askPlaybook('Best closing technique?');
 
-      expect(result.answer).toBe('Answer from chunks.');
+      expect(result.answer).toBe('Answer from chunks. [1][2][3][4]');
       expect(result.citations).toHaveLength(3);
     });
 
@@ -2008,22 +2163,22 @@ describe('AIService', () => {
 
     it('falls back to top-3 slicing when reranker Groq call throws (catch at line 1148)', async () => {
       mockCreate.mockRejectedValueOnce(new Error('Groq reranker unavailable')); // reranker fails → catch
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Fallback answer.' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Fallback answer. [1][2][3][4]' } }] });
 
       const result = await service.askPlaybook('What is the objection strategy?');
 
-      expect(result.answer).toBe('Fallback answer.');
+      expect(result.answer).toBe('Fallback answer. [1][2][3][4]');
       expect(result.citations).toHaveLength(3); // sliced to top 3
     });
 
     it('falls back to top-3 slicing when reranker returns empty JSON array (line 1142)', async () => {
       // Groq succeeds but returns [] → !Array.isArray check → return chunks.slice(0, 3)
       mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[]' } }] }); // reranker returns empty
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer with empty reranker.' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer with empty reranker. [1][2][3][4]' } }] });
 
       const result = await service.askPlaybook('What is the pricing strategy?');
 
-      expect(result.answer).toBe('Answer with empty reranker.');
+      expect(result.answer).toBe('Answer with empty reranker. [1][2][3][4]');
       expect(result.citations).toHaveLength(3);
     });
   });

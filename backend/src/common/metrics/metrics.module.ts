@@ -66,6 +66,11 @@ import {
       help: 'AI requests refused by the per-user limits, by reason (rate, budget)',
       labelNames: ['reason'],
     }),
+    makeCounterProvider({
+      name: 'ai_ungrounded_answers_total',
+      help: 'RAG answers that cite no retrieved source (no_citation) or a source that was never retrieved (invented_citation), by feature',
+      labelNames: ['feature', 'reason'],
+    }),
   ],
   exports: [
     'PROM_METRIC_GRAPHQL_RESOLVER_DURATION_SECONDS',
@@ -78,6 +83,7 @@ import {
     'PROM_METRIC_AI_COMPLETIONS_TRUNCATED_TOTAL',
     'PROM_METRIC_AI_MODEL_AVAILABLE',
     'PROM_METRIC_AI_QUOTA_REJECTIONS_TOTAL',
+    'PROM_METRIC_AI_UNGROUNDED_ANSWERS_TOTAL',
   ],
 })
 export class MetricsModule {}

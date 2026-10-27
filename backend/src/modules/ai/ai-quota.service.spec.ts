@@ -22,6 +22,15 @@ const rejection = (p: Promise<unknown>) =>
     (e: unknown) => e as HttpException,
   );
 
+const thrown = (fn: () => void): HttpException | undefined => {
+  try {
+    fn();
+    return undefined;
+  } catch (e) {
+    return e as HttpException;
+  }
+};
+
 describe('AiQuotaService', () => {
   const saved = { ...process.env };
 
@@ -33,13 +42,13 @@ describe('AiQuotaService', () => {
   });
 
   describe('per-minute rate', () => {
-    it('allows 20 AI requests a minute per user, then answers 429 with the wait', async () => {
+    it('allows 20 AI requests a minute per user, then answers 429 with the wait', () => {
       jest.useFakeTimers({ now: Date.parse('2026-10-27T10:00:00Z') });
       const quota = newService();
-      for (let i = 0; i < 20; i++) await quota.assertAllowed('u-1');
+      for (let i = 0; i < 20; i++) quota.assertRate('u-1');
       jest.advanceTimersByTime(15_000);
 
-      const err = await rejection(quota.assertAllowed('u-1'));
+      const err = thrown(() => quota.assertRate('u-1'));
 
       expect(err).toBeInstanceOf(HttpException);
       expect(err?.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
@@ -47,42 +56,50 @@ describe('AiQuotaService', () => {
       expect(mockRejections.inc).toHaveBeenCalledWith({ reason: 'rate' });
     });
 
-    it('opens a new window after a minute', async () => {
+    it('opens a new window after a minute', () => {
       jest.useFakeTimers({ now: Date.parse('2026-10-27T10:00:00Z') });
       const quota = newService();
-      for (let i = 0; i < 20; i++) await quota.assertAllowed('u-1');
+      for (let i = 0; i < 20; i++) quota.assertRate('u-1');
       jest.advanceTimersByTime(60_000);
-      await expect(quota.assertAllowed('u-1')).resolves.toBeUndefined();
+      expect(thrown(() => quota.assertRate('u-1'))).toBeUndefined();
     });
 
-    it('counts each user separately', async () => {
+    it('counts each user separately', () => {
       const quota = newService();
-      for (let i = 0; i < 20; i++) await quota.assertAllowed('u-1');
-      await expect(quota.assertAllowed('u-2')).resolves.toBeUndefined();
+      for (let i = 0; i < 20; i++) quota.assertRate('u-1');
+      expect(thrown(() => quota.assertRate('u-2'))).toBeUndefined();
     });
 
-    it('reads the limit from AI_REQUESTS_PER_MINUTE, ignoring invalid values', async () => {
+    it('reads the limit from AI_REQUESTS_PER_MINUTE, ignoring invalid values', () => {
       process.env.AI_REQUESTS_PER_MINUTE = '2';
       const quota = newService();
-      await quota.assertAllowed('u-1');
-      await quota.assertAllowed('u-1');
-      expect(await rejection(quota.assertAllowed('u-1'))).toBeInstanceOf(
+      quota.assertRate('u-1');
+      quota.assertRate('u-1');
+      expect(thrown(() => quota.assertRate('u-1'))).toBeInstanceOf(
         HttpException,
       );
 
       process.env.AI_REQUESTS_PER_MINUTE = 'lots';
       const fallback = newService();
-      for (let i = 0; i < 20; i++) await fallback.assertAllowed('u-1');
-      expect(await rejection(fallback.assertAllowed('u-1'))).toBeInstanceOf(
+      for (let i = 0; i < 20; i++) fallback.assertRate('u-1');
+      expect(thrown(() => fallback.assertRate('u-1'))).toBeInstanceOf(
         HttpException,
       );
+    });
+
+    it('never reads the token budget', () => {
+      newService().assertRate('u-1');
+      expect(mockPrisma.aiUsage.findUnique).not.toHaveBeenCalled();
     });
   });
 
   describe('daily token budget', () => {
-    it("looks up today's usage (UTC)", async () => {
+    const asUser = (quota: AiQuotaService) =>
+      runAsAiUser('u-1', () => quota.assertBudget());
+
+    it("looks up today's usage (UTC) for the user the request runs for", async () => {
       jest.useFakeTimers({ now: Date.parse('2026-10-27T23:30:00Z') });
-      await newService().assertAllowed('u-1');
+      await asUser(newService());
       expect(mockPrisma.aiUsage.findUnique).toHaveBeenCalledWith({
         where: {
           userId_day: { userId: 'u-1', day: new Date('2026-10-27T00:00:00Z') },
@@ -92,7 +109,7 @@ describe('AiQuotaService', () => {
 
     it('answers 429 once the user has spent the budget', async () => {
       mockPrisma.aiUsage.findUnique.mockResolvedValue({ tokens: 200_000 });
-      const err = await rejection(newService().assertAllowed('u-1'));
+      const err = await rejection(asUser(newService()));
       expect(err?.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
       expect(err?.message).toBe(
         "You've reached today's AI limit. It resets at midnight UTC.",
@@ -102,13 +119,31 @@ describe('AiQuotaService', () => {
 
     it('allows requests below the budget, which AI_DAILY_TOKEN_BUDGET overrides', async () => {
       mockPrisma.aiUsage.findUnique.mockResolvedValue({ tokens: 199_999 });
-      await expect(newService().assertAllowed('u-1')).resolves.toBeUndefined();
+      await expect(asUser(newService())).resolves.toBeUndefined();
 
       process.env.AI_DAILY_TOKEN_BUDGET = '1000';
       mockPrisma.aiUsage.findUnique.mockResolvedValue({ tokens: 1000 });
-      expect(await rejection(newService().assertAllowed('u-1'))).toBeInstanceOf(
+      expect(await rejection(asUser(newService()))).toBeInstanceOf(
         HttpException,
       );
+    });
+
+    it('reads the budget once per request, however many AI calls it makes', async () => {
+      const quota = newService();
+      await runAsAiUser('u-1', async () => {
+        await quota.assertBudget(); // embedding
+        await quota.assertBudget(); // rerank
+        await quota.assertBudget(); // answer
+      });
+      expect(mockPrisma.aiUsage.findUnique).toHaveBeenCalledTimes(1);
+
+      await asUser(quota); // the next request checks again
+      expect(mockPrisma.aiUsage.findUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it('does nothing outside a user request (background work is not charged)', async () => {
+      await expect(newService().assertBudget()).resolves.toBeUndefined();
+      expect(mockPrisma.aiUsage.findUnique).not.toHaveBeenCalled();
     });
   });
 

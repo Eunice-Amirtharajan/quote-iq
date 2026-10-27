@@ -27,12 +27,14 @@ const baseline: Baseline = {
     falseRefusals: 0,
     retrievalScenarios: 19,
     retrievalFullCoverage: 18,
+    ungroundedAnswers: 0,
   },
   tolerance: {
     avgScore: 0.3,
     passCount: 1,
     falseRefusals: 1,
     retrievalFullCoverage: 1,
+    ungroundedAnswers: 1,
   },
 };
 
@@ -93,6 +95,33 @@ describe('computeMetrics', () => {
     expect(m.retrievalFullCoverage).toBe(1);
   });
 
+  it('measures retrieval by the passages given to the model, not those the answer cited', () => {
+    const m = computeMetrics(
+      [
+        row({
+          expectedSourceDocuments: ['pricing-guidelines.md'],
+          retrievedSources: ['pricing-guidelines.md', 'battlecards.md'],
+          actualCitations: ['battlecards.md'],
+        }),
+      ],
+      new Set(),
+    );
+    expect(m.retrievalFullCoverage).toBe(1);
+  });
+
+  it('counts graded answers flagged as ungrounded', () => {
+    const m = computeMetrics(
+      [
+        row({ grounded: false }),
+        row({ grounded: true }),
+        row(), // older result without the flag
+        row({ grounded: false, infraError: true }),
+      ],
+      new Set(),
+    );
+    expect(m.ungroundedAnswers).toBe(1);
+  });
+
   it('leaves ungraded (infrastructure) rows out of the scores', () => {
     const m = computeMetrics(
       [row({ score: 5 }), row({ score: 1, infraError: true })],
@@ -118,6 +147,7 @@ describe('evaluateGate', () => {
         passCount: 22,
         falseRefusals: 1,
         retrievalFullCoverage: 17,
+        ungroundedAnswers: 1,
       }),
     ).toEqual([]);
   });
@@ -129,7 +159,10 @@ describe('evaluateGate', () => {
     ]);
     expect(failing({ falseRefusals: 2 })).toEqual(['False refusals']);
     expect(failing({ retrievalFullCoverage: 16 })).toEqual([
-      'Retrieval: expected sources cited',
+      'Retrieval: expected sources given to the model',
+    ]);
+    expect(failing({ ungroundedAnswers: 2 })).toEqual([
+      'Ungrounded answers: no valid citation',
     ]);
   });
 
