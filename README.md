@@ -143,6 +143,15 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 5. **Retrieve** — `askAboutQuotation` similar-quotes panel runs hybrid retrieval: pgvector cosine similarity + BM25 keyword fallback
 6. **Push** — `GatewayModule` (WebSocket) broadcasts embedding status to connected clients
 
+### MCP Server — QuoteIQ for AI Assistants
+
+[`mcp-server/`](mcp-server/README.md) is a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude Code, Claude Desktop or any MCP client can use QuoteIQ as a tool:
+
+1. **Two read-only tools** — `search_playbook` (grounded playbook answer with cited passages) and `get_quotation` (by number or id). Nothing can be changed through it, and the tools say so (`readOnlyHint`)
+2. **Acts as the user** — calls the GraphQL API with the user's own token (or logs in with their email and password), so the API's role checks, data scoping (a rep sees only their quotations) and AI quota apply unchanged. No credentials of its own, no database access
+3. **Untrusted output, validated input** — tool inputs are validated with Zod; quotation notes are flagged to the assistant as user-entered data; the public-link token is never fetched
+4. **Tested through the protocol** — a real MCP client talks to the server in memory; verified end to end over stdio against a running backend
+
 ---
 
 ## Getting Started
@@ -332,6 +341,7 @@ quote-iq/
 │   ├── lessons_learned.md         # 111+ lessons from bugs and design decisions
 │   ├── cicd-flow.md               # Mermaid CI/CD diagram (renders on GitHub)
 │   └── drawio/                    # Architecture, ERD, sequence, AI pipeline diagrams
+├── mcp-server/              # MCP server: read-only QuoteIQ tools for AI assistants
 ├── observability/
 │   ├── prometheus.yml       # Scrape config — backend /metrics every 15s
 │   └── grafana/
