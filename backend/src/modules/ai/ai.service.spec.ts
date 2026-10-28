@@ -2144,6 +2144,17 @@ describe('AIService', () => {
       });
     });
 
+    it('accepts gpt-oss style 【n】 citations as grounded', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Up to 10% without approval【1】.' } }] });
+
+      const result = await service.askPlaybook('Max discount without approval?');
+
+      expect(result.grounded).toBe(true);
+      expect(result.citations).toHaveLength(1);
+      expect(mockUngrounded.inc).not.toHaveBeenCalled();
+    });
+
     it('flags an answer that cites nothing', async () => {
       mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
       mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Always lead with value.' } }] });
