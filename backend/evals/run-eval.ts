@@ -11,6 +11,7 @@ import { AIService } from '../src/modules/ai/ai.service';
 import type { AiQuotaService } from '../src/modules/ai/ai-quota.service';
 import { CircuitOpenError } from '../src/common/resilience/circuit-breaker';
 import { APIError } from 'groq-sdk/core/error';
+import { DAILY_LIMIT_ABORT_AFTER, isDailyLimit } from './daily-limit';
 import { AppLogger } from '../src/common/logger/logger.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import type { Counter, Gauge } from 'prom-client';
@@ -45,6 +46,8 @@ interface EvalResult {
   grounded?: boolean;
   verdict: JudgeVerdict;
   infraError: boolean;
+  /** Lost to Groq's per-day limit (counts towards stopping the run early) */
+  dailyLimit: boolean;
   durationMs: number;
 }
 
@@ -149,6 +152,7 @@ async function runScenario(
   retrieved.length = 0;
 
   let infraError = false;
+  let dailyLimit = false;
   try {
     const response = await askWithBackoff(aiService, scenario.question);
     actualAnswer = response.answer;
@@ -158,6 +162,7 @@ async function runScenario(
     // Still rate-limited (or Groq down) after retries: an infrastructure failure, not a quality
     // result — the gate reports it separately instead of as a low score
     infraError = waitBeforeRetryMs(err) !== undefined;
+    dailyLimit = isDailyLimit(err);
     // askPlaybook throws BadRequestException when no READY documents exist —
     // treat as the answer text so the judge can still score it; a thrown
     // "no documents available" error is a distinct, visible failure mode.
@@ -167,7 +172,12 @@ async function runScenario(
 
   // Don't ask the judge to grade an error message: it would score it as a wrong answer
   const verdict: JudgeVerdict = infraError
-    ? { score: 1, reason: 'Not graded: Groq unavailable after retries' }
+    ? {
+        score: 1,
+        reason: dailyLimit
+          ? 'Not graded: Groq daily token limit reached'
+          : 'Not graded: Groq unavailable after retries',
+      }
     : await judgeAnswer(openai, scenario, actualAnswer);
   return {
     scenario,
@@ -177,7 +187,22 @@ async function runScenario(
     grounded,
     verdict,
     infraError,
+    dailyLimit,
     durationMs: Date.now() - start,
+  };
+}
+
+/** A scenario skipped because Groq's daily limit is spent: reported as "could not grade". */
+function notRun(scenario: Scenario): EvalResult {
+  return {
+    scenario,
+    actualAnswer: '[NOT RUN] Groq daily token limit reached',
+    actualCitations: [],
+    retrievedSources: [],
+    verdict: { score: 1, reason: 'Not run: Groq daily token limit reached' },
+    infraError: true,
+    dailyLimit: true,
+    durationMs: 0,
   };
 }
 
@@ -196,7 +221,9 @@ async function askWithBackoff(aiService: AIService, question: string) {
       return await aiService.askPlaybook(question);
     } catch (err) {
       const waitMs = waitBeforeRetryMs(err);
-      if (waitMs === undefined || attempt >= MAX_RETRIES) throw err;
+      // A per-day limit frees up over hours: retrying within the job only burns CI time
+      if (waitMs === undefined || attempt >= MAX_RETRIES || isDailyLimit(err))
+        throw err;
       console.log(
         `  Groq unavailable (${err instanceof Error ? err.message.slice(0, 60) : 'error'}…), retrying in ${Math.round(waitMs / 1000)}s`,
       );
@@ -344,9 +371,22 @@ async function main() {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const results: EvalResult[] = [];
+  // Groq's daily limit is per organisation: once it's spent, every scenario would fail the same
+  // way, so the run stops early and the gate reports "could not grade" instead of timing out
+  let dailyLimitStreak = 0;
   for (const scenario of toRun) {
+    if (dailyLimitStreak >= DAILY_LIMIT_ABORT_AFTER) {
+      results.push(notRun(scenario));
+      continue;
+    }
     const result = await runScenario(aiService, openai, scenario);
     results.push(result);
+    dailyLimitStreak = result.dailyLimit ? dailyLimitStreak + 1 : 0;
+    if (dailyLimitStreak === DAILY_LIMIT_ABORT_AFTER) {
+      console.log(
+        `\nGroq's daily token limit is spent (${DAILY_LIMIT_ABORT_AFTER} scenarios in a row): skipping the rest. Re-run once it resets.`,
+      );
+    }
 
     const scoreLabel = result.verdict.score >= 4 ? 'PASS' : 'FAIL';
     console.log(
