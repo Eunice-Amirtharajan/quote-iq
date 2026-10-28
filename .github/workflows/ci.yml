@@ -71,6 +71,16 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      # Fails on a critical advisory in what ships; highs are reported (some need major upgrades)
+      - name: Audit backend production dependencies
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=critical
+
+      # The backlog was cleared on 2026-10-28 (764 problems, mostly formatting): keep it at zero
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint:check
+
       - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
@@ -120,6 +130,14 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Audit frontend production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
       - name: Run frontend unit tests with coverage
         working-directory: frontend
         run: npx vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text-summary
@@ -145,6 +163,7 @@ jobs:
           cache: npm
           cache-dependency-path: mcp-server/package-lock.json
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=critical
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

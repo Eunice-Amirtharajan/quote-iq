@@ -29,9 +29,7 @@ const mockLogger = {
 
 const makeMsg = (deathCount?: number) => ({
   properties: {
-    headers: deathCount != null
-      ? { 'x-death': [{ count: deathCount }] }
-      : {},
+    headers: deathCount != null ? { 'x-death': [{ count: deathCount }] } : {},
   },
 });
 
@@ -63,8 +61,14 @@ describe('QueueConsumerService', () => {
       const result = await service.onQuoteCreated(payload, makeMsg());
 
       expect(mockAIService.getConversionScore).toHaveBeenCalledWith('q-1');
-      expect(mockGateway.emitScoreReady).toHaveBeenCalledWith('q-1', 72, ConversionLabel.HIGH);
-      expect(mockAIService.generateQuotationEmbedding).toHaveBeenCalledWith('q-1');
+      expect(mockGateway.emitScoreReady).toHaveBeenCalledWith(
+        'q-1',
+        72,
+        ConversionLabel.HIGH,
+      );
+      expect(mockAIService.generateQuotationEmbedding).toHaveBeenCalledWith(
+        'q-1',
+      );
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('Score computed, embedding upserted'),
         QueueConsumerService.name,
@@ -194,7 +198,9 @@ describe('QueueConsumerService', () => {
     });
   });
   describe('onQuoteCreated — correlation ID', () => {
-    const msgWithCid = (cid: string) => ({ properties: { headers: { 'x-correlation-id': cid } } });
+    const msgWithCid = (cid: string) => ({
+      properties: { headers: { 'x-correlation-id': cid } },
+    });
     // clearAllMocks keeps implementations — drop the capturing ones so later tests get plain mocks
     afterEach(() => {
       mockLogger.info.mockReset();
@@ -204,12 +210,15 @@ describe('QueueConsumerService', () => {
     it('restores the publisher’s correlation ID for the whole handler, so worker logs match the API request', async () => {
       const seen: (string | undefined)[] = [];
       mockLogger.info.mockImplementation(() => seen.push(getCorrelationId()));
-      mockAIService.getConversionScore.mockImplementationOnce(async () => {
+      mockAIService.getConversionScore.mockImplementationOnce(() => {
         seen.push(getCorrelationId());
-        return { score: 72, label: ConversionLabel.HIGH };
+        return Promise.resolve({ score: 72, label: ConversionLabel.HIGH });
       });
 
-      await service.onQuoteCreated({ quotationId: 'q-1', createdById: 'u-1' }, msgWithCid('cid-from-api'));
+      await service.onQuoteCreated(
+        { quotationId: 'q-1', createdById: 'u-1' },
+        msgWithCid('cid-from-api'),
+      );
 
       // "Received" log, the scoring call, and the success log all run under the same ID
       expect(seen).toEqual(['cid-from-api', 'cid-from-api', 'cid-from-api']);
@@ -221,9 +230,14 @@ describe('QueueConsumerService', () => {
       mockLogger.error.mockImplementationOnce(() => {
         idWhenLoggingError = getCorrelationId();
       });
-      mockAIService.getConversionScore.mockRejectedValueOnce(new Error('Groq timeout'));
+      mockAIService.getConversionScore.mockRejectedValueOnce(
+        new Error('Groq timeout'),
+      );
 
-      await service.onQuoteCreated({ quotationId: 'q-1', createdById: 'u-1' }, msgWithCid('cid-from-api'));
+      await service.onQuoteCreated(
+        { quotationId: 'q-1', createdById: 'u-1' },
+        msgWithCid('cid-from-api'),
+      );
 
       expect(idWhenLoggingError).toBe('cid-from-api');
     });

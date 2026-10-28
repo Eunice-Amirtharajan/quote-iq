@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClientType } from './client.entity';
 
@@ -35,7 +39,9 @@ export class ClientsService {
     const client = await this.prisma.client.findFirst({ where: { id } });
     if (!client) throw new NotFoundException(`Client ${id} not found`);
 
-    const quotationCount = await this.prisma.quotation.count({ where: { clientId: id } });
+    const quotationCount = await this.prisma.quotation.count({
+      where: { clientId: id },
+    });
     if (quotationCount > 0) {
       throw new BadRequestException(
         `Cannot delete "${client.name}" — ${quotationCount} quotation${quotationCount === 1 ? ' is' : 's are'} linked to this client`,

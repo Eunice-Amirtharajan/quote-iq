@@ -1,4 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 
 export interface ScanResult {
   infected: boolean;
@@ -17,7 +21,10 @@ export class ScanService {
       );
     }
 
-    this.logger.log({ bytes: buffer.length }, 'Starting VirusTotal malware scan');
+    this.logger.log(
+      { bytes: buffer.length },
+      'Starting VirusTotal malware scan',
+    );
 
     const form = new FormData();
     const arrayBuf = buffer.buffer.slice(
@@ -33,8 +40,13 @@ export class ScanService {
     });
 
     if (!uploadRes.ok) {
-      this.logger.error({ status: uploadRes.status }, 'VirusTotal upload failed');
-      throw new InternalServerErrorException('Malware scan failed — upload to VirusTotal rejected');
+      this.logger.error(
+        { status: uploadRes.status },
+        'VirusTotal upload failed',
+      );
+      throw new InternalServerErrorException(
+        'Malware scan failed — upload to VirusTotal rejected',
+      );
     }
 
     const { data } = (await uploadRes.json()) as { data: { id: string } };
@@ -54,7 +66,10 @@ export class ScanService {
 
       if (analysis.data.attributes.status === 'completed') {
         const malicious = analysis.data.attributes.stats.malicious;
-        this.logger.log({ malicious, analysisId: data.id }, 'VirusTotal analysis complete');
+        this.logger.log(
+          { malicious, analysisId: data.id },
+          'VirusTotal analysis complete',
+        );
         return {
           infected: malicious > 0,
           threat: malicious > 0 ? 'VirusTotal detection' : undefined,
@@ -62,7 +77,12 @@ export class ScanService {
       }
     }
 
-    this.logger.warn({ analysisId: data.id }, 'VirusTotal analysis timed out — blocking upload');
-    throw new InternalServerErrorException('Malware scan timed out — upload blocked');
+    this.logger.warn(
+      { analysisId: data.id },
+      'VirusTotal analysis timed out — blocking upload',
+    );
+    throw new InternalServerErrorException(
+      'Malware scan timed out — upload blocked',
+    );
   }
 }

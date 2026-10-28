@@ -21,7 +21,9 @@ describe('GraphQL schema contract', () => {
 
   describe('Query.dashboardStats', () => {
     it('is non-nullable', () => {
-      expect(schema).toContain('dashboardStats(range: DateRangeInput): DashboardStatsType!');
+      expect(schema).toContain(
+        'dashboardStats(range: DateRangeInput): DashboardStatsType!',
+      );
     });
   });
 
@@ -60,7 +62,9 @@ describe('GraphQL schema contract', () => {
 
   describe('Query.clientConcentration', () => {
     it('accepts an optional range and returns a non-nullable list', () => {
-      expect(schema).toContain('clientConcentration(range: DateRangeInput): [ClientConcentrationType!]!');
+      expect(schema).toContain(
+        'clientConcentration(range: DateRangeInput): [ClientConcentrationType!]!',
+      );
     });
   });
 
@@ -72,19 +76,25 @@ describe('GraphQL schema contract', () => {
 
   describe('Query.dealVelocity', () => {
     it('accepts an optional range and returns a non-nullable list', () => {
-      expect(schema).toContain('dealVelocity(range: DateRangeInput): [DealVelocityType!]!');
+      expect(schema).toContain(
+        'dealVelocity(range: DateRangeInput): [DealVelocityType!]!',
+      );
     });
   });
 
   describe('Query.staleQuotations', () => {
     it('defaults thresholdDays to 14 and returns a non-nullable pipeline', () => {
-      expect(schema).toContain('staleQuotations(thresholdDays: Int! = 14): StalePipelineType!');
+      expect(schema).toContain(
+        'staleQuotations(thresholdDays: Int! = 14): StalePipelineType!',
+      );
     });
   });
 
   describe('Query.quarterlyHistory', () => {
     it('defaults quarters to 4 and returns a non-nullable list', () => {
-      expect(schema).toContain('quarterlyHistory(quarters: Int! = 4): [QuarterStatsType!]!');
+      expect(schema).toContain(
+        'quarterlyHistory(quarters: Int! = 4): [QuarterStatsType!]!',
+      );
     });
   });
 
@@ -142,10 +152,12 @@ describe('GraphQL schema contract', () => {
         schema.indexOf('}', schema.indexOf('type Mutation')),
       );
       expect(mutationBlock).toContain('quotationSummary');
-      expect(schema.slice(
-        schema.indexOf('type Query'),
-        schema.indexOf('}', schema.indexOf('type Query')),
-      )).not.toContain('quotationSummary');
+      expect(
+        schema.slice(
+          schema.indexOf('type Query'),
+          schema.indexOf('}', schema.indexOf('type Query')),
+        ),
+      ).not.toContain('quotationSummary');
     });
   });
 

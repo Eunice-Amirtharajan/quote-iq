@@ -121,7 +121,9 @@ describe('ClientsService', () => {
     it('throws NotFoundException when client does not exist', async () => {
       mockPrismaService.client.findFirst.mockResolvedValue(null);
 
-      await expect(service.findOne(CLIENT_ID)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(CLIENT_ID)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -134,14 +136,18 @@ describe('ClientsService', () => {
       const result = await service.delete(CLIENT_ID);
 
       expect(result).toBe(true);
-      expect(mockPrismaService.client.delete).toHaveBeenCalledWith({ where: { id: CLIENT_ID } });
+      expect(mockPrismaService.client.delete).toHaveBeenCalledWith({
+        where: { id: CLIENT_ID },
+      });
     });
 
     it('throws BadRequestException when client has linked quotations', async () => {
       mockPrismaService.client.findFirst.mockResolvedValue(mockClient);
       mockPrismaService.quotation.count.mockResolvedValue(5);
 
-      await expect(service.delete(CLIENT_ID)).rejects.toThrow(BadRequestException);
+      await expect(service.delete(CLIENT_ID)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrismaService.client.delete).not.toHaveBeenCalled();
     });
 
@@ -149,13 +155,17 @@ describe('ClientsService', () => {
       mockPrismaService.client.findFirst.mockResolvedValue(mockClient);
       mockPrismaService.quotation.count.mockResolvedValue(3);
 
-      await expect(service.delete(CLIENT_ID)).rejects.toThrow('3 quotations are');
+      await expect(service.delete(CLIENT_ID)).rejects.toThrow(
+        '3 quotations are',
+      );
     });
 
     it('throws NotFoundException when client does not exist', async () => {
       mockPrismaService.client.findFirst.mockResolvedValue(null);
 
-      await expect(service.delete(CLIENT_ID)).rejects.toThrow(NotFoundException);
+      await expect(service.delete(CLIENT_ID)).rejects.toThrow(
+        NotFoundException,
+      );
       expect(mockPrismaService.client.delete).not.toHaveBeenCalled();
     });
   });
@@ -164,7 +174,10 @@ describe('ClientsService', () => {
     it('creates a new client when none exists', async () => {
       mockPrismaService.client.upsert.mockResolvedValue(mockClient);
 
-      const result = await service.findOrCreate('Acme Corp', 'acme@example.com');
+      const result = await service.findOrCreate(
+        'Acme Corp',
+        'acme@example.com',
+      );
 
       expect(result).toEqual(mockClient);
       expect(mockPrismaService.client.upsert).toHaveBeenCalledWith({

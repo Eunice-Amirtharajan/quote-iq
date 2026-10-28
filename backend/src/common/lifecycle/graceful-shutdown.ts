@@ -18,6 +18,8 @@ export interface GracefulShutdownOptions {
   logger: ShutdownLogger;
   /** Called first, e.g. to make the readiness probe return 503 */
   onShutdownStart: () => void;
+  /** Called last, after app.close(), e.g. to flush traces; still bounded by timeoutMs */
+  onShutdownComplete?: () => Promise<void>;
   exit?: (code: number) => void;
   signals?: NodeJS.Signals[];
 }
@@ -27,7 +29,9 @@ export interface GracefulShutdownOptions {
  * disconnect, outbox timer) *before* it closes the HTTP server, and its adapter destroys open
  * sockets, so in-flight requests would be cut off. Order here:
  * fail readiness -> wait drainDelayMs -> stop accepting connections -> wait for in-flight
- * requests -> app.close() (WebSockets, module hooks, AMQP) -> exit.
+ * requests -> app.close() (WebSockets, module hooks, AMQP) -> onShutdownComplete -> exit.
+ * This must be the only SIGTERM handler that exits: another one calling process.exit() would
+ * cut the drain short.
  */
 export function registerGracefulShutdown(
   app: INestApplication,
@@ -79,6 +83,7 @@ export function registerGracefulShutdown(
       if (timedOut) return;
 
       await app.close();
+      await options.onShutdownComplete?.();
       clearTimeout(deadline);
       logger.info('Shutdown complete', CONTEXT);
       exit(0);

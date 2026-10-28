@@ -1610,8 +1610,7 @@ describe('QuotationsService', () => {
     });
 
     it('returns snapshots for a SALES_MANAGER without ownership check', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (mockPrismaService as any).quotationSnapshot.findMany.mockResolvedValue([
+      mockPrismaService.quotationSnapshot.findMany.mockResolvedValue([
         mockSnapshot,
       ]);
 
@@ -1631,10 +1630,10 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findFirst.mockResolvedValueOnce({
         createdById: 'user-1',
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (
-        mockPrismaService as any
-      ).quotationSnapshot.findMany.mockResolvedValueOnce([mockSnapshot]);
+
+      mockPrismaService.quotationSnapshot.findMany.mockResolvedValueOnce([
+        mockSnapshot,
+      ]);
 
       const result = await service.findSnapshots(
         'q-1',

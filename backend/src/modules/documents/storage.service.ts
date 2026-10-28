@@ -1,5 +1,9 @@
 /// <reference types="multer" />
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 
@@ -24,7 +28,9 @@ export class StorageService {
     return this._supabase;
   }
 
-  async upload(file: Express.Multer.File): Promise<{ key: string; url: string }> {
+  async upload(
+    file: Express.Multer.File,
+  ): Promise<{ key: string; url: string }> {
     const key = `${randomUUID()}/${file.originalname}`;
     const { error } = await this.supabase.storage
       .from(BUCKET)

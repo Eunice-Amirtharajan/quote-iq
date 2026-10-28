@@ -1,10 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  CanActivate,
-  ExecutionContext,
-  INestApplication,
-} from '@nestjs/common';
+import { CanActivate, INestApplication } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import request from 'supertest';
 import cookieParser from 'cookie-parser';
@@ -17,7 +13,7 @@ import { SUMMARY_PROMPT_VERSION } from '../src/modules/ai/ai.service';
 const FRONTEND_ORIGIN = 'http://localhost:5173';
 
 class NoopThrottlerGuard implements CanActivate {
-  canActivate(_context: ExecutionContext): boolean {
+  canActivate(): boolean {
     return true;
   }
 }
@@ -617,7 +613,7 @@ describe('QuoteIQ E2E', () => {
       expect(res.status).toBe(204);
       expect(res.headers['access-control-allow-origin']).toBe(FRONTEND_ORIGIN);
       expect(
-        (res.headers['access-control-allow-headers'] as string).toLowerCase(),
+        res.headers['access-control-allow-headers'].toLowerCase(),
       ).toContain('idempotency-key');
     });
 

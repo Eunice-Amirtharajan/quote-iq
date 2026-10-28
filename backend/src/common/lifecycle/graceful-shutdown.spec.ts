@@ -138,6 +138,50 @@ describe('registerGracefulShutdown', () => {
     );
   });
 
+  it('runs the final step (e.g. flushing traces) after closing the app, before exiting', async () => {
+    const exit = jest.fn((code: number) => events.push(`exit ${code}`));
+    registerGracefulShutdown(app as unknown as INestApplication, {
+      drainDelayMs: 0,
+      timeoutMs: 2_000,
+      logger,
+      onShutdownStart: () => events.push('not ready'),
+      onShutdownComplete: () => {
+        events.push('flush traces');
+        return Promise.resolve();
+      },
+      exit,
+      signals: [SIGNAL],
+    });
+
+    process.emit(SIGNAL, SIGNAL);
+
+    await waitFor(() => exit.mock.calls.length > 0);
+    expect(events).toEqual([
+      'not ready',
+      'app.close',
+      'flush traces',
+      'exit 0',
+    ]);
+  });
+
+  it('still exits within the timeout when the final step hangs', async () => {
+    const exit = jest.fn();
+    registerGracefulShutdown(app as unknown as INestApplication, {
+      drainDelayMs: 0,
+      timeoutMs: 150,
+      logger,
+      onShutdownStart: jest.fn(),
+      onShutdownComplete: () => new Promise<void>(() => undefined),
+      exit,
+      signals: [SIGNAL],
+    });
+
+    process.emit(SIGNAL, SIGNAL);
+
+    await waitFor(() => exit.mock.calls.length > 0);
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
   it('runs the shutdown once when a second signal arrives', async () => {
     const exit = jest.fn();
     registerGracefulShutdown(app as unknown as INestApplication, {

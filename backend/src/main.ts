@@ -1,4 +1,5 @@
-import './tracing'; // must be first — registers OTel SDK before any instrumented module loads
+// must be first — registers OTel SDK before any instrumented module loads
+import { shutdownTracing } from './tracing';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
@@ -112,6 +113,7 @@ async function bootstrap() {
     timeoutMs: SHUTDOWN_TIMEOUT_MS,
     logger: app.get(AppLogger),
     onShutdownStart: () => health.markShuttingDown(),
+    onShutdownComplete: shutdownTracing,
   });
   startDbKeepalive(prisma);
 }

@@ -24,8 +24,15 @@ async function main() {
 
   // Clients created by client-management/quote-creation specs are named '<Prefix>-<Date.now()>'.
   // Quotations reference clients without cascade, so remove theirs first (items etc. cascade).
-  const E2E_CLIENT_PREFIXES = ['NewClient-', 'DetailClient-', 'TestClient-', 'MobileClient-'];
-  const e2eClients = { OR: E2E_CLIENT_PREFIXES.map((prefix) => ({ name: { startsWith: prefix } })) };
+  const E2E_CLIENT_PREFIXES = [
+    'NewClient-',
+    'DetailClient-',
+    'TestClient-',
+    'MobileClient-',
+  ];
+  const e2eClients = {
+    OR: E2E_CLIENT_PREFIXES.map((prefix) => ({ name: { startsWith: prefix } })),
+  };
   await prisma.quotation.deleteMany({ where: { client: e2eClients } });
   await prisma.client.deleteMany({ where: e2eClients });
 
@@ -33,5 +40,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

@@ -6,7 +6,10 @@ import { describeError } from '../helper/helper';
 export class TokenStoreService implements OnModuleDestroy {
   private readonly logger = new Logger(TokenStoreService.name);
   private readonly redis: Redis | null = null;
-  private readonly memory = new Map<string, { value: string; expiresAt: number }>();
+  private readonly memory = new Map<
+    string,
+    { value: string; expiresAt: number }
+  >();
 
   constructor() {
     if (process.env.REDIS_URL) {
@@ -15,7 +18,9 @@ export class TokenStoreService implements OnModuleDestroy {
         this.logger.error('Redis connection error', describeError(err)),
       );
     } else {
-      this.logger.warn('REDIS_URL not set — using in-memory token store (tokens lost on restart)');
+      this.logger.warn(
+        'REDIS_URL not set — using in-memory token store (tokens lost on restart)',
+      );
     }
   }
 
@@ -23,7 +28,10 @@ export class TokenStoreService implements OnModuleDestroy {
     if (this.redis) {
       await this.redis.set(key, value, 'EX', ttlSeconds);
     } else {
-      this.memory.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+      this.memory.set(key, {
+        value,
+        expiresAt: Date.now() + ttlSeconds * 1000,
+      });
     }
   }
 

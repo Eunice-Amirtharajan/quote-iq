@@ -26,7 +26,9 @@ describe('ScanService', () => {
   describe('scan — VirusTotal upload fails', () => {
     it('throws InternalServerErrorException when VT upload returns non-ok', async () => {
       process.env.VIRUSTOTAL_API_KEY = 'test-key';
-      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 }) as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500 }) as typeof fetch;
 
       await expect(service.scan(Buffer.from('file'))).rejects.toThrow(
         InternalServerErrorException,
@@ -43,16 +45,20 @@ describe('ScanService', () => {
       });
 
       process.env.VIRUSTOTAL_API_KEY = 'test-key';
-      global.fetch = jest.fn()
+      global.fetch = jest
+        .fn()
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ data: { id: 'analysis-123' } }),
+          json: () => Promise.resolve({ data: { id: 'analysis-123' } }),
         } as Response)
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            data: { attributes: { status: 'completed', stats: { malicious: 0 } } },
-          }),
+          json: () =>
+            Promise.resolve({
+              data: {
+                attributes: { status: 'completed', stats: { malicious: 0 } },
+              },
+            }),
         } as Response) as typeof fetch;
 
       const result = await service.scan(Buffer.from('clean'));
@@ -71,16 +77,20 @@ describe('ScanService', () => {
       });
 
       process.env.VIRUSTOTAL_API_KEY = 'test-key';
-      global.fetch = jest.fn()
+      global.fetch = jest
+        .fn()
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ data: { id: 'analysis-123' } }),
+          json: () => Promise.resolve({ data: { id: 'analysis-123' } }),
         } as Response)
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            data: { attributes: { status: 'completed', stats: { malicious: 3 } } },
-          }),
+          json: () =>
+            Promise.resolve({
+              data: {
+                attributes: { status: 'completed', stats: { malicious: 3 } },
+              },
+            }),
         } as Response) as typeof fetch;
 
       const result = await service.scan(Buffer.from('malware'));
@@ -99,16 +109,20 @@ describe('ScanService', () => {
       });
 
       process.env.VIRUSTOTAL_API_KEY = 'test-key';
-      global.fetch = jest.fn()
+      global.fetch = jest
+        .fn()
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ data: { id: 'analysis-123' } }),
+          json: () => Promise.resolve({ data: { id: 'analysis-123' } }),
         } as Response)
         .mockResolvedValue({
           ok: true,
-          json: async () => ({
-            data: { attributes: { status: 'queued', stats: { malicious: 0 } } },
-          }),
+          json: () =>
+            Promise.resolve({
+              data: {
+                attributes: { status: 'queued', stats: { malicious: 0 } },
+              },
+            }),
         } as Response) as typeof fetch;
 
       await expect(service.scan(Buffer.from('file'))).rejects.toThrow(

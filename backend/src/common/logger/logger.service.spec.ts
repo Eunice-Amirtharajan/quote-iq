@@ -50,7 +50,9 @@ describe('AppLogger', () => {
           done();
         },
       });
-      (logger as unknown as { logger: Logger }).logger.add(new transports.Stream({ stream }));
+      (logger as unknown as { logger: Logger }).logger.add(
+        new transports.Stream({ stream }),
+      );
       return lines;
     };
 
@@ -68,7 +70,9 @@ describe('AppLogger', () => {
     it('omits the correlation ID outside a request or when it is empty', () => {
       const lines = capture();
       logger.info('startup message', 'Test');
-      correlationStore.run('', () => logger.info('message with no upstream ID', 'Test'));
+      correlationStore.run('', () =>
+        logger.info('message with no upstream ID', 'Test'),
+      );
 
       expect(lines).toHaveLength(2);
       for (const line of lines) expect(line).not.toContain('cid');

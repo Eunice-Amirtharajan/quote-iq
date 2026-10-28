@@ -39,7 +39,8 @@ export class QueueConsumerService {
     const headers = amqpMsg.properties.headers;
     const xDeath = headers['x-death'] as { count: number }[] | undefined;
     const deathCount = xDeath?.[0]?.count ?? 0;
-    const correlationId = (headers['x-correlation-id'] as string | undefined) ?? '';
+    const correlationId =
+      (headers['x-correlation-id'] as string | undefined) ?? '';
     const publishedAt = (headers['x-published-at'] as number | undefined) ?? 0;
     const consumeStart = Date.now();
     const queueWaitMs = publishedAt ? consumeStart - publishedAt : -1;
@@ -58,7 +59,11 @@ export class QueueConsumerService {
 
           try {
             const result = await this.ai.getConversionScore(quotationId);
-            this.gateway.emitScoreReady(quotationId, result.score, result.label);
+            this.gateway.emitScoreReady(
+              quotationId,
+              result.score,
+              result.label,
+            );
             // Generate embedding for similar-quotes search — same message, second write.
             // If this throws, the whole handler retries via Nack(false) → DLQ after MAX_RETRIES.
             await this.ai.generateQuotationEmbedding(quotationId);
@@ -70,7 +75,10 @@ export class QueueConsumerService {
             );
           } catch (err) {
             const isPermanent = err instanceof NotFoundException;
-            span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+            span.setStatus({
+              code: SpanStatusCode.ERROR,
+              message: String(err),
+            });
             this.logger.error(
               `Failed to process quote.created — quotationId:${quotationId} attempt:${deathCount + 1}${isPermanent ? ' (permanent — sending to DLQ)' : ''}`,
               describeError(err),
