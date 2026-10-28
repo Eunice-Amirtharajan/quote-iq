@@ -215,6 +215,10 @@ export class AIService implements OnModuleInit {
   private readonly openAI: OpenAI;
   private readonly groqBreaker: CircuitBreaker;
   private readonly models = new ModelCatalog(modelPinsFromEnv());
+  // Measured with the eval (ADR §65): on the current playbook (6 chunks) the LLM reranker picked
+  // the same passages as hybrid search, for a third of the tokens and an extra Groq call per
+  // question. Off by default; re-measure with it on when the corpus grows.
+  private readonly llmRerank = process.env.AI_PLAYBOOK_RERANK === 'true';
 
   async onModuleInit() {
     try {
@@ -1741,6 +1745,16 @@ Answer in 2–4 sentences. Be direct and factual.`;
     return { chunks, bestDistance };
   }
 
+  /** The 3 passages the answer model gets: the LLM reranker's pick if enabled, else search order. */
+  private async choosePassages(
+    question: string,
+    chunks: Parameters<AIService['rerankChunks']>[1],
+  ): ReturnType<AIService['rerankChunks']> {
+    return this.llmRerank
+      ? this.rerankChunks(question, chunks)
+      : chunks.slice(0, 3);
+  }
+
   private async rerankChunks(
     question: string,
     chunks: Array<{
@@ -1829,7 +1843,7 @@ ${numbered}`;
       return { answer: PLAYBOOK_REFUSAL, citations: [], grounded: true };
     }
 
-    const reranked = await this.rerankChunks(trimmed, topChunks);
+    const reranked = await this.choosePassages(trimmed, topChunks);
 
     const context = reranked
       .map(

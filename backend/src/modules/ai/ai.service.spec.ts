@@ -122,6 +122,8 @@ const mockQuota = {
 process.env.GROQ_COMPLETION_MODELS =
   'llama-3.1-70b-versatile,llama-3.1-8b-instant,llama3-8b-8192';
 process.env.GROQ_CLASSIFIER_MODELS = 'llama-3.1-8b-instant';
+// The playbook tests cover the LLM reranker; its default (off) is tested separately
+process.env.AI_PLAYBOOK_RERANK = 'true';
 
 // Constructs the service directly, without the Nest testing module
 const newBareService = () =>
@@ -2167,6 +2169,36 @@ describe('AIService', () => {
       expect(result.citations).toEqual([]);
       expect(result.grounded).toBe(true);
       expect(mockUngrounded.inc).not.toHaveBeenCalled();
+    });
+
+    describe('without the LLM reranker (the default)', () => {
+      const asDefault = () => {
+        delete process.env.AI_PLAYBOOK_RERANK;
+        const bare = newBareService();
+        process.env.AI_PLAYBOOK_RERANK = 'true';
+        return bare;
+      };
+
+      it('reads AI_PLAYBOOK_RERANK once, at construction', () => {
+        expect(asDefault()['llmRerank']).toBe(false);
+        expect(newBareService()['llmRerank']).toBe(true);
+      });
+
+      it('answers from the top 3 search results with a single Groq call', async () => {
+        Object.defineProperty(service, 'llmRerank', { value: false });
+        mockCreate.mockResolvedValueOnce({
+          choices: [{ message: { content: 'Lead with value (see [1]).' } }],
+        });
+
+        const result = await service.askPlaybook('How do I handle objections?');
+
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+        const systemPrompt = mockCreate.mock.calls[0][0].messages[0].content as string;
+        expect(systemPrompt).toContain('objection handling');
+        expect(systemPrompt).toContain('Competitor analysis content.');
+        expect(systemPrompt).not.toContain('Discount approval process overview.'); // 4th result
+        expect(result.citations[0].excerpt).toContain('objection handling');
+      });
     });
 
     it('returns grounded refusal when no chunks found', async () => {
