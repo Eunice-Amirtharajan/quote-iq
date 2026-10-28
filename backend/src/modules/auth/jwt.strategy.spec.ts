@@ -61,7 +61,11 @@ describe('JwtStrategy', () => {
     };
 
     it('returns user when valid payload and user is active', async () => {
-      const mockUser = { id: 'user-1', email: 'marcus@quoteiq.com', isActive: true };
+      const mockUser = {
+        id: 'user-1',
+        email: 'marcus@quoteiq.com',
+        isActive: true,
+      };
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
       const result = await strategy.validate(payload);

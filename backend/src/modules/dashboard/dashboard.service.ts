@@ -134,7 +134,10 @@ export class DashboardService {
 
       const [current, dealSizes] = await Promise.all([
         this.fetchRawStats(where, currentFilter),
-        this.fetchDealSizeDistribution(isManager ? undefined : user.id, currentFilter),
+        this.fetchDealSizeDistribution(
+          isManager ? undefined : user.id,
+          currentFilter,
+        ),
       ]);
       const conversionRate = this.calcConversionRate(
         current.totalApproved,
@@ -142,7 +145,8 @@ export class DashboardService {
       );
 
       // Compute previous period only when a range is given
-      let prevStats: Awaited<ReturnType<typeof this.fetchRawStats>> | null = null;
+      let prevStats: Awaited<ReturnType<typeof this.fetchRawStats>> | null =
+        null;
       if (from && to) {
         const spanMs = to.getTime() - from.getTime();
         const prevTo = new Date(from.getTime() - 1);
@@ -163,11 +167,16 @@ export class DashboardService {
       }
 
       const prevConversionRate = prevStats
-        ? this.calcConversionRate(prevStats.totalApproved, prevStats.totalRejected)
+        ? this.calcConversionRate(
+            prevStats.totalApproved,
+            prevStats.totalRejected,
+          )
         : null;
       const prevAvgDealSize = prevStats
         ? prevStats.totalApproved > 0
-          ? Math.round((prevStats.totalApprovedValue / prevStats.totalApproved) * 100) / 100
+          ? Math.round(
+              (prevStats.totalApprovedValue / prevStats.totalApproved) * 100,
+            ) / 100
           : 0
         : null;
 
@@ -188,10 +197,16 @@ export class DashboardService {
             ? this.calcTrend(conversionRate, prevConversionRate)
             : null,
         totalPipelineValueTrend: prevStats
-          ? this.calcTrend(current.totalPipelineValue, prevStats.totalPipelineValue)
+          ? this.calcTrend(
+              current.totalPipelineValue,
+              prevStats.totalPipelineValue,
+            )
           : null,
         totalApprovedValueTrend: prevStats
-          ? this.calcTrend(current.totalApprovedValue, prevStats.totalApprovedValue)
+          ? this.calcTrend(
+              current.totalApprovedValue,
+              prevStats.totalApprovedValue,
+            )
           : null,
         avgDealSizeTrend:
           prevStats && prevAvgDealSize !== null
@@ -220,7 +235,9 @@ export class DashboardService {
     createdById: string | undefined,
     dateFilter: { gte?: Date; lte?: Date } | undefined,
   ): Promise<{ medianDealSize: number | null; p90DealSize: number | null }> {
-    const rows = await this.prisma.$queryRaw<{ median: number | null; p90: number | null }[]>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<
+      { median: number | null; p90: number | null }[]
+    >(Prisma.sql`
       SELECT
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total) AS median,
         PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY total) AS p90
@@ -232,7 +249,8 @@ export class DashboardService {
     `);
     const row = rows[0];
     return {
-      medianDealSize: row?.median == null ? null : this.round2(Number(row.median)),
+      medianDealSize:
+        row?.median == null ? null : this.round2(Number(row.median)),
       p90DealSize: row?.p90 == null ? null : this.round2(Number(row.p90)),
     };
   }
@@ -260,7 +278,11 @@ export class DashboardService {
         by: ['createdById', 'status'],
         where: {
           status: {
-            in: [QuotationStatus.SENT, QuotationStatus.APPROVED, QuotationStatus.REJECTED],
+            in: [
+              QuotationStatus.SENT,
+              QuotationStatus.APPROVED,
+              QuotationStatus.REJECTED,
+            ],
           },
           ...(dateFilter ? { createdAt: dateFilter } : {}),
         },
@@ -268,10 +290,20 @@ export class DashboardService {
         _sum: { total: true },
       });
 
-      type RepAgg = { sent: number; approved: number; rejected: number; revenue: number };
+      type RepAgg = {
+        sent: number;
+        approved: number;
+        rejected: number;
+        revenue: number;
+      };
       const byRep = new Map<string, RepAgg>();
       for (const row of rows) {
-        const agg = byRep.get(row.createdById) ?? { sent: 0, approved: 0, rejected: 0, revenue: 0 };
+        const agg = byRep.get(row.createdById) ?? {
+          sent: 0,
+          approved: 0,
+          rejected: 0,
+          revenue: 0,
+        };
         agg.sent += row._count._all;
         if (row.status === QuotationStatus.APPROVED) {
           agg.approved += row._count._all;
@@ -290,8 +322,14 @@ export class DashboardService {
 
       // Revenue desc, name asc as a stable tie-break
       const ranked = [...byRep.entries()]
-        .map(([repId, agg]) => ({ repId, repName: nameById.get(repId) ?? 'Unknown', ...agg }))
-        .sort((a, b) => b.revenue - a.revenue || a.repName.localeCompare(b.repName));
+        .map(([repId, agg]) => ({
+          repId,
+          repName: nameById.get(repId) ?? 'Unknown',
+          ...agg,
+        }))
+        .sort(
+          (a, b) => b.revenue - a.revenue || a.repName.localeCompare(b.repName),
+        );
 
       const toRow = (
         r: RepAgg & { repId: string | null; repName: string },
@@ -318,10 +356,18 @@ export class DashboardService {
           }),
           { sent: 0, approved: 0, rejected: 0, revenue: 0 },
         );
-        result.push(toRow({ ...others, repId: null, repName: `${rest.length} others` }, true));
+        result.push(
+          toRow(
+            { ...others, repId: null, repName: `${rest.length} others` },
+            true,
+          ),
+        );
       }
 
-      this.logger.info(`Rep performance retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Rep performance retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -333,7 +379,10 @@ export class DashboardService {
     }
   }
 
-  async getClientConcentration(from?: Date, to?: Date): Promise<ClientConcentrationType[]> {
+  async getClientConcentration(
+    from?: Date,
+    to?: Date,
+  ): Promise<ClientConcentrationType[]> {
     this.logger.info(
       `Getting client concentration — range: ${this.describeRange(from, to)}`,
       DashboardService.name,
@@ -372,12 +421,17 @@ export class DashboardService {
           clientName: nameById.get(row.clientId) ?? 'Unknown',
           approvedRevenue: this.round2(revenue),
           shareOfTotal:
-            totalRevenue > 0 ? Math.round((revenue / totalRevenue) * 1000) / 10 : 0,
+            totalRevenue > 0
+              ? Math.round((revenue / totalRevenue) * 1000) / 10
+              : 0,
           quoteCount: (row._count as { _all: number })._all,
         };
       });
 
-      this.logger.info(`Client concentration retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Client concentration retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -398,11 +452,17 @@ export class DashboardService {
    * Months are bucketed by when the status change happened — not by createdAt — so
    * slower rejections don't make recent months look artificially good.
    */
-  async getApprovalRateTrend(now: Date = new Date()): Promise<ApprovalRateMonthType[]> {
+  async getApprovalRateTrend(
+    now: Date = new Date(),
+  ): Promise<ApprovalRateMonthType[]> {
     this.logger.info(`Getting approval rate trend`, DashboardService.name);
     try {
       const start = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (TREND_MONTHS - 1), 1),
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() - (TREND_MONTHS - 1),
+          1,
+        ),
       );
 
       // Prisma's groupBy cannot truncate dates, so month bucketing needs raw SQL
@@ -437,11 +497,17 @@ export class DashboardService {
           sent,
           approved,
           rejected,
-          rate: approved + rejected > 0 ? this.calcConversionRate(approved, rejected) : null,
+          rate:
+            approved + rejected > 0
+              ? this.calcConversionRate(approved, rejected)
+              : null,
         };
       });
 
-      this.logger.info(`Approval rate trend retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Approval rate trend retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -465,7 +531,12 @@ export class DashboardService {
     );
     try {
       const rows = await this.prisma.$queryRaw<
-        { transition: string; avg_days: number; p90_days: number; sample_size: bigint }[]
+        {
+          transition: string;
+          avg_days: number;
+          p90_days: number;
+          sample_size: bigint;
+        }[]
       >(Prisma.sql`
         WITH sent AS (
           SELECT "quotationId", MIN("changedAt") AS sent_at
@@ -511,13 +582,18 @@ export class DashboardService {
         const sampleSize = Number(row?.sample_size ?? 0);
         return {
           transition,
-          avgDays: row && sampleSize > 0 ? this.round1(Number(row.avg_days)) : null,
-          p90Days: row && sampleSize > 0 ? this.round1(Number(row.p90_days)) : null,
+          avgDays:
+            row && sampleSize > 0 ? this.round1(Number(row.avg_days)) : null,
+          p90Days:
+            row && sampleSize > 0 ? this.round1(Number(row.p90_days)) : null,
           sampleSize,
         };
       });
 
-      this.logger.info(`Deal velocity retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Deal velocity retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -537,7 +613,10 @@ export class DashboardService {
     thresholdDays = 14,
     now: Date = new Date(),
   ): Promise<StalePipelineType> {
-    const threshold = Math.min(Math.max(thresholdDays, 1), STALE_MAX_THRESHOLD_DAYS);
+    const threshold = Math.min(
+      Math.max(thresholdDays, 1),
+      STALE_MAX_THRESHOLD_DAYS,
+    );
     this.logger.info(
       `Getting stale quotations — threshold: ${threshold}d`,
       DashboardService.name,
@@ -581,11 +660,16 @@ export class DashboardService {
           repName: q.createdBy.name,
           total: q.total,
           sentAt: q.updatedAt.toISOString(),
-          daysStale: Math.floor((now.getTime() - q.updatedAt.getTime()) / DAY_MS),
+          daysStale: Math.floor(
+            (now.getTime() - q.updatedAt.getTime()) / DAY_MS,
+          ),
         })),
       };
 
-      this.logger.info(`Stale quotations retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Stale quotations retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -614,13 +698,26 @@ export class DashboardService {
     try {
       const currentQuarterMonth = Math.floor(now.getUTCMonth() / 3) * 3;
       const quarterStart = (i: number) =>
-        new Date(Date.UTC(now.getUTCFullYear(), currentQuarterMonth + (i - (count - 1)) * 3, 1));
+        new Date(
+          Date.UTC(
+            now.getUTCFullYear(),
+            currentQuarterMonth + (i - (count - 1)) * 3,
+            1,
+          ),
+        );
       const start = quarterStart(0);
 
       // Keys look like "2026-3" (year-quarter) so both queries join on the same label
       const [statRows, clientRows] = await Promise.all([
         this.prisma.$queryRaw<
-          { key: string; total: bigint; approved: bigint; rejected: bigint; revenue: number; pipeline: number }[]
+          {
+            key: string;
+            total: bigint;
+            approved: bigint;
+            rejected: bigint;
+            revenue: number;
+            pipeline: number;
+          }[]
         >(Prisma.sql`
           SELECT
             to_char(date_trunc('quarter', "createdAt"), 'YYYY-Q') AS key,
@@ -676,8 +773,14 @@ export class DashboardService {
           totalApproved,
           pipelineValue: this.round2(Number(row?.pipeline ?? 0)),
           approvedRevenue: this.round2(approvedRevenue),
-          winRate: this.calcConversionRate(totalApproved, Number(row?.rejected ?? 0)),
-          avgDealSize: totalApproved > 0 ? this.round2(approvedRevenue / totalApproved) : 0,
+          winRate: this.calcConversionRate(
+            totalApproved,
+            Number(row?.rejected ?? 0),
+          ),
+          avgDealSize:
+            totalApproved > 0
+              ? this.round2(approvedRevenue / totalApproved)
+              : 0,
           topClients: clientRows
             .filter((c) => c.key === key)
             .map((c) => ({
@@ -688,7 +791,10 @@ export class DashboardService {
         };
       });
 
-      this.logger.info(`Quarterly history retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Quarterly history retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(
@@ -748,19 +854,25 @@ export class DashboardService {
           approved,
           rejected,
           decided,
-          winRate: decided > 0 ? this.calcConversionRate(approved, rejected) : null,
+          winRate:
+            decided > 0 ? this.calcConversionRate(approved, rejected) : null,
         };
       };
 
       // Tally per rep and per band for the team baseline
-      const byRep = new Map<string, Map<string, { approved: number; rejected: number }>>();
+      const byRep = new Map<
+        string,
+        Map<string, { approved: number; rejected: number }>
+      >();
       const team = new Map<string, { approved: number; rejected: number }>(
         DEAL_SIZE_BUCKETS.map((b) => [b, { approved: 0, rejected: 0 }]),
       );
       for (const row of rows) {
         const approved = Number(row.approved);
         const rejected = Number(row.rejected);
-        const bands = byRep.get(row.rep_id) ?? new Map<string, { approved: number; rejected: number }>();
+        const bands =
+          byRep.get(row.rep_id) ??
+          new Map<string, { approved: number; rejected: number }>();
         bands.set(row.bucket, { approved, rejected });
         byRep.set(row.rep_id, bands);
         const t = team.get(row.bucket);
@@ -793,7 +905,9 @@ export class DashboardService {
           };
         })
         // Most decided deals first (the rows with the most evidence), name as a stable tie-break
-        .sort((a, b) => b.decided - a.decided || a.repName.localeCompare(b.repName));
+        .sort(
+          (a, b) => b.decided - a.decided || a.repName.localeCompare(b.repName),
+        );
 
       const result = {
         buckets: [...DEAL_SIZE_BUCKETS],
@@ -807,7 +921,10 @@ export class DashboardService {
         limit: pageSize,
       };
 
-      this.logger.info(`Rep × deal-size win rates retrieval is successful`, DashboardService.name);
+      this.logger.info(
+        `Rep × deal-size win rates retrieval is successful`,
+        DashboardService.name,
+      );
       return result;
     } catch (error) {
       this.logger.error(

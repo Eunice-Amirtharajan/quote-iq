@@ -24,8 +24,16 @@ export class ClientsResolver {
   @Query(/* istanbul ignore next */ () => ClientsPageType)
   async clientsPage(
     @Args('search', { nullable: true }) search?: string,
-    @Args('skip', { type: /* istanbul ignore next */ () => Int, nullable: true }) skip?: number,
-    @Args('take', { type: /* istanbul ignore next */ () => Int, nullable: true }) take?: number,
+    @Args('skip', {
+      type: /* istanbul ignore next */ () => Int,
+      nullable: true,
+    })
+    skip?: number,
+    @Args('take', {
+      type: /* istanbul ignore next */ () => Int,
+      nullable: true,
+    })
+    take?: number,
   ): Promise<ClientsPageType> {
     const [items, total] = await Promise.all([
       this.clientsService.findAll(search, skip ?? 0, take ?? 50),

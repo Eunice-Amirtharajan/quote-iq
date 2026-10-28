@@ -25,7 +25,9 @@ describe('ModerationService', () => {
 
   it('returns not flagged when OpenAI says clean', async () => {
     mockCreate.mockResolvedValue({
-      results: [{ flagged: false, categories: { hate: false, violence: false } }],
+      results: [
+        { flagged: false, categories: { hate: false, violence: false } },
+      ],
     });
     const result = await service.moderate('Normal business document');
     expect(result.flagged).toBe(false);

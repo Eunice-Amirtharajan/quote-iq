@@ -3,10 +3,15 @@ jest.mock('bcrypt', () => ({
   hash: jest.fn(),
 }));
 import { Test, TestingModule } from '@nestjs/testing';
+import { Role } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AppLogger } from '../../common/logger/logger.service';
 import { TokenStoreService } from '../../common/token-store/token-store.service';
 import { MailService } from '../../common/mail/mail.service';
@@ -54,7 +59,10 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: AppLogger, useValue: mockLogger },
-        { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+        {
+          provide: TokenStoreService,
+          useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() },
+        },
         { provide: MailService, useValue: { sendMail: jest.fn() } },
       ],
     }).compile();
@@ -276,7 +284,10 @@ describe('AuthService', () => {
           { provide: PrismaService, useValue: mockPrismaService },
           { provide: JwtService, useValue: mockJwtService },
           { provide: AppLogger, useValue: mockLogger },
-          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          {
+            provide: TokenStoreService,
+            useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() },
+          },
           { provide: MailService, useValue: { sendMail: jest.fn() } },
         ],
       }).compile();
@@ -288,13 +299,27 @@ describe('AuthService', () => {
 
     it('creates user, stores token, and sends invite email', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
-      mockPrismaService.user.create.mockResolvedValue({ id: 'u-new', name: 'Alice', email: 'alice@test.com', role: 'SALES_REP' });
+      mockPrismaService.user.create.mockResolvedValue({
+        id: 'u-new',
+        name: 'Alice',
+        email: 'alice@test.com',
+        role: 'SALES_REP',
+      });
 
-      const result = await service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any);
+      const result = await service.inviteUser(
+        'Alice',
+        'alice@test.com',
+        Role.SALES_REP,
+      );
 
       expect(result).toBe(true);
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
-        data: { name: 'Alice', email: 'alice@test.com', role: 'SALES_REP', password: null },
+        data: {
+          name: 'Alice',
+          email: 'alice@test.com',
+          role: 'SALES_REP',
+          password: null,
+        },
       });
       expect(tokenStore.set).toHaveBeenCalledWith(
         expect.stringMatching(/^invite:/),
@@ -309,25 +334,46 @@ describe('AuthService', () => {
     });
 
     it('throws BadRequestException when an active user with that email already exists', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-existing', isActive: true });
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'u-existing',
+        isActive: true,
+      });
 
-      await expect(service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.inviteUser('Alice', 'alice@test.com', Role.SALES_REP),
+      ).rejects.toThrow(BadRequestException);
 
       expect(mockPrismaService.user.create).not.toHaveBeenCalled();
     });
 
     it('re-invites a deactivated user: reactivates, resets password, sends invite', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-deactivated', isActive: false });
-      mockPrismaService.user.update.mockResolvedValue({ id: 'u-deactivated', name: 'Alice', email: 'alice@test.com', role: 'SALES_REP' });
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'u-deactivated',
+        isActive: false,
+      });
+      mockPrismaService.user.update.mockResolvedValue({
+        id: 'u-deactivated',
+        name: 'Alice',
+        email: 'alice@test.com',
+        role: 'SALES_REP',
+      });
 
-      const result = await service.inviteUser('Alice', 'alice@test.com', 'SALES_REP' as any);
+      const result = await service.inviteUser(
+        'Alice',
+        'alice@test.com',
+        Role.SALES_REP,
+      );
 
       expect(result).toBe(true);
       expect(mockPrismaService.user.create).not.toHaveBeenCalled();
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'u-deactivated' },
-        data: { name: 'Alice', role: 'SALES_REP', password: null, isActive: true },
+        data: {
+          name: 'Alice',
+          role: 'SALES_REP',
+          password: null,
+          isActive: true,
+        },
       });
       expect(mailService.sendMail).toHaveBeenCalled();
     });
@@ -343,7 +389,10 @@ describe('AuthService', () => {
           { provide: PrismaService, useValue: mockPrismaService },
           { provide: JwtService, useValue: mockJwtService },
           { provide: AppLogger, useValue: mockLogger },
-          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          {
+            provide: TokenStoreService,
+            useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() },
+          },
           { provide: MailService, useValue: { sendMail: jest.fn() } },
         ],
       }).compile();
@@ -355,7 +404,10 @@ describe('AuthService', () => {
     it('sets password and deletes token on valid invite token', async () => {
       tokenStore.get.mockResolvedValue('u-123');
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-123', isActive: true });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-123',
+        isActive: true,
+      });
       mockPrismaService.user.update.mockResolvedValue({});
 
       const result = await service.acceptInvite('valid-token', 'newpassword');
@@ -372,16 +424,21 @@ describe('AuthService', () => {
     it('throws BadRequestException when invite token is invalid', async () => {
       tokenStore.get.mockResolvedValue(null);
 
-      await expect(service.acceptInvite('bad-token', 'newpassword'))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.acceptInvite('bad-token', 'newpassword'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws BadRequestException when the invited user has been deactivated', async () => {
       tokenStore.get.mockResolvedValue('u-123');
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-123', isActive: false });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-123',
+        isActive: false,
+      });
 
-      await expect(service.acceptInvite('valid-token', 'newpassword'))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.acceptInvite('valid-token', 'newpassword'),
+      ).rejects.toThrow(BadRequestException);
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
@@ -397,7 +454,10 @@ describe('AuthService', () => {
           { provide: PrismaService, useValue: mockPrismaService },
           { provide: JwtService, useValue: mockJwtService },
           { provide: AppLogger, useValue: mockLogger },
-          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          {
+            provide: TokenStoreService,
+            useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() },
+          },
           { provide: MailService, useValue: { sendMail: jest.fn() } },
         ],
       }).compile();
@@ -408,7 +468,11 @@ describe('AuthService', () => {
     });
 
     it('stores reset token and reverse index, and sends email for valid user with password', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-1', email: 'user@test.com', password: 'hashed' });
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'u-1',
+        email: 'user@test.com',
+        password: 'hashed',
+      });
 
       await service.requestPasswordReset('user@test.com');
 
@@ -432,14 +496,22 @@ describe('AuthService', () => {
     it('returns silently when email does not exist (no enumeration)', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.requestPasswordReset('nobody@test.com')).resolves.toBeUndefined();
+      await expect(
+        service.requestPasswordReset('nobody@test.com'),
+      ).resolves.toBeUndefined();
       expect(tokenStore.set).not.toHaveBeenCalled();
     });
 
     it('returns silently when user has no password (invited user, not yet activated)', async () => {
-      mockPrismaService.user.findFirst.mockResolvedValue({ id: 'u-1', email: 'user@test.com', password: null });
+      mockPrismaService.user.findFirst.mockResolvedValue({
+        id: 'u-1',
+        email: 'user@test.com',
+        password: null,
+      });
 
-      await expect(service.requestPasswordReset('user@test.com')).resolves.toBeUndefined();
+      await expect(
+        service.requestPasswordReset('user@test.com'),
+      ).resolves.toBeUndefined();
       expect(tokenStore.set).not.toHaveBeenCalled();
     });
   });
@@ -454,7 +526,10 @@ describe('AuthService', () => {
           { provide: PrismaService, useValue: mockPrismaService },
           { provide: JwtService, useValue: mockJwtService },
           { provide: AppLogger, useValue: mockLogger },
-          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          {
+            provide: TokenStoreService,
+            useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() },
+          },
           { provide: MailService, useValue: { sendMail: jest.fn() } },
         ],
       }).compile();
@@ -468,7 +543,10 @@ describe('AuthService', () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed');
       mockPrismaService.user.update.mockResolvedValue({});
 
-      const result = await service.resetPassword('valid-reset-token', 'newpassword');
+      const result = await service.resetPassword(
+        'valid-reset-token',
+        'newpassword',
+      );
 
       expect(result).toBe(true);
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
@@ -482,26 +560,36 @@ describe('AuthService', () => {
     it('throws BadRequestException when reset token is invalid', async () => {
       tokenStore.get.mockResolvedValue(null);
 
-      await expect(service.resetPassword('bad-token', 'newpassword'))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.resetPassword('bad-token', 'newpassword'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('getUserById', () => {
     it('returns user when found', async () => {
-      const mockUser = { id: 'u-1', name: 'Alice', email: 'alice@test.com', role: 'SALES_REP' };
+      const mockUser = {
+        id: 'u-1',
+        name: 'Alice',
+        email: 'alice@test.com',
+        role: 'SALES_REP',
+      };
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.getUserById('u-1');
 
       expect(result).toEqual(mockUser);
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({ where: { id: 'u-1' } });
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+      });
     });
 
     it('throws NotFoundException when user not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getUserById('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.getUserById('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -517,7 +605,12 @@ describe('AuthService', () => {
       const result = await service.listUsers(0, 50);
 
       expect(result).toEqual({ items: users, total: 2 });
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({ where: { isActive: true }, orderBy: { name: 'asc' }, skip: 0, take: 50 });
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
+        where: { isActive: true },
+        orderBy: { name: 'asc' },
+        skip: 0,
+        take: 50,
+      });
     });
 
     it('returns empty items when no users exist', async () => {
@@ -536,44 +629,64 @@ describe('AuthService', () => {
 
       expect(result).toEqual({ items: users, total: 1 });
       expect(mockPrismaService.user.findMany).toHaveBeenCalledWith({
-        where: { isActive: true, name: { contains: 'ali', mode: 'insensitive' } },
+        where: {
+          isActive: true,
+          name: { contains: 'ali', mode: 'insensitive' },
+        },
         orderBy: { name: 'asc' },
         skip: 0,
         take: 50,
       });
       expect(mockPrismaService.user.count).toHaveBeenCalledWith({
-        where: { isActive: true, name: { contains: 'ali', mode: 'insensitive' } },
+        where: {
+          isActive: true,
+          name: { contains: 'ali', mode: 'insensitive' },
+        },
       });
     });
   });
 
   describe('deleteUser', () => {
     it('deletes user when they have no quotations', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob' });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-2',
+        name: 'Bob',
+      });
       mockPrismaService.quotation.count.mockResolvedValue(0);
       mockPrismaService.user.delete.mockResolvedValue({});
 
       const result = await service.deleteUser('u-2', 'u-me');
 
       expect(result).toBe(true);
-      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({ where: { id: 'u-2' } });
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+        where: { id: 'u-2' },
+      });
     });
 
     it('throws BadRequestException when deleting own account', async () => {
-      await expect(service.deleteUser('u-me', 'u-me')).rejects.toThrow(BadRequestException);
+      await expect(service.deleteUser('u-me', 'u-me')).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when user not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      await expect(service.deleteUser('u-ghost', 'u-me')).rejects.toThrow(NotFoundException);
+      await expect(service.deleteUser('u-ghost', 'u-me')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws BadRequestException when user has quotations', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob' });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-2',
+        name: 'Bob',
+      });
       mockPrismaService.quotation.count.mockResolvedValue(3);
 
-      await expect(service.deleteUser('u-2', 'u-me')).rejects.toThrow(BadRequestException);
+      await expect(service.deleteUser('u-2', 'u-me')).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
     });
   });
@@ -588,7 +701,10 @@ describe('AuthService', () => {
           { provide: PrismaService, useValue: mockPrismaService },
           { provide: JwtService, useValue: mockJwtService },
           { provide: AppLogger, useValue: mockLogger },
-          { provide: TokenStoreService, useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() } },
+          {
+            provide: TokenStoreService,
+            useValue: { set: jest.fn(), get: jest.fn(), del: jest.fn() },
+          },
           { provide: MailService, useValue: { sendMail: jest.fn() } },
         ],
       }).compile();
@@ -598,7 +714,11 @@ describe('AuthService', () => {
     });
 
     it('sets isActive to false and returns true', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: true });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-2',
+        name: 'Bob',
+        isActive: true,
+      });
       mockPrismaService.user.update.mockResolvedValue({});
       tokenStore.get.mockResolvedValue(null);
 
@@ -612,7 +732,11 @@ describe('AuthService', () => {
     });
 
     it('invalidates outstanding invite token when deactivating', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: true });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-2',
+        name: 'Bob',
+        isActive: true,
+      });
       mockPrismaService.user.update.mockResolvedValue({});
       tokenStore.get.mockResolvedValue('some-invite-token');
 
@@ -623,18 +747,28 @@ describe('AuthService', () => {
     });
 
     it('throws BadRequestException when deactivating own account', async () => {
-      await expect(service.deactivateUser('u-me', 'u-me')).rejects.toThrow(BadRequestException);
+      await expect(service.deactivateUser('u-me', 'u-me')).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when user not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      await expect(service.deactivateUser('u-ghost', 'u-me')).rejects.toThrow(NotFoundException);
+      await expect(service.deactivateUser('u-ghost', 'u-me')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws BadRequestException when user is already deactivated', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'u-2', name: 'Bob', isActive: false });
-      await expect(service.deactivateUser('u-2', 'u-me')).rejects.toThrow(BadRequestException);
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'u-2',
+        name: 'Bob',
+        isActive: false,
+      });
+      await expect(service.deactivateUser('u-2', 'u-me')).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });

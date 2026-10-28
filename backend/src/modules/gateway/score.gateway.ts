@@ -9,7 +9,10 @@ import { Server, Socket } from 'socket.io';
 import { AppLogger } from '../../common/logger/logger.service';
 
 @WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173', credentials: true },
+  cors: {
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    credentials: true,
+  },
   namespace: '/scores',
 })
 export class ScoreGateway {
@@ -31,7 +34,9 @@ export class ScoreGateway {
   }
 
   emitScoreReady(quotationId: string, score: number, label: string): void {
-    this.server.to(quotationId).emit('score.ready', { quotationId, score, label });
+    this.server
+      .to(quotationId)
+      .emit('score.ready', { quotationId, score, label });
     this.logger.info(
       `Emitted score.ready to room ${quotationId} — score:${score} label:${label}`,
       ScoreGateway.name,

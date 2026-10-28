@@ -196,9 +196,7 @@ describe('AIService — missing API key', () => {
   it('throws on construction when GROQ_API_KEY is not set', () => {
     const savedKey = process.env.GROQ_API_KEY;
     delete process.env.GROQ_API_KEY;
-    expect(
-      () => newBareService(),
-    ).toThrow('GROQ_API_KEY is not set');
+    expect(() => newBareService()).toThrow('GROQ_API_KEY is not set');
     process.env.GROQ_API_KEY = savedKey;
   });
 
@@ -207,9 +205,7 @@ describe('AIService — missing API key', () => {
     const savedOpenAI = process.env.OPENAI_API_KEY;
     process.env.GROQ_API_KEY = 'test-key';
     delete process.env.OPENAI_API_KEY;
-    expect(
-      () => newBareService(),
-    ).toThrow('OPENAI_API_KEY is not set');
+    expect(() => newBareService()).toThrow('OPENAI_API_KEY is not set');
     process.env.GROQ_API_KEY = savedGroq;
     process.env.OPENAI_API_KEY = savedOpenAI;
   });
@@ -274,13 +270,17 @@ describe('AIService', () => {
     mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
     // Drain any unconsumed mockResolvedValueOnce values
     mockCreate.mockResolvedValue(mockGroqResponse);
-    mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: Array(1536).fill(0.1) }] });
+    mockEmbeddingsCreate.mockResolvedValue({
+      data: [{ embedding: Array(1536).fill(0.1) }],
+    });
   });
 
   describe('callGroq — no available models', () => {
     it('throws InternalServerErrorException when availableModels is empty', async () => {
       // Re-init with a model list that has no chat models → availableModels stays empty
-      mockModelsList.mockResolvedValueOnce({ data: [{ id: 'whisper-large-v3' }] });
+      mockModelsList.mockResolvedValueOnce({
+        data: [{ id: 'whisper-large-v3' }],
+      });
       await service.onModuleInit();
 
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
@@ -1097,9 +1097,9 @@ describe('AIService', () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       mockCreate.mockRejectedValue(new Error('Groq API error'));
 
-      await expect(
-        service.generateQuotationSummary('q-1'),
-      ).rejects.toThrow('Groq API error');
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'Groq API error',
+      );
 
       expect(mockLogger.error).toHaveBeenCalled();
     });
@@ -1111,9 +1111,9 @@ describe('AIService', () => {
         choices: [{ message: { content: 'not valid json {{{' } }],
       });
 
-      await expect(
-        service.generateQuotationSummary('q-1'),
-      ).rejects.toThrow('AI response could not be parsed');
+      await expect(service.generateQuotationSummary('q-1')).rejects.toThrow(
+        'AI response could not be parsed',
+      );
     });
 
     it('forces RECONSIDER when computed recommendation is RECONSIDER', async () => {
@@ -1244,8 +1244,13 @@ describe('AIService', () => {
     });
 
     it('includes notes in prompt when quotation has notes', async () => {
-      const quotationWithNotes = { ...mockQuotation, notes: 'Special discount applies' };
-      mockPrismaService.quotation.findFirst.mockResolvedValue(quotationWithNotes);
+      const quotationWithNotes = {
+        ...mockQuotation,
+        notes: 'Special discount applies',
+      };
+      mockPrismaService.quotation.findFirst.mockResolvedValue(
+        quotationWithNotes,
+      );
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
 
       const result = await service.generateQuotationSummary('q-1');
@@ -1308,15 +1313,34 @@ describe('AIService', () => {
   });
 
   function mockWinLossSQL({
-    statusRows = [] as { status: string; _count: { _all: number }; _avg: { total: number | null } }[],
-    repRows = [] as { createdById: string; status: string; _count: { _all: number } }[],
+    statusRows = [] as {
+      status: string;
+      _count: { _all: number };
+      _avg: { total: number | null };
+    }[],
+    repRows = [] as {
+      createdById: string;
+      status: string;
+      _count: { _all: number };
+    }[],
     repUsers = [] as { id: string; name: string }[],
-    bucketRows = [] as { bucket: string; total: bigint; approved: bigint; decided: bigint }[],
-    clientRows = [] as { clientId: string; status: string; _count: { _all: number }; _sum: { total: number | null }; _avg: { total: number | null } }[],
+    bucketRows = [] as {
+      bucket: string;
+      total: bigint;
+      approved: bigint;
+      decided: bigint;
+    }[],
+    clientRows = [] as {
+      clientId: string;
+      status: string;
+      _count: { _all: number };
+      _sum: { total: number | null };
+      _avg: { total: number | null };
+    }[],
   } = {}) {
     mockPrismaService.quotation.groupBy
       .mockResolvedValueOnce(statusRows) // by status
-      .mockResolvedValueOnce(repRows)    // by (createdById, status)
+      .mockResolvedValueOnce(repRows) // by (createdById, status)
       .mockResolvedValueOnce(clientRows); // by (clientId, status)
     mockPrismaService.user.findMany.mockResolvedValue(repUsers);
     mockPrismaService.$queryRaw.mockResolvedValue(bucketRows);
@@ -1362,8 +1386,16 @@ describe('AIService', () => {
           { status: 'REJECTED', _count: { _all: 1 }, _avg: { total: 8000 } },
         ],
         repRows: [
-          { createdById: 'user-alice', status: 'APPROVED', _count: { _all: 1 } },
-          { createdById: 'user-alice', status: 'REJECTED', _count: { _all: 1 } },
+          {
+            createdById: 'user-alice',
+            status: 'APPROVED',
+            _count: { _all: 1 },
+          },
+          {
+            createdById: 'user-alice',
+            status: 'REJECTED',
+            _count: { _all: 1 },
+          },
           { createdById: 'user-bob', status: 'APPROVED', _count: { _all: 1 } },
         ],
         repUsers: [
@@ -1430,7 +1462,9 @@ describe('AIService', () => {
 
       const result = await service.getWinLossAnalysis();
 
-      const buckets = Object.fromEntries(result.byDealSize.map((b) => [b.bucket, b]));
+      const buckets = Object.fromEntries(
+        result.byDealSize.map((b) => [b.bucket, b]),
+      );
       expect(buckets['<5k'].total).toBe(1);
       expect(buckets['5k–20k'].total).toBe(1);
       expect(buckets['>20k'].total).toBe(1);
@@ -1485,7 +1519,9 @@ describe('AIService', () => {
         id: 'insight-corrupt',
         content: '{"score":"not-a-number","label":"BAD"}',
       });
-      mockPrismaService.quotation.findFirst.mockResolvedValueOnce(mockQuotation);
+      mockPrismaService.quotation.findFirst.mockResolvedValueOnce(
+        mockQuotation,
+      );
       mockPrismaService.quotation.findMany.mockResolvedValueOnce([]);
 
       await service.getConversionScore('q-1');
@@ -1610,8 +1646,14 @@ describe('AIService', () => {
 
     it('returns cached scores without computing when all are in cache', async () => {
       mockPrismaService.aIInsight.findMany
-        .mockResolvedValueOnce([cachedInsight('q-1', 72), cachedInsight('q-2', 50)])
-        .mockResolvedValueOnce([cachedInsight('q-1', 72), cachedInsight('q-2', 50)]);
+        .mockResolvedValueOnce([
+          cachedInsight('q-1', 72),
+          cachedInsight('q-2', 50),
+        ])
+        .mockResolvedValueOnce([
+          cachedInsight('q-1', 72),
+          cachedInsight('q-2', 50),
+        ]);
 
       const result = await service.getConversionScores(['q-1', 'q-2']);
 
@@ -1624,7 +1666,10 @@ describe('AIService', () => {
     it('computes and caches missing scores then returns all', async () => {
       mockPrismaService.aIInsight.findMany
         .mockResolvedValueOnce([cachedInsight('q-1', 72)])
-        .mockResolvedValueOnce([cachedInsight('q-1', 72), cachedInsight('q-2', 50)]);
+        .mockResolvedValueOnce([
+          cachedInsight('q-1', 72),
+          cachedInsight('q-2', 50),
+        ]);
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
 
@@ -1639,9 +1684,9 @@ describe('AIService', () => {
       mockPrismaService.aIInsight.findFirst.mockResolvedValue(null);
       mockPrismaService.quotation.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.getConversionScores(['q-999']),
-      ).rejects.toThrow('Quotation q-999 not found');
+      await expect(service.getConversionScores(['q-999'])).rejects.toThrow(
+        'Quotation q-999 not found',
+      );
     });
   });
 
@@ -1653,7 +1698,9 @@ describe('AIService', () => {
     it('returns answer from Groq for a valid question', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       mockCreate.mockResolvedValue(mockAnswer);
 
       const result = await service.askAboutQuotation(
@@ -1668,7 +1715,9 @@ describe('AIService', () => {
     it('calls Groq with system/user message split', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       mockCreate.mockResolvedValue(mockAnswer);
 
       await service.askAboutQuotation('q-1', 'What is the total?');
@@ -1691,7 +1740,9 @@ describe('AIService', () => {
       };
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([prevDeal]);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       mockCreate.mockResolvedValue(mockAnswer);
 
       await service.askAboutQuotation('q-1', 'Is this deal typical?');
@@ -1715,18 +1766,20 @@ describe('AIService', () => {
     });
 
     it('throws BadRequestException for blank question', async () => {
-      await expect(
-        service.askAboutQuotation('q-1', '   '),
-      ).rejects.toThrow('Please enter a question.');
+      await expect(service.askAboutQuotation('q-1', '   ')).rejects.toThrow(
+        'Please enter a question.',
+      );
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
     it('rejects off-topic question via intent classifier before the answer call', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'N' } }] });
-      await expect(
-        service.askAboutQuotation('q-1', 'Hi'),
-      ).rejects.toThrow('Please ask a question related to this quotation.');
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'N' } }],
+      });
+      await expect(service.askAboutQuotation('q-1', 'Hi')).rejects.toThrow(
+        'Please ask a question related to this quotation.',
+      );
       // Only one call: the classifier. No further Groq calls for the actual answer.
       expect(mockCreate).toHaveBeenCalledTimes(1);
     });
@@ -1734,7 +1787,9 @@ describe('AIService', () => {
     it('truncates question to 500 characters before sending to Groq', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       mockCreate.mockResolvedValue(mockAnswer);
       const longQuestion = 'a'.repeat(600);
 
@@ -1749,7 +1804,9 @@ describe('AIService', () => {
     it('propagates Groq error when all models fail', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       mockCreate.mockRejectedValue(new Error('Groq unavailable'));
 
       await expect(
@@ -1760,7 +1817,9 @@ describe('AIService', () => {
     it('throws lastError after all models fail with transient errors (queryGroqModels exhausted)', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       // 503 is transient → retries all models → throws lastError after loop
       mockCreate.mockRejectedValue(new Error('503 Service Unavailable'));
 
@@ -1787,9 +1846,17 @@ describe('AIService', () => {
     });
 
     it('hides client and rep names in the quotation Q&A, question included, and restores them', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
       mockCreate.mockResolvedValueOnce({
-        choices: [{ message: { content: 'CLIENT_A usually accepts offers from SALES_REP_A.' } }],
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: 'CLIENT_A usually accepts offers from SALES_REP_A.',
+            },
+          },
+        ],
       });
 
       const result = await service.askAboutQuotation(
@@ -1839,7 +1906,9 @@ describe('AIService', () => {
         riskFactors: ['Bauer Logistics GmbH asked for a discount'],
       });
       const stored = mockPrismaService.aIInsight.upsert.mock.calls[0][0];
-      expect(stored.create.content).toContain('Bauer Logistics GmbH is a repeat buyer.');
+      expect(stored.create.content).toContain(
+        'Bauer Logistics GmbH is a repeat buyer.',
+      );
     });
 
     it('embeds a quotation without its client name, but keeps it for keyword search', async () => {
@@ -1866,7 +1935,8 @@ describe('AIService', () => {
   describe('askLessonsLearned', () => {
     const mockChunks = [
       {
-        source: '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
+        source:
+          '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
         content: 'Full entry text about N+1 query problem.',
         score: 0.016,
       },
@@ -1881,7 +1951,9 @@ describe('AIService', () => {
       // both vector and keyword searches return mockChunks by default
       mockPrismaService.$queryRaw.mockResolvedValue(mockChunks);
       // classifier call always comes first
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      });
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -1900,7 +1972,9 @@ describe('AIService', () => {
     });
 
     it('returns answer and sources for a valid question', async () => {
-      const result = await service.askLessonsLearned('Why did we switch to Groq?');
+      const result = await service.askLessonsLearned(
+        'Why did we switch to Groq?',
+      );
 
       expect(result.answer).toBe('Answer grounded in lessons learned.');
       expect(result.sources).toEqual([
@@ -1912,7 +1986,9 @@ describe('AIService', () => {
 
     it('drops cited entries that were never retrieved and flags the answer', async () => {
       mockCreate.mockReset();
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      });
       mockCreate.mockResolvedValueOnce({
         choices: [
           {
@@ -1929,7 +2005,9 @@ describe('AIService', () => {
         ],
       });
 
-      const result = await service.askLessonsLearned('Why did we switch to Groq?');
+      const result = await service.askLessonsLearned(
+        'Why did we switch to Groq?',
+      );
 
       expect(result.sources).toEqual([
         '12. Switched from Gemini to Groq for AI completions',
@@ -1972,9 +2050,12 @@ describe('AIService', () => {
     it('injects retrieved chunks as context in the Groq prompt', async () => {
       await service.askLessonsLearned('Why did we switch to Groq?');
 
-      const systemMessage = mockCreate.mock.calls[1][0].messages[0].content as string;
+      const systemMessage = mockCreate.mock.calls[1][0].messages[0]
+        .content as string;
       expect(systemMessage).toContain('63. N+1 queries');
-      expect(systemMessage).toContain('Full entry text about N+1 query problem.');
+      expect(systemMessage).toContain(
+        'Full entry text about N+1 query problem.',
+      );
     });
 
     it('throws BadRequestException for a blank question', async () => {
@@ -1985,8 +2066,12 @@ describe('AIService', () => {
 
     it('rejects off-topic question via intent classifier before making embedding calls', async () => {
       mockCreate.mockReset();
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'N' } }] });
-      await expect(service.askLessonsLearned('Hi')).rejects.toThrow('Please ask a question');
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'N' } }],
+      });
+      await expect(service.askLessonsLearned('Hi')).rejects.toThrow(
+        'Please ask a question',
+      );
       expect(mockEmbeddingsCreate).not.toHaveBeenCalled();
     });
 
@@ -2003,9 +2088,9 @@ describe('AIService', () => {
     it('propagates error when OpenAI embeddings fail', async () => {
       mockEmbeddingsCreate.mockRejectedValue(new Error('OpenAI unavailable'));
 
-      await expect(
-        service.askLessonsLearned('Any question?'),
-      ).rejects.toThrow('OpenAI unavailable');
+      await expect(service.askLessonsLearned('Any question?')).rejects.toThrow(
+        'OpenAI unavailable',
+      );
     });
 
     it('propagates error when Groq fails', async () => {
@@ -2013,19 +2098,25 @@ describe('AIService', () => {
         data: [{ embedding: Array(1536).fill(0.1) }],
       });
       mockCreate.mockReset();
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Y' } }],
+      }); // classifier
       mockCreate.mockRejectedValue(new Error('Groq unavailable'));
 
-      await expect(
-        service.askLessonsLearned('Any question?'),
-      ).rejects.toThrow('Groq unavailable');
+      await expect(service.askLessonsLearned('Any question?')).rejects.toThrow(
+        'Groq unavailable',
+      );
     });
 
     it('includes keyword-only result in RRF map when it is absent from vector results', async () => {
       // vector returns source-A only, keyword returns source-B only → else-branch on line 993
       mockPrismaService.$queryRaw
-        .mockResolvedValueOnce([{ source: 'source-A', content: 'Content A', score: 0.9 }]) // vector
-        .mockResolvedValueOnce([{ source: 'source-B', content: 'Content B', score: 0.8 }]); // keyword only
+        .mockResolvedValueOnce([
+          { source: 'source-A', content: 'Content A', score: 0.9 },
+        ]) // vector
+        .mockResolvedValueOnce([
+          { source: 'source-B', content: 'Content B', score: 0.8 },
+        ]); // keyword only
 
       const result = await service.askLessonsLearned('Some question?');
 
@@ -2039,11 +2130,17 @@ describe('AIService', () => {
   describe('generateDocumentEmbeddings', () => {
     const mockChunks = [
       { id: 'c-1', chunkIndex: 0, content: 'First chunk content about sales.' },
-      { id: 'c-2', chunkIndex: 1, content: 'Second chunk content about pricing.' },
+      {
+        id: 'c-2',
+        chunkIndex: 1,
+        content: 'Second chunk content about pricing.',
+      },
     ];
 
     afterEach(() => {
-      mockEmbeddingsCreate.mockResolvedValue({ data: [{ embedding: Array(1536).fill(0.1) }] });
+      mockEmbeddingsCreate.mockResolvedValue({
+        data: [{ embedding: Array(1536).fill(0.1) }],
+      });
     });
 
     it('calls OpenAI embeddings for each chunk and updates DB', async () => {
@@ -2073,7 +2170,9 @@ describe('AIService', () => {
 
     it('propagates OpenAI error when embedding fails', async () => {
       mockPrismaService.documentChunk.findMany.mockResolvedValue(mockChunks);
-      mockEmbeddingsCreate.mockRejectedValue(new Error('OpenAI quota exceeded'));
+      mockEmbeddingsCreate.mockRejectedValue(
+        new Error('OpenAI quota exceeded'),
+      );
 
       await expect(service.generateDocumentEmbeddings('doc-1')).rejects.toThrow(
         'Embedding failed for chunk 0 of document doc-1: OpenAI quota exceeded',
@@ -2084,10 +2183,38 @@ describe('AIService', () => {
   describe('askPlaybook', () => {
     // >3 chunks so rerankChunks actually calls Groq (early-exit guard is chunks.length <= 3)
     const mockDocChunks = [
-      { id: 'dc-1', documentId: 'doc-1', chunkIndex: 0, content: 'Playbook content about objection handling.', documentTitle: 'Sales Playbook Q1.pdf', distance: 0.2 },
-      { id: 'dc-2', documentId: 'doc-1', chunkIndex: 1, content: 'Playbook content about pricing strategy.', documentTitle: 'Sales Playbook Q1.pdf', distance: 0.3 },
-      { id: 'dc-3', documentId: 'doc-2', chunkIndex: 0, content: 'Competitor analysis content.', documentTitle: 'Competitor Guide.pdf', distance: 0.35 },
-      { id: 'dc-4', documentId: 'doc-2', chunkIndex: 1, content: 'Discount approval process overview.', documentTitle: 'Competitor Guide.pdf', distance: 0.4 },
+      {
+        id: 'dc-1',
+        documentId: 'doc-1',
+        chunkIndex: 0,
+        content: 'Playbook content about objection handling.',
+        documentTitle: 'Sales Playbook Q1.pdf',
+        distance: 0.2,
+      },
+      {
+        id: 'dc-2',
+        documentId: 'doc-1',
+        chunkIndex: 1,
+        content: 'Playbook content about pricing strategy.',
+        documentTitle: 'Sales Playbook Q1.pdf',
+        distance: 0.3,
+      },
+      {
+        id: 'dc-3',
+        documentId: 'doc-2',
+        chunkIndex: 0,
+        content: 'Competitor analysis content.',
+        documentTitle: 'Competitor Guide.pdf',
+        distance: 0.35,
+      },
+      {
+        id: 'dc-4',
+        documentId: 'doc-2',
+        chunkIndex: 1,
+        content: 'Discount approval process overview.',
+        documentTitle: 'Competitor Guide.pdf',
+        distance: 0.4,
+      },
     ];
 
     beforeEach(() => {
@@ -2101,10 +2228,22 @@ describe('AIService', () => {
 
     it('returns answer and citations for a valid question', async () => {
       // reranker is 1st Groq call (returns indices), LLM answer is 2nd
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Handle objections by focusing on value. (see [1])' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: 'Handle objections by focusing on value. (see [1])',
+            },
+          },
+        ],
+      });
 
-      const result = await service.askPlaybook('How should I handle pricing objections?');
+      const result = await service.askPlaybook(
+        'How should I handle pricing objections?',
+      );
 
       expect(result.answer).toContain('Handle objections');
       // Only the cited passage, not every passage the model was given
@@ -2116,14 +2255,20 @@ describe('AIService', () => {
     });
 
     it('returns cited passages in order of first mention', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Check the competitor [3] and pricing [2].' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          { message: { content: 'Check the competitor [3] and pricing [2].' } },
+        ],
+      });
 
-      const result = await service.askPlaybook('How do we price against competitors?');
+      const result = await service.askPlaybook(
+        'How do we price against competitors?',
+      );
 
-      expect(
-        result.citations.map((c) => [c.sourceNumber, c.excerpt]),
-      ).toEqual([
+      expect(result.citations.map((c) => [c.sourceNumber, c.excerpt])).toEqual([
         [3, 'Competitor analysis content.'],
         [2, 'Playbook content about pricing strategy.'],
       ]);
@@ -2131,8 +2276,12 @@ describe('AIService', () => {
     });
 
     it('flags an answer citing a passage that was never provided', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Offer a discount (see [1], [7]).' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Offer a discount (see [1], [7]).' } }],
+      });
 
       const result = await service.askPlaybook('Can I offer a discount?');
 
@@ -2145,10 +2294,16 @@ describe('AIService', () => {
     });
 
     it('accepts gpt-oss style 【n】 citations as grounded', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Up to 10% without approval【1】.' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Up to 10% without approval【1】.' } }],
+      });
 
-      const result = await service.askPlaybook('Max discount without approval?');
+      const result = await service.askPlaybook(
+        'Max discount without approval?',
+      );
 
       expect(result.grounded).toBe(true);
       expect(result.citations).toHaveLength(1);
@@ -2156,8 +2311,12 @@ describe('AIService', () => {
     });
 
     it('flags an answer that cites nothing', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Always lead with value.' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Always lead with value.' } }],
+      });
 
       const result = await service.askPlaybook('How do I open a call?');
 
@@ -2170,12 +2329,23 @@ describe('AIService', () => {
     });
 
     it('treats the model refusal as grounded, with no citations', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
       mockCreate.mockResolvedValueOnce({
-        choices: [{ message: { content: '"I could not find a relevant answer in the uploaded playbook documents."' } }],
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content:
+                '"I could not find a relevant answer in the uploaded playbook documents."',
+            },
+          },
+        ],
       });
 
-      const result = await service.askPlaybook('What is our parental leave policy?');
+      const result = await service.askPlaybook(
+        'What is our parental leave policy?',
+      );
 
       expect(result.citations).toEqual([]);
       expect(result.grounded).toBe(true);
@@ -2204,20 +2374,26 @@ describe('AIService', () => {
         const result = await service.askPlaybook('How do I handle objections?');
 
         expect(mockCreate).toHaveBeenCalledTimes(1);
-        const systemPrompt = mockCreate.mock.calls[0][0].messages[0].content as string;
+        const systemPrompt = mockCreate.mock.calls[0][0].messages[0]
+          .content as string;
         expect(systemPrompt).toContain('objection handling');
         expect(systemPrompt).toContain('Competitor analysis content.');
-        expect(systemPrompt).not.toContain('Discount approval process overview.'); // 4th result
+        expect(systemPrompt).not.toContain(
+          'Discount approval process overview.',
+        ); // 4th result
         expect(result.citations[0].excerpt).toContain('objection handling');
       });
     });
 
     it('returns grounded refusal when no chunks found', async () => {
-      mockPrismaService.$queryRaw.mockReset()
+      mockPrismaService.$queryRaw
+        .mockReset()
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      const result = await service.askPlaybook('What is the capital of France?');
+      const result = await service.askPlaybook(
+        'What is the capital of France?',
+      );
 
       expect(result.answer).toContain('could not find a relevant answer');
       expect(result.citations).toHaveLength(0);
@@ -2225,8 +2401,12 @@ describe('AIService', () => {
     });
 
     it('embeds the question with text-embedding-3-small', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer.' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Answer.' } }],
+      });
 
       await service.askPlaybook('How to upsell?');
 
@@ -2237,8 +2417,12 @@ describe('AIService', () => {
     });
 
     it('calls $queryRaw twice — vector search and keyword search', async () => {
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer.' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Answer.' } }],
+      });
 
       await service.askPlaybook('What closing techniques work best?');
 
@@ -2246,17 +2430,25 @@ describe('AIService', () => {
     });
 
     it('throws BadRequestException for blank question', async () => {
-      await expect(service.askPlaybook('   ')).rejects.toThrow('Please enter a question.');
+      await expect(service.askPlaybook('   ')).rejects.toThrow(
+        'Please enter a question.',
+      );
     });
 
     it('returns grounded refusal without calling reranker or LLM when best cosine distance exceeds threshold', async () => {
       // Vector search returns chunks with high distance (off-topic question)
-      const distantChunks = mockDocChunks.map((c, i) => ({ ...c, distance: 0.85 + i * 0.01 }));
-      mockPrismaService.$queryRaw.mockReset()
+      const distantChunks = mockDocChunks.map((c, i) => ({
+        ...c,
+        distance: 0.85 + i * 0.01,
+      }));
+      mockPrismaService.$queryRaw
+        .mockReset()
         .mockResolvedValueOnce(distantChunks)
         .mockResolvedValueOnce([]);
 
-      const result = await service.askPlaybook('What is the capital of France?');
+      const result = await service.askPlaybook(
+        'What is the capital of France?',
+      );
 
       expect(result.answer).toContain('could not find a relevant answer');
       expect(result.citations).toHaveLength(0);
@@ -2273,8 +2465,12 @@ describe('AIService', () => {
 
     it('falls back to top-3 slicing when reranker returns invalid JSON', async () => {
       // reranker fails to parse → falls back to slice → LLM answer is 2nd call
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'not-valid-json' } }] });
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer from chunks. [1][2][3][4]' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'not-valid-json' } }],
+      });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Answer from chunks. [1][2][3][4]' } }],
+      });
 
       const result = await service.askPlaybook('Best closing technique?');
 
@@ -2284,24 +2480,41 @@ describe('AIService', () => {
 
     it('boosts score for chunk present in both vector and keyword legs (RRF if-branch, line 1087)', async () => {
       // dc-1 appears in both legs → if (existing) { existing.score += add } branch
-      const keywordOnlyChunk = { id: 'dc-5', documentId: 'doc-3', chunkIndex: 0, content: 'Keyword-only content.', documentTitle: 'Extra.pdf' };
-      mockPrismaService.$queryRaw.mockReset()
-        .mockResolvedValueOnce(mockDocChunks)                          // vector: dc-1..dc-4
-        .mockResolvedValueOnce([mockDocChunks[0], keywordOnlyChunk]);  // keyword: dc-1 (overlap) + dc-5 (new)
+      const keywordOnlyChunk = {
+        id: 'dc-5',
+        documentId: 'doc-3',
+        chunkIndex: 0,
+        content: 'Keyword-only content.',
+        documentTitle: 'Extra.pdf',
+      };
+      mockPrismaService.$queryRaw
+        .mockReset()
+        .mockResolvedValueOnce(mockDocChunks) // vector: dc-1..dc-4
+        .mockResolvedValueOnce([mockDocChunks[0], keywordOnlyChunk]); // keyword: dc-1 (overlap) + dc-5 (new)
 
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[1,2,3]' } }] }); // reranker
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Boosted answer.' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[1,2,3]' } }],
+      }); // reranker
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Boosted answer.' } }],
+      });
 
-      const result = await service.askPlaybook('Tell me about keyword and vector topics?');
+      const result = await service.askPlaybook(
+        'Tell me about keyword and vector topics?',
+      );
 
       expect(result.answer).toBe('Boosted answer.');
     });
 
     it('falls back to top-3 slicing when reranker Groq call throws (catch at line 1148)', async () => {
       mockCreate.mockRejectedValueOnce(new Error('Groq reranker unavailable')); // reranker fails → catch
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Fallback answer. [1][2][3][4]' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Fallback answer. [1][2][3][4]' } }],
+      });
 
-      const result = await service.askPlaybook('What is the objection strategy?');
+      const result = await service.askPlaybook(
+        'What is the objection strategy?',
+      );
 
       expect(result.answer).toBe('Fallback answer. [1][2][3][4]');
       expect(result.citations).toHaveLength(3); // sliced to top 3
@@ -2309,8 +2522,14 @@ describe('AIService', () => {
 
     it('falls back to top-3 slicing when reranker returns empty JSON array (line 1142)', async () => {
       // Groq succeeds but returns [] → !Array.isArray check → return chunks.slice(0, 3)
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: '[]' } }] }); // reranker returns empty
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Answer with empty reranker. [1][2][3][4]' } }] });
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: '[]' } }],
+      }); // reranker returns empty
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          { message: { content: 'Answer with empty reranker. [1][2][3][4]' } },
+        ],
+      });
 
       const result = await service.askPlaybook('What is the pricing strategy?');
 
@@ -2327,7 +2546,9 @@ describe('AIService', () => {
         ...mockQuotation,
         items: [{ description: 'Consulting', quantity: 2, unitPrice: 500 }],
       };
-      mockPrismaService.quotation.findUnique = jest.fn().mockResolvedValueOnce(quotationWithItems);
+      mockPrismaService.quotation.findUnique = jest
+        .fn()
+        .mockResolvedValueOnce(quotationWithItems);
       mockEmbeddingsCreate.mockResolvedValueOnce({
         data: [{ embedding: Array(1536).fill(0.5) }],
       });
@@ -2341,7 +2562,9 @@ describe('AIService', () => {
     });
 
     it('returns early when quotation does not exist', async () => {
-      mockPrismaService.quotation.findUnique = jest.fn().mockResolvedValueOnce(null);
+      mockPrismaService.quotation.findUnique = jest
+        .fn()
+        .mockResolvedValueOnce(null);
 
       await service.generateQuotationEmbedding('q-missing');
 
@@ -2392,7 +2615,10 @@ describe('AIService', () => {
         { embedding: '[0.1,0.2]', searchText: 'title: Deal A' },
       ]);
       // role filter — all ids except q-1
-      mockPrismaService.$queryRaw.mockResolvedValueOnce([{ id: 'q-2' }, { id: 'q-3' }]);
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([
+        { id: 'q-2' },
+        { id: 'q-3' },
+      ]);
       // vector leg
       mockPrismaService.$queryRaw.mockResolvedValueOnce([
         { quotationId: 'q-2' },
@@ -2404,11 +2630,28 @@ describe('AIService', () => {
       ]);
       // quotation lookup
       mockPrismaService.quotation.findMany = jest.fn().mockResolvedValueOnce([
-        { id: 'q-2', title: 'Similar Deal', client: { name: 'Acme' }, total: 5000, status: 'APPROVED' },
-        { id: 'q-3', title: 'Another Deal', client: { name: 'Beta' }, total: 3000, status: 'DRAFT' },
+        {
+          id: 'q-2',
+          title: 'Similar Deal',
+          client: { name: 'Acme' },
+          total: 5000,
+          status: 'APPROVED',
+        },
+        {
+          id: 'q-3',
+          title: 'Another Deal',
+          client: { name: 'Beta' },
+          total: 3000,
+          status: 'DRAFT',
+        },
       ]);
 
-      const result = await service.similarQuotations('q-1', 'u-mgr', 'SALES_MANAGER', 5);
+      const result = await service.similarQuotations(
+        'q-1',
+        'u-mgr',
+        'SALES_MANAGER',
+        5,
+      );
 
       // q-2 appears in both legs → higher RRF score → first
       expect(result[0].id).toBe('q-2');
@@ -2484,9 +2727,27 @@ describe('AIService', () => {
         .mockResolvedValueOnce([]) // byStatus
         .mockResolvedValueOnce([]) // byRep
         .mockResolvedValueOnce([
-          { clientId: 'c-1', status: 'APPROVED', _count: { _all: 3 }, _sum: { total: 30000 }, _avg: { total: 10000 } },
-          { clientId: 'c-1', status: 'REJECTED', _count: { _all: 1 }, _sum: { total: 5000 }, _avg: { total: 5000 } },
-          { clientId: 'c-1', status: 'SENT',     _count: { _all: 2 }, _sum: { total: null }, _avg: { total: null } },
+          {
+            clientId: 'c-1',
+            status: 'APPROVED',
+            _count: { _all: 3 },
+            _sum: { total: 30000 },
+            _avg: { total: 10000 },
+          },
+          {
+            clientId: 'c-1',
+            status: 'REJECTED',
+            _count: { _all: 1 },
+            _sum: { total: 5000 },
+            _avg: { total: 5000 },
+          },
+          {
+            clientId: 'c-1',
+            status: 'SENT',
+            _count: { _all: 2 },
+            _sum: { total: null },
+            _avg: { total: null },
+          },
         ]);
       mockPrismaService.user.findMany.mockResolvedValueOnce([]);
       mockPrismaService.client.findMany.mockResolvedValueOnce([
@@ -2512,7 +2773,13 @@ describe('AIService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
-          { clientId: 'c-missing', status: 'APPROVED', _count: { _all: 1 }, _sum: { total: 5000 }, _avg: { total: 5000 } },
+          {
+            clientId: 'c-missing',
+            status: 'APPROVED',
+            _count: { _all: 1 },
+            _sum: { total: 5000 },
+            _avg: { total: 5000 },
+          },
         ]);
       mockPrismaService.user.findMany.mockResolvedValueOnce([]);
       mockPrismaService.client.findMany.mockResolvedValueOnce([]);
@@ -2529,10 +2796,18 @@ describe('AIService', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
-          { clientId: 'c-1', status: 'SENT', _count: { _all: 2 }, _sum: { total: null }, _avg: { total: null } },
+          {
+            clientId: 'c-1',
+            status: 'SENT',
+            _count: { _all: 2 },
+            _sum: { total: null },
+            _avg: { total: null },
+          },
         ]);
       mockPrismaService.user.findMany.mockResolvedValueOnce([]);
-      mockPrismaService.client.findMany.mockResolvedValueOnce([{ id: 'c-1', name: 'Acme' }]);
+      mockPrismaService.client.findMany.mockResolvedValueOnce([
+        { id: 'c-1', name: 'Acme' },
+      ]);
       mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
 
       const result = await service.getWinLossAnalysis();
@@ -2551,7 +2826,9 @@ describe('AIService', () => {
       });
       mockEmbeddingsCreate.mockRejectedValueOnce(new Error('OpenAI timeout'));
 
-      await expect(service.generateQuotationEmbedding('q-1')).rejects.toThrow('OpenAI timeout');
+      await expect(service.generateQuotationEmbedding('q-1')).rejects.toThrow(
+        'OpenAI timeout',
+      );
     });
   });
 });

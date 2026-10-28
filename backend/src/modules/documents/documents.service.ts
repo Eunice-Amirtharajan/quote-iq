@@ -61,9 +61,14 @@ export class DocumentsService {
     } catch (err) {
       // DB write failed after file was already uploaded — delete the orphaned file
       /* istanbul ignore next */
-      void this.storage.delete(key).catch((deleteErr: unknown) =>
-        this.logger.error({ key, deleteErr }, 'Failed to clean up orphaned file after DB error'),
-      );
+      void this.storage
+        .delete(key)
+        .catch((deleteErr: unknown) =>
+          this.logger.error(
+            { key, deleteErr },
+            'Failed to clean up orphaned file after DB error',
+          ),
+        );
       throw err;
     }
 
@@ -131,7 +136,10 @@ export class DocumentsService {
     try {
       text = await this.extraction.extractText(buffer);
     } catch (err) {
-      this.logger.warn({ docId, err }, 'Text extraction failed — proceeding with empty text');
+      this.logger.warn(
+        { docId, err },
+        'Text extraction failed — proceeding with empty text',
+      );
     }
 
     // 3. Moderation gate
@@ -175,7 +183,10 @@ export class DocumentsService {
     // Kick off embedding generation asynchronously — does not block the response
     /* istanbul ignore next 3 */
     void this.ai.generateDocumentEmbeddings(docId).catch((err: unknown) => {
-      this.logger.error({ docId, err }, 'Background embedding generation failed');
+      this.logger.error(
+        { docId, err },
+        'Background embedding generation failed',
+      );
     });
 
     return doc;
@@ -213,9 +224,14 @@ export class DocumentsService {
     // Cascade in DB removes DocumentChunk rows; then remove the file from storage
     await this.prisma.document.delete({ where: { id: docId } });
     /* istanbul ignore next */
-    void this.storage.delete(doc.storageKey).catch((err: unknown) =>
-      this.logger.error({ docId, storageKey: doc.storageKey, err }, 'Storage delete failed after DB delete'),
-    );
+    void this.storage
+      .delete(doc.storageKey)
+      .catch((err: unknown) =>
+        this.logger.error(
+          { docId, storageKey: doc.storageKey, err },
+          'Storage delete failed after DB delete',
+        ),
+      );
   }
 
   async hasReadyDocuments(): Promise<boolean> {

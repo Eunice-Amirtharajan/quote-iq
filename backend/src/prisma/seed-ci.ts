@@ -9,30 +9,53 @@ async function main() {
   await prisma.user.upsert({
     where: { email: 'marcus@quoteiq.com' },
     update: {},
-    create: { name: 'Marcus Reid', email: 'marcus@quoteiq.com', password: hash, role: Role.SALES_MANAGER },
+    create: {
+      name: 'Marcus Reid',
+      email: 'marcus@quoteiq.com',
+      password: hash,
+      role: Role.SALES_MANAGER,
+    },
   });
 
   await prisma.user.upsert({
     where: { email: 'anna@quoteiq.com' },
     update: {},
-    create: { name: 'Anna Schmidt', email: 'anna@quoteiq.com', password: hash, role: Role.SALES_REP },
+    create: {
+      name: 'Anna Schmidt',
+      email: 'anna@quoteiq.com',
+      password: hash,
+      role: Role.SALES_REP,
+    },
   });
 
   await prisma.user.upsert({
     where: { email: 'tom@quoteiq.com' },
     update: {},
-    create: { name: 'Tom Weber', email: 'tom@quoteiq.com', password: hash, role: Role.SALES_REP },
+    create: {
+      name: 'Tom Weber',
+      email: 'tom@quoteiq.com',
+      password: hash,
+      role: Role.SALES_REP,
+    },
   });
 
   await prisma.client.upsert({
     where: { name: 'Bauer Manufacturing GmbH' },
     update: {},
-    create: { name: 'Bauer Manufacturing GmbH', email: 'contact@bauer-mfg.example.com' },
+    create: {
+      name: 'Bauer Manufacturing GmbH',
+      email: 'contact@bauer-mfg.example.com',
+    },
   });
 
-  console.log('CI seed complete: marcus@quoteiq.com (SALES_MANAGER), anna@quoteiq.com / tom@quoteiq.com (SALES_REP), Bauer Manufacturing GmbH (client)');
+  console.log(
+    'CI seed complete: marcus@quoteiq.com (SALES_MANAGER), anna@quoteiq.com / tom@quoteiq.com (SALES_REP), Bauer Manufacturing GmbH (client)',
+  );
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

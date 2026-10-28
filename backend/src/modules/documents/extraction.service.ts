@@ -3,7 +3,9 @@ import { Injectable, Logger } from '@nestjs/common';
 // pdfjs-dist legacy build is required for Node.js environments
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { getDocument } = require('pdfjs-dist/legacy/build/pdf.mjs') as {
-  getDocument: (src: { data: Uint8Array }) => { promise: Promise<PDFDocumentProxy> };
+  getDocument: (src: { data: Uint8Array }) => {
+    promise: Promise<PDFDocumentProxy>;
+  };
 };
 
 interface PDFDocumentProxy {

@@ -786,11 +786,11 @@ export class QuotationsService {
       data: {
         quotationId: id,
         content: {
-          version: currentVersion!.version,
-          title: currentVersion!.title,
-          clientId: currentVersion!.clientId,
-          notes: currentVersion!.notes ?? null,
-          taxRate: currentVersion!.taxRate,
+          version: currentVersion.version,
+          title: currentVersion.title,
+          clientId: currentVersion.clientId,
+          notes: currentVersion.notes ?? null,
+          taxRate: currentVersion.taxRate,
           items: currentItems,
         },
       },

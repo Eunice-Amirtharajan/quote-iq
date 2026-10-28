@@ -79,7 +79,9 @@ const rep: User = {
   email: 'rep@test.com',
 };
 
-const makeFile = (overrides: Partial<Express.Multer.File> = {}): Express.Multer.File => ({
+const makeFile = (
+  overrides: Partial<Express.Multer.File> = {},
+): Express.Multer.File => ({
   fieldname: 'file',
   originalname: 'test.pdf',
   encoding: '7bit',
@@ -96,7 +98,10 @@ const makeFile = (overrides: Partial<Express.Multer.File> = {}): Express.Multer.
 describe('DocumentsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockStorage.upload.mockResolvedValue({ key: 'k/test.pdf', url: 'https://example.com/test.pdf' });
+    mockStorage.upload.mockResolvedValue({
+      key: 'k/test.pdf',
+      url: 'https://example.com/test.pdf',
+    });
     mockPrisma.document.create.mockResolvedValue({
       id: 'doc-1',
       status: DocumentStatus.PENDING_SCAN,
@@ -107,32 +112,46 @@ describe('DocumentsService', () => {
     });
     mockScan.scan.mockResolvedValue({ infected: false });
     mockExtraction.extractText.mockResolvedValue('Sample text content');
-    mockModeration.moderate.mockResolvedValue({ flagged: false, categories: [] });
+    mockModeration.moderate.mockResolvedValue({
+      flagged: false,
+      categories: [],
+    });
     mockPrisma.$transaction.mockResolvedValue([]);
   });
 
   describe('uploadDocument', () => {
     it('rejects SALES_REP with ForbiddenException', async () => {
       const svc = makeService();
-      await expect(svc.uploadDocument(makeFile(), rep)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.uploadDocument(makeFile(), rep)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('rejects file larger than 20MB', async () => {
       const svc = makeService();
-      const oversized = makeFile({ size: 21 * 1024 * 1024, buffer: makePdfBuffer(21 * 1024 * 1024) });
-      await expect(svc.uploadDocument(oversized, manager)).rejects.toBeInstanceOf(BadRequestException);
+      const oversized = makeFile({
+        size: 21 * 1024 * 1024,
+        buffer: makePdfBuffer(21 * 1024 * 1024),
+      });
+      await expect(
+        svc.uploadDocument(oversized, manager),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects non-PDF mime type', async () => {
       const svc = makeService();
       const notPdf = makeFile({ mimetype: 'image/png' });
-      await expect(svc.uploadDocument(notPdf, manager)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.uploadDocument(notPdf, manager)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('rejects file whose buffer does not start with %PDF', async () => {
       const svc = makeService();
       const fakePdf = makeFile({ buffer: Buffer.from('notapdf') });
-      await expect(svc.uploadDocument(fakePdf, manager)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.uploadDocument(fakePdf, manager)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('uploads a valid PDF and returns PENDING_SCAN status', async () => {
@@ -144,10 +163,14 @@ describe('DocumentsService', () => {
     });
 
     it('deletes orphaned file from storage when DB create fails', async () => {
-      mockPrisma.document.create.mockRejectedValue(new Error('DB connection lost'));
+      mockPrisma.document.create.mockRejectedValue(
+        new Error('DB connection lost'),
+      );
       mockStorage.delete.mockResolvedValue(undefined);
       const svc = makeService();
-      await expect(svc.uploadDocument(makeFile(), manager)).rejects.toThrow('DB connection lost');
+      await expect(svc.uploadDocument(makeFile(), manager)).rejects.toThrow(
+        'DB connection lost',
+      );
       // Give the void delete promise time to settle
       await new Promise((r) => setImmediate(r));
       expect(mockStorage.delete).toHaveBeenCalledWith('k/test.pdf');
@@ -159,7 +182,10 @@ describe('DocumentsService', () => {
 
     it('marks document REJECTED when scan returns infected', async () => {
       mockScan.scan.mockResolvedValue({ infected: true, threat: 'EICAR-Test' });
-      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', status: DocumentStatus.SCANNING });
+      mockPrisma.document.update.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.SCANNING,
+      });
       const svc = makeService();
       await svc.uploadDocument(makeFile(), manager);
       await waitForBackground();
@@ -174,7 +200,9 @@ describe('DocumentsService', () => {
     });
 
     it('proceeds with empty text when extraction throws', async () => {
-      mockExtraction.extractText.mockRejectedValue(new Error('PDF parse error'));
+      mockExtraction.extractText.mockRejectedValue(
+        new Error('PDF parse error'),
+      );
       const svc = makeService();
       await svc.uploadDocument(makeFile(), manager);
       await waitForBackground();
@@ -183,7 +211,10 @@ describe('DocumentsService', () => {
     });
 
     it('marks document REJECTED when moderation flags content', async () => {
-      mockModeration.moderate.mockResolvedValue({ flagged: true, categories: ['violence', 'hate'] });
+      mockModeration.moderate.mockResolvedValue({
+        flagged: true,
+        categories: ['violence', 'hate'],
+      });
       const svc = makeService();
       await svc.uploadDocument(makeFile(), manager);
       await waitForBackground();
@@ -201,21 +232,31 @@ describe('DocumentsService', () => {
   describe('approveDocument', () => {
     it('throws ForbiddenException for SALES_REP', async () => {
       const svc = makeService();
-      await expect(svc.approveDocument('doc-1', rep)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.approveDocument('doc-1', rep)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('updates document status to READY for manager', async () => {
-      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', status: DocumentStatus.READY });
+      mockPrisma.document.update.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.READY,
+      });
       const svc = makeService();
       const result = await svc.approveDocument('doc-1', manager);
       expect(mockPrisma.document.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { status: DocumentStatus.READY } }),
       );
-      expect((result as { status: DocumentStatus }).status).toBe(DocumentStatus.READY);
+      expect((result as { status: DocumentStatus }).status).toBe(
+        DocumentStatus.READY,
+      );
     });
 
     it('triggers embedding generation after approval', async () => {
-      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', status: DocumentStatus.READY });
+      mockPrisma.document.update.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.READY,
+      });
       const svc = makeService();
       await svc.approveDocument('doc-1', manager);
       // Give the void promise time to settle
@@ -227,16 +268,24 @@ describe('DocumentsService', () => {
   describe('rejectDocument', () => {
     it('throws ForbiddenException for SALES_REP', async () => {
       const svc = makeService();
-      await expect(svc.rejectDocument('doc-1', 'bad content', rep)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        svc.rejectDocument('doc-1', 'bad content', rep),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('updates document status to REJECTED with reason', async () => {
-      mockPrisma.document.update.mockResolvedValue({ id: 'doc-1', status: DocumentStatus.REJECTED });
+      mockPrisma.document.update.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.REJECTED,
+      });
       const svc = makeService();
       await svc.rejectDocument('doc-1', 'harmful content', manager);
       expect(mockPrisma.document.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { status: DocumentStatus.REJECTED, rejectedReason: 'harmful content' },
+          data: {
+            status: DocumentStatus.REJECTED,
+            rejectedReason: 'harmful content',
+          },
         }),
       );
     });
@@ -257,13 +306,17 @@ describe('DocumentsService', () => {
 
     it('throws ForbiddenException for SALES_REP', async () => {
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', rep)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.deleteDocument('doc-1', rep)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('returns without error when document does not exist (idempotent)', async () => {
       mockPrisma.document.findUnique.mockResolvedValue(null);
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      await expect(
+        svc.deleteDocument('doc-1', manager),
+      ).resolves.toBeUndefined();
       expect(mockPrisma.document.delete).not.toHaveBeenCalled();
     });
 
@@ -274,7 +327,9 @@ describe('DocumentsService', () => {
         updatedAt: new Date(), // just now — scan is active
       });
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.deleteDocument('doc-1', manager)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
 
     it('allows deletion of SCANNING document when scan has been running for over 10 minutes (orphaned)', async () => {
@@ -284,28 +339,48 @@ describe('DocumentsService', () => {
         updatedAt: new Date(Date.now() - 11 * 60 * 1000), // 11 min ago — stale
       });
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
-      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+      await expect(
+        svc.deleteDocument('doc-1', manager),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+      });
     });
 
     it('allows deletion of PENDING_SCAN document', async () => {
-      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.PENDING_SCAN });
+      mockPrisma.document.findUnique.mockResolvedValue({
+        ...docReady,
+        status: DocumentStatus.PENDING_SCAN,
+      });
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
-      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+      await expect(
+        svc.deleteDocument('doc-1', manager),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+      });
     });
 
     it('allows deletion of PENDING_REVIEW document', async () => {
-      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.PENDING_REVIEW });
+      mockPrisma.document.findUnique.mockResolvedValue({
+        ...docReady,
+        status: DocumentStatus.PENDING_REVIEW,
+      });
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
-      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+      await expect(
+        svc.deleteDocument('doc-1', manager),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+      });
     });
 
     it('allows deletion of READY document', async () => {
       const svc = makeService();
       await svc.deleteDocument('doc-1', manager);
-      expect(mockPrisma.document.delete).toHaveBeenCalledWith({ where: { id: 'doc-1' } });
+      expect(mockPrisma.document.delete).toHaveBeenCalledWith({
+        where: { id: 'doc-1' },
+      });
     });
 
     it('calls storage.delete fire-and-forget after DB delete', async () => {
@@ -316,16 +391,26 @@ describe('DocumentsService', () => {
     });
 
     it('allows deletion of REJECTED document', async () => {
-      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.REJECTED });
+      mockPrisma.document.findUnique.mockResolvedValue({
+        ...docReady,
+        status: DocumentStatus.REJECTED,
+      });
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      await expect(
+        svc.deleteDocument('doc-1', manager),
+      ).resolves.toBeUndefined();
       expect(mockPrisma.document.delete).toHaveBeenCalled();
     });
 
     it('allows deletion of FAILED document', async () => {
-      mockPrisma.document.findUnique.mockResolvedValue({ ...docReady, status: DocumentStatus.FAILED });
+      mockPrisma.document.findUnique.mockResolvedValue({
+        ...docReady,
+        status: DocumentStatus.FAILED,
+      });
       const svc = makeService();
-      await expect(svc.deleteDocument('doc-1', manager)).resolves.toBeUndefined();
+      await expect(
+        svc.deleteDocument('doc-1', manager),
+      ).resolves.toBeUndefined();
       expect(mockPrisma.document.delete).toHaveBeenCalled();
     });
   });

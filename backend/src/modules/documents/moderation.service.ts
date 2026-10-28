@@ -25,12 +25,18 @@ export class ModerationService {
         .map(([k]) => k);
 
       if (result.flagged) {
-        this.logger.warn({ categories: flaggedCategories }, 'Content moderation flagged document');
+        this.logger.warn(
+          { categories: flaggedCategories },
+          'Content moderation flagged document',
+        );
       }
 
       return { flagged: result.flagged, categories: flaggedCategories };
     } catch (err) {
-      this.logger.error({ err }, 'OpenAI moderation call failed — allowing document through');
+      this.logger.error(
+        { err },
+        'OpenAI moderation call failed — allowing document through',
+      );
       return { flagged: false, categories: [] };
     }
   }

@@ -1,0 +1,36 @@
+# Weekly dependency updates. Minor and patch updates arrive as one grouped PR per folder;
+# major upgrades as their own PRs, since they need reading and usually code changes.
+# Security fixes are raised as soon as an advisory is published (enable "Dependabot security
+# updates" in the repo settings), regardless of this schedule.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories:
+      - /backend
+      - /frontend
+      - /mcp-server
+    schedule:
+      interval: weekly
+      day: monday
+    # A release must be a week old before it's proposed: freshly published versions are where
+    # compromised packages show up, and most are pulled within days
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - '*'

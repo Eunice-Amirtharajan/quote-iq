@@ -9,7 +9,8 @@ export class QuotationSnapshotType {
   quotationId!: string;
 
   @Field(() => String, {
-    description: 'JSON-encoded state of the quotation before this edit (title, clientId, notes, taxRate, items)',
+    description:
+      'JSON-encoded state of the quotation before this edit (title, clientId, notes, taxRate, items)',
   })
   content!: string;
 

@@ -39,7 +39,7 @@ test.describe('Client management — rep (search only)', () => {
     await page.fill('input[placeholder*="Software Development"]', 'Existing Client Test');
 
     // Type to trigger dropdown, then pick seeded client
-    const clientInput = await selectClientByTyping(page, 'Bauer');
+    await selectClientByTyping(page, 'Bauer');
     await expect(page.locator('li[role="option"]').first()).toBeVisible({ timeout: 10_000 });
     await page.locator('li[role="option"]').first().click();
     // Dropdown closed — clientId is set

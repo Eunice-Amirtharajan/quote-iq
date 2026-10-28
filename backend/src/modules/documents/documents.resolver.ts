@@ -14,35 +14,51 @@ import type { User } from '@prisma/client';
 export class DocumentsResolver {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  @Query(() => [DocumentType], { description: 'List all uploaded documents (managers only)' })
+  @Query(() => [DocumentType], {
+    description: 'List all uploaded documents (managers only)',
+  })
   @Roles(Role.SALES_MANAGER)
   async documents(@CurrentUser() user: User): Promise<DocumentType[]> {
     return this.documentsService.findAll(user) as Promise<DocumentType[]>;
   }
 
-  @Query(() => Boolean, { description: 'Returns true when at least one READY document exists — used to gate the Playbook feature' })
+  @Query(() => Boolean, {
+    description:
+      'Returns true when at least one READY document exists — used to gate the Playbook feature',
+  })
   @Roles(Role.SALES_REP, Role.SALES_MANAGER)
   async hasReadyDocuments(): Promise<boolean> {
     return this.documentsService.hasReadyDocuments();
   }
 
-  @Mutation(() => DocumentType, { description: 'Approve a document for RAG use' })
+  @Mutation(() => DocumentType, {
+    description: 'Approve a document for RAG use',
+  })
   @Roles(Role.SALES_MANAGER)
   async approveDocument(
     @Args('id') id: string,
     @CurrentUser() user: User,
   ): Promise<DocumentType> {
-    return this.documentsService.approveDocument(id, user) as Promise<DocumentType>;
+    return this.documentsService.approveDocument(
+      id,
+      user,
+    ) as Promise<DocumentType>;
   }
 
-  @Mutation(() => DocumentType, { description: 'Reject a document and record the reason' })
+  @Mutation(() => DocumentType, {
+    description: 'Reject a document and record the reason',
+  })
   @Roles(Role.SALES_MANAGER)
   async rejectDocument(
     @Args('id') id: string,
     @Args('reason') reason: string,
     @CurrentUser() user: User,
   ): Promise<DocumentType> {
-    return this.documentsService.rejectDocument(id, reason, user) as Promise<DocumentType>;
+    return this.documentsService.rejectDocument(
+      id,
+      reason,
+      user,
+    ) as Promise<DocumentType>;
   }
 
   @Mutation(() => Boolean, { description: 'Delete a document and its chunks.' })

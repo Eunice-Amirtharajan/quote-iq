@@ -38,7 +38,10 @@ describe('StorageService', () => {
   describe('upload', () => {
     it('returns key and signed url on success', async () => {
       mockUpload.mockResolvedValue({ data: {}, error: null });
-      mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://supabase.co/signed/file.pdf' }, error: null });
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: 'https://supabase.co/signed/file.pdf' },
+        error: null,
+      });
 
       const file = {
         originalname: 'test.pdf',
@@ -53,7 +56,10 @@ describe('StorageService', () => {
     });
 
     it('throws InternalServerErrorException on Supabase upload error', async () => {
-      mockUpload.mockResolvedValue({ data: null, error: new Error('bucket not found') });
+      mockUpload.mockResolvedValue({
+        data: null,
+        error: new Error('bucket not found'),
+      });
 
       const file = {
         originalname: 'bad.pdf',
@@ -61,12 +67,17 @@ describe('StorageService', () => {
         mimetype: 'application/pdf',
       } as Express.Multer.File;
 
-      await expect(service.upload(file)).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.upload(file)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
     });
 
     it('throws InternalServerErrorException when signed URL generation fails', async () => {
       mockUpload.mockResolvedValue({ data: {}, error: null });
-      mockCreateSignedUrl.mockResolvedValue({ data: null, error: new Error('signing failed') });
+      mockCreateSignedUrl.mockResolvedValue({
+        data: null,
+        error: new Error('signing failed'),
+      });
 
       const file = {
         originalname: 'test.pdf',
@@ -74,20 +85,30 @@ describe('StorageService', () => {
         mimetype: 'application/pdf',
       } as Express.Multer.File;
 
-      await expect(service.upload(file)).rejects.toBeInstanceOf(InternalServerErrorException);
+      await expect(service.upload(file)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
     });
   });
 
   describe('getSignedUrl', () => {
     it('returns a signed url for an existing key', async () => {
-      mockCreateSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://supabase.co/signed/existing.pdf' }, error: null });
+      mockCreateSignedUrl.mockResolvedValue({
+        data: { signedUrl: 'https://supabase.co/signed/existing.pdf' },
+        error: null,
+      });
       const url = await service.getSignedUrl('some/key.pdf');
       expect(url).toBe('https://supabase.co/signed/existing.pdf');
     });
 
     it('throws InternalServerErrorException when signing fails', async () => {
-      mockCreateSignedUrl.mockResolvedValue({ data: null, error: new Error('not found') });
-      await expect(service.getSignedUrl('missing/key.pdf')).rejects.toBeInstanceOf(InternalServerErrorException);
+      mockCreateSignedUrl.mockResolvedValue({
+        data: null,
+        error: new Error('not found'),
+      });
+      await expect(
+        service.getSignedUrl('missing/key.pdf'),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
     });
   });
 

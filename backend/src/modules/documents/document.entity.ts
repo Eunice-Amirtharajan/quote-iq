@@ -33,19 +33,20 @@ export class DocumentType {
   storageKey!: string;
 }
 
-type _FieldsMatch = DocumentType extends Pick<
-  Document,
-  | 'id'
-  | 'filename'
-  | 'mimeType'
-  | 'sizeBytes'
-  | 'storageUrl'
-  | 'status'
-  | 'rejectedReason'
-  | 'createdAt'
-  | 'uploadedById'
-  | 'storageKey'
->
-  ? true
-  : never;
+type _FieldsMatch =
+  DocumentType extends Pick<
+    Document,
+    | 'id'
+    | 'filename'
+    | 'mimeType'
+    | 'sizeBytes'
+    | 'storageUrl'
+    | 'status'
+    | 'rejectedReason'
+    | 'createdAt'
+    | 'uploadedById'
+    | 'storageKey'
+  >
+    ? true
+    : never;
 void (true as _FieldsMatch); // NOSONAR

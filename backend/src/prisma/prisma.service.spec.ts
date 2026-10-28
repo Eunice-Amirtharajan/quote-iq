@@ -131,7 +131,7 @@ describe('isDbConnectionError', () => {
     expect(isDbConnectionError({ code: 'P1017' })).toBe(true);
   });
 
-  it("returns true for message containing \"Can't reach database\"", () => {
+  it('returns true for message containing "Can\'t reach database"', () => {
     expect(
       isDbConnectionError({ message: "Can't reach database server" }),
     ).toBe(true);

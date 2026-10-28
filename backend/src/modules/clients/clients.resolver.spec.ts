@@ -77,13 +77,13 @@ describe('ClientsResolver', () => {
 
     it('runs findAll and countAll in parallel', async () => {
       const order: string[] = [];
-      mockClientsService.findAll.mockImplementation(async () => {
+      mockClientsService.findAll.mockImplementation(() => {
         order.push('findAll');
-        return [mockClient];
+        return Promise.resolve([mockClient]);
       });
-      mockClientsService.countAll.mockImplementation(async () => {
+      mockClientsService.countAll.mockImplementation(() => {
         order.push('countAll');
-        return 1;
+        return Promise.resolve(1);
       });
 
       await resolver.clientsPage();
@@ -114,9 +114,13 @@ describe('ClientsResolver', () => {
     });
 
     it('propagates exceptions from the service', async () => {
-      mockClientsService.delete.mockRejectedValue(new Error('3 quotations are linked'));
+      mockClientsService.delete.mockRejectedValue(
+        new Error('3 quotations are linked'),
+      );
 
-      await expect(resolver.deleteClient(mockClient.id)).rejects.toThrow('3 quotations are linked');
+      await expect(resolver.deleteClient(mockClient.id)).rejects.toThrow(
+        '3 quotations are linked',
+      );
     });
   });
 
@@ -124,7 +128,10 @@ describe('ClientsResolver', () => {
     it('calls findOrCreate with name and email', async () => {
       mockClientsService.findOrCreate.mockResolvedValue(mockClient);
 
-      const result = await resolver.createClient('Acme Corp', 'acme@example.com');
+      const result = await resolver.createClient(
+        'Acme Corp',
+        'acme@example.com',
+      );
 
       expect(result).toEqual(mockClient);
       expect(mockClientsService.findOrCreate).toHaveBeenCalledWith(

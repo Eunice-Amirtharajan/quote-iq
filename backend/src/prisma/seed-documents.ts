@@ -38,7 +38,10 @@ function chunkText(text: string): string[] {
 }
 
 async function embedText(text: string): Promise<string> {
-  const resp = await openai.embeddings.create({ model: EMBED_MODEL, input: text });
+  const resp = await openai.embeddings.create({
+    model: EMBED_MODEL,
+    input: text,
+  });
   return '[' + resp.data[0].embedding.join(',') + ']';
 }
 
@@ -46,9 +49,18 @@ const DOCS_DIR = path.resolve(__dirname, '../../../docs/sample-playbook');
 
 const SAMPLE_DOCS = [
   { filename: 'pricing-guidelines.pdf', file: 'pricing-guidelines.md' },
-  { filename: 'discount-approval-policy.pdf', file: 'discount-approval-policy.md' },
-  { filename: 'competitor-battlecard-quotewise.pdf', file: 'competitor-battlecard-quotewise.md' },
-  { filename: 'win-loss-debrief-q1-2026.pdf', file: 'win-loss-debrief-q1-2026.md' },
+  {
+    filename: 'discount-approval-policy.pdf',
+    file: 'discount-approval-policy.md',
+  },
+  {
+    filename: 'competitor-battlecard-quotewise.pdf',
+    file: 'competitor-battlecard-quotewise.md',
+  },
+  {
+    filename: 'win-loss-debrief-q1-2026.pdf',
+    file: 'win-loss-debrief-q1-2026.md',
+  },
 ];
 
 async function seedDocument(

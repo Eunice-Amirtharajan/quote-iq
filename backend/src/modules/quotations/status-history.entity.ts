@@ -13,13 +13,19 @@ export class StatusHistoryType {
   @Field(() => QuotationStatus, { description: 'Status after the transition' })
   toStatus!: QuotationStatus;
 
-  @Field(() => String, { nullable: true, description: 'Optional note recorded at transition time' })
+  @Field(() => String, {
+    nullable: true,
+    description: 'Optional note recorded at transition time',
+  })
   note?: string | null;
 
   @Field(() => Date, { description: 'When the transition occurred' })
   changedAt!: Date;
 
-  @Field(() => UserType, { nullable: true, description: 'User who made the change' })
+  @Field(() => UserType, {
+    nullable: true,
+    description: 'User who made the change',
+  })
   changedBy?: UserType | null;
 
   quotationId!: string;
@@ -29,7 +35,13 @@ export class StatusHistoryType {
 type _ScalarFieldsMatch =
   StatusHistoryType extends Pick<
     StatusHistory,
-    'id' | 'fromStatus' | 'toStatus' | 'note' | 'changedAt' | 'quotationId' | 'changedById'
+    | 'id'
+    | 'fromStatus'
+    | 'toStatus'
+    | 'note'
+    | 'changedAt'
+    | 'quotationId'
+    | 'changedById'
   >
     ? true
     : never;
