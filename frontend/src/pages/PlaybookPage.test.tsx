@@ -19,10 +19,19 @@ const gateMock = (hasReady: boolean): MockLink.MockedResponse => ({
 const askMock = (
   question: string,
   answer: string,
-  citations: { documentTitle: string; chunkIndex: number; excerpt: string }[] = [],
+  citations: { documentTitle: string; chunkIndex: number; excerpt: string; sourceNumber?: number }[] = [],
+  grounded = true,
 ): MockLink.MockedResponse => ({
   request: { query: ASK_PLAYBOOK_MUTATION, variables: { question } },
-  result: { data: { askPlaybook: { answer, citations } } },
+  result: {
+    data: {
+      askPlaybook: {
+        answer,
+        grounded,
+        citations: citations.map((c, i) => ({ sourceNumber: i + 1, ...c })),
+      },
+    },
+  },
 });
 
 const render_ = (mocks: MockLink.MockedResponse[]) =>
@@ -138,6 +147,45 @@ describe("PlaybookPage", () => {
     expect(screen.getByText("Discounts above 15%...")).toBeInTheDocument();
     await userEvent.click(screen.getByText(/hide sources/i));
     expect(screen.queryByText(/Pricing Guide/)).not.toBeInTheDocument();
+  });
+
+  it("labels each source with the number the answer cites it by", async () => {
+    render_([
+      gateMock(true),
+      askMock("Competitor pricing?", "Match on value (see [3]).", [
+        { sourceNumber: 3, documentTitle: "Battlecards", chunkIndex: 0, excerpt: "Lead with ROI." },
+      ]),
+    ]);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
+    await userEvent.type(input, "Competitor pricing?");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+    await userEvent.click(await screen.findByText(/show 1 source/i));
+    expect(screen.getByText(/\[3\] Battlecards/)).toBeInTheDocument();
+  });
+
+  it("warns when the answer is not grounded in a cited source", async () => {
+    render_([
+      gateMock(true),
+      askMock("Ungrounded?", "Always lead with value.", [], false),
+    ]);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
+    await userEvent.type(input, "Ungrounded?");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+    expect(await screen.findByRole("note")).toHaveTextContent(/no playbook source cited/i);
+  });
+
+  it("shows no warning for a grounded answer", async () => {
+    render_([
+      gateMock(true),
+      askMock("Grounded?", "Max 15% (see [1]).", [
+        { documentTitle: "Pricing Guide", chunkIndex: 3, excerpt: "Discounts above 15%..." },
+      ]),
+    ]);
+    const input = await screen.findByPlaceholderText(/How do I handle a price objection/i);
+    await userEvent.type(input, "Grounded?");
+    await userEvent.click(screen.getByRole("button", { name: /send/i }));
+    await screen.findByText("Max 15% (see [1]).");
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
   it("does not render citations toggle when answer has no citations", async () => {

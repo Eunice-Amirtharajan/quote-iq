@@ -7,7 +7,12 @@ export interface ResultRow {
   category: string;
   score: number;
   infraError?: boolean;
+  /** Sources the answer cited */
   actualCitations: string[];
+  /** Sources retrieval passed to the model; older results only have actualCitations */
+  retrievedSources?: string[];
+  /** False when a non-refusal answer cited no source it was given (askPlaybook's flag) */
+  grounded?: boolean;
   expectedSourceDocuments: string[];
 }
 
@@ -20,8 +25,10 @@ export interface Metrics {
   /** In-scope probes that got the refusal instead of an answer */
   falseRefusals: number;
   retrievalScenarios: number;
-  /** Scenarios whose expected source documents were all among the citations */
+  /** Scenarios whose expected source documents were all passed to the model */
   retrievalFullCoverage: number;
+  /** Answers that cite none of the passages they were given, or invent one */
+  ungroundedAnswers: number;
   infraErrors: number;
 }
 
@@ -34,6 +41,7 @@ export interface Baseline {
     passCount: number;
     falseRefusals: number;
     retrievalFullCoverage: number;
+    ungroundedAnswers: number;
   };
 }
 
@@ -64,8 +72,10 @@ export function computeMetrics(
   const graded = rows.filter((r) => !r.infraError);
   const withSources = rows.filter((r) => r.expectedSourceDocuments.length > 0);
   const fullyCovered = withSources.filter((r) => {
-    const cited = new Set(r.actualCitations.map(normalize));
-    return r.expectedSourceDocuments.every((d) => cited.has(normalize(d)));
+    const retrieved = new Set(
+      (r.retrievedSources ?? r.actualCitations).map(normalize),
+    );
+    return r.expectedSourceDocuments.every((d) => retrieved.has(normalize(d)));
   });
   return {
     totalCount: rows.length,
@@ -82,6 +92,7 @@ export function computeMetrics(
     ).length,
     retrievalScenarios: withSources.length,
     retrievalFullCoverage: fullyCovered.length,
+    ungroundedAnswers: graded.filter((r) => r.grounded === false).length,
     infraErrors: rows.length - graded.length,
   };
 }
@@ -135,12 +146,20 @@ export function evaluateGate(metrics: Metrics, baseline: Baseline): GateResult {
       passed: metrics.falseRefusals <= base.falseRefusals + tol.falseRefusals,
     },
     {
-      name: `Retrieval: expected sources cited (min ${base.retrievalFullCoverage - tol.retrievalFullCoverage})`,
+      name: `Retrieval: expected sources given to the model (min ${base.retrievalFullCoverage - tol.retrievalFullCoverage})`,
       baseline: `${base.retrievalFullCoverage}/${base.retrievalScenarios}`,
       actual: `${metrics.retrievalFullCoverage}/${metrics.retrievalScenarios}`,
       passed:
         metrics.retrievalFullCoverage >=
         base.retrievalFullCoverage - tol.retrievalFullCoverage,
+    },
+    {
+      name: `Ungrounded answers: no valid citation (max ${base.ungroundedAnswers + tol.ungroundedAnswers})`,
+      baseline: `${base.ungroundedAnswers}`,
+      actual: `${metrics.ungroundedAnswers}`,
+      passed:
+        metrics.ungroundedAnswers <=
+        base.ungroundedAnswers + tol.ungroundedAnswers,
     },
   ];
   return {

@@ -5,12 +5,13 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
-import { from, Observable, switchMap } from 'rxjs';
+import { defer, Observable } from 'rxjs';
 import { AiQuotaService, runAsAiUser } from './ai-quota.service';
 
 /**
- * Applies the per-user AI limits to an AI operation, then runs it as that user so its tokens
- * are charged to them. Runs after the guards, so JwtAuthGuard has already set the user.
+ * Applies the per-user AI rate limit to an AI operation, then runs it as that user so its tokens
+ * are charged to them and checked against their daily budget. Runs after the guards, so
+ * JwtAuthGuard has already set the user.
  */
 @Injectable()
 export class AiQuotaInterceptor implements NestInterceptor {
@@ -22,13 +23,12 @@ export class AiQuotaInterceptor implements NestInterceptor {
     }>().req;
     const userId = req.user?.id;
     if (!userId) return next.handle();
-    return from(this.quota.assertAllowed(userId)).pipe(
-      switchMap(
-        () =>
-          new Observable<unknown>((subscriber) =>
-            runAsAiUser(userId, () => next.handle().subscribe(subscriber)),
-          ),
-      ),
-    );
+    // defer turns a rate-limit throw into an error the GraphQL layer reports as the 429
+    return defer(() => {
+      this.quota.assertRate(userId);
+      return new Observable<unknown>((subscriber) =>
+        runAsAiUser(userId, () => next.handle().subscribe(subscriber)),
+      );
+    });
   }
 }

@@ -12,6 +12,7 @@ import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
 import { corsOptions } from '../src/common/cors/cors-options';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { SUMMARY_PROMPT_VERSION } from '../src/modules/ai/ai.service';
 
 const FRONTEND_ORIGIN = 'http://localhost:5173';
 
@@ -157,36 +158,78 @@ describe('QuoteIQ E2E', () => {
   });
 
   describe('AI — per-user daily token budget', () => {
-    it('refuses AI requests with a 429 once the user has spent today’s budget', async () => {
-      const prisma = app.get(PrismaService);
-      const marcus = await prisma.user.findUniqueOrThrow({
-        where: { email: 'marcus@quoteiq.com' },
-      });
+    let prisma: PrismaService;
+    let marcusId: string;
+    let budgetQuotationId: string;
+    const gql = (query: string) =>
+      request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({ query });
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+      marcusId = (
+        await prisma.user.findUniqueOrThrow({
+          where: { email: 'marcus@quoteiq.com' },
+        })
+      ).id;
+      const res = await gql(
+        `mutation { createQuotation(input: { title: "E2E budget" clientId: "${e2eClientId}" taxRate: 0 items: [{ description: "Item" quantity: 1 unitPrice: 100 }] }) { id } }`,
+      );
+      budgetQuotationId = res.body.data.createQuotation.id as string;
+      // Spend today's budget
       const day = new Date(new Date().toISOString().slice(0, 10));
       await prisma.aiUsage.upsert({
-        where: { userId_day: { userId: marcus.id, day } },
-        create: { userId: marcus.id, day, tokens: 200_000 },
+        where: { userId_day: { userId: marcusId, day } },
+        create: { userId: marcusId, day, tokens: 200_000 },
         update: { tokens: 200_000 },
       });
-      try {
-        const res = await request(app.getHttpServer())
-          .post('/graphql')
-          .set('Cookie', managerCookie)
-          .send({
-            query: `mutation { askAboutQuotation(quotationId: "${e2eClientId}", question: "Is the margin fine?") { answer } }`,
-          });
-        const error = res.body.errors[0];
-        expect(error.message).toBe(
-          "You've reached today's AI limit. It resets at midnight UTC.",
-        );
-        // How Nest + Apollo deliver a 429; the frontend reads extensions.status
-        expect(error.extensions).toMatchObject({
-          code: 'INTERNAL_SERVER_ERROR',
-          status: 429,
-        });
-      } finally {
-        await prisma.aiUsage.deleteMany({ where: { userId: marcus.id } });
-      }
+    });
+
+    afterAll(async () => {
+      await prisma.aiUsage.deleteMany({ where: { userId: marcusId } });
+      await gql(`mutation { deleteQuotation(id: "${budgetQuotationId}") }`);
+    });
+
+    it('refuses AI requests with a 429 once the user has spent today’s budget', async () => {
+      const res = await gql(
+        `mutation { askAboutQuotation(quotationId: "${budgetQuotationId}", question: "Is the margin fine?") { answer } }`,
+      );
+      const error = res.body.errors[0];
+      expect(error.message).toBe(
+        "You've reached today's AI limit. It resets at midnight UTC.",
+      );
+      // How Nest + Apollo deliver a 429; the frontend reads extensions.status
+      expect(error.extensions).toMatchObject({
+        code: 'INTERNAL_SERVER_ERROR',
+        status: 429,
+      });
+    });
+
+    it('still serves a cached summary: it costs no tokens', async () => {
+      await prisma.aIInsight.create({
+        data: {
+          quotationId: budgetQuotationId,
+          insightType: 'SUMMARY',
+          content: JSON.stringify({
+            summary: 'Cached summary',
+            keyPoints: [],
+            riskFactors: [],
+            recommendation: 'FOLLOW_UP',
+          }),
+          expiresAt: new Date(Date.now() + 60 * 60_000),
+          promptVersion: SUMMARY_PROMPT_VERSION,
+        },
+      });
+      const res = await gql(
+        `mutation { quotationSummary(quotationId: "${budgetQuotationId}") { summary stale } }`,
+      );
+      expect(res.body.errors).toBeUndefined();
+      expect(res.body.data.quotationSummary).toEqual({
+        summary: 'Cached summary',
+        stale: false,
+      });
     });
   });
 

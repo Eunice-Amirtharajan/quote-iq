@@ -174,10 +174,21 @@ export class LessonsLearnedAnswerType {
 
   @Field(() => [String])
   sources!: string[];
+
+  @Field(() => Boolean, {
+    description:
+      'False when the answer cites no retrieved source, or cites one that was never retrieved: check it before relying on it',
+  })
+  grounded!: boolean;
 }
 
 @ObjectType({ description: 'A single retrieved document chunk citation' })
 export class PlaybookCitationType {
+  @Field(() => Int, {
+    description: 'The [n] the answer uses to cite this source',
+  })
+  sourceNumber!: number;
+
   @Field(() => String, { description: 'Document filename' })
   documentTitle!: string;
 
@@ -199,6 +210,12 @@ export class PlaybookAnswerType {
 
   @Field(() => [PlaybookCitationType])
   citations!: PlaybookCitationType[];
+
+  @Field(() => Boolean, {
+    description:
+      'False when the answer cites no retrieved source, or cites one that was never retrieved: check it before relying on it',
+  })
+  grounded!: boolean;
 }
 
 @ObjectType({

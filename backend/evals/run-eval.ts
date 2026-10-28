@@ -41,6 +41,8 @@ interface EvalResult {
   scenario: Scenario;
   actualAnswer: string;
   actualCitations: string[];
+  retrievedSources: string[];
+  grounded?: boolean;
   verdict: JudgeVerdict;
   infraError: boolean;
   durationMs: number;
@@ -116,6 +118,25 @@ function loadScenarios(filter: string | undefined): Scenario[] {
   return filter ? scenarios.filter((s) => s.id.includes(filter)) : scenarios;
 }
 
+// The passages askPlaybook gives the model, captured from its reranker, so retrieval is measured
+// separately from what the answer cites (the API returns only cited sources)
+const retrieved: string[] = [];
+function captureRetrieval(aiService: AIService): void {
+  const service = aiService as unknown as {
+    rerankChunks: (...args: unknown[]) => Promise<{ documentTitle: string }[]>;
+  };
+  const rerank = service.rerankChunks.bind(aiService);
+  service.rerankChunks = async (...args) => {
+    const chunks = await rerank(...args);
+    retrieved.splice(
+      0,
+      retrieved.length,
+      ...chunks.map((c) => c.documentTitle),
+    );
+    return chunks;
+  };
+}
+
 async function runScenario(
   aiService: AIService,
   openai: OpenAI,
@@ -124,12 +145,15 @@ async function runScenario(
   const start = Date.now();
   let actualAnswer: string;
   let actualCitations: string[] = [];
+  let grounded: boolean | undefined;
+  retrieved.length = 0;
 
   let infraError = false;
   try {
     const response = await askWithBackoff(aiService, scenario.question);
     actualAnswer = response.answer;
     actualCitations = response.citations.map((c) => c.documentTitle);
+    grounded = response.grounded;
   } catch (err) {
     // Still rate-limited (or Groq down) after retries: an infrastructure failure, not a quality
     // result — the gate reports it separately instead of as a low score
@@ -149,6 +173,8 @@ async function runScenario(
     scenario,
     actualAnswer,
     actualCitations,
+    retrievedSources: [...retrieved],
+    grounded,
     verdict,
     infraError,
     durationMs: Date.now() - start,
@@ -268,6 +294,8 @@ function writeResults(
           infraError: r.infraError,
           reason: r.verdict.reason,
           actualCitations: r.actualCitations,
+          retrievedSources: r.retrievedSources,
+          grounded: r.grounded,
           expectedSourceDocuments: r.scenario.expectedSourceDocuments ?? [],
           durationMs: r.durationMs,
         })),
@@ -303,10 +331,15 @@ async function main() {
     makeTokenCounter(tokenTotals),
     makeNoopCounter(),
     makeNoopGauge(),
+    makeNoopCounter(),
     // Evals run outside a user request, so nothing is charged to a quota
-    { record: () => Promise.resolve() } as unknown as AiQuotaService,
+    {
+      record: () => Promise.resolve(),
+      assertBudget: () => Promise.resolve(),
+    } as unknown as AiQuotaService,
   );
   await aiService.onModuleInit(); // loads available Groq models — normally run by Nest's lifecycle
+  captureRetrieval(aiService);
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 

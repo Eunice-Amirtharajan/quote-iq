@@ -122,7 +122,9 @@ export const ASK_PLAYBOOK_MUTATION = gql`
   mutation AskPlaybook($question: String!) {
     askPlaybook(question: $question) {
       answer
+      grounded
       citations {
+        sourceNumber
         documentTitle
         chunkIndex
         excerpt
