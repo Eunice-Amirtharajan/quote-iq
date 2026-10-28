@@ -1,0 +1,28 @@
+{
+  "name": "quoteiq-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server exposing read-only QuoteIQ tools (playbook search, quotation lookup) to AI assistants, acting as the signed-in user",
+  "type": "module",
+  "bin": {
+    "quoteiq-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "inspect": "npx @modelcontextprotocol/inspector@0.17.2 node dist/index.js"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^5.9.3"
+  }
+}
