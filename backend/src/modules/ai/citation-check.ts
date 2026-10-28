@@ -11,9 +11,16 @@ export interface PassageCitations {
   invalid: number[];
 }
 
+// Models don't always cite with ASCII brackets: gpt-oss often writes 【1】 (lesson #191)
+const CLOSING_BRACKET = new Map([
+  ['[', ']'],
+  ['【', '】'],
+  ['［', '］'],
+]);
+
 /**
- * The [n] markers in an answer, e.g. "(see [1])", "[1][3]" or "[1, 2]". Scans characters instead
- * of using a regex: the text is model output, so no backtracking risk on adversarial input.
+ * The [n] markers in an answer, e.g. "(see [1])", "[1][3]", "[1, 2]" or "【1】". Scans characters
+ * instead of using a regex: the text is model output, so no backtracking risk on adversarial input.
  */
 export function citedPassages(
   answer: string,
@@ -21,17 +28,36 @@ export function citedPassages(
 ): PassageCitations {
   const cited: number[] = [];
   const invalid: number[] = [];
-  let i = answer.indexOf('[');
-  while (i !== -1) {
-    const close = answer.indexOf(']', i + 1);
-    if (close === -1) break;
-    for (const n of citationNumbers(answer.slice(i + 1, close))) {
+  const unclosed = new Set<string>();
+  let span = nextBracketed(answer, 0, unclosed);
+  while (span) {
+    for (const n of citationNumbers(answer.slice(span.start + 1, span.end))) {
       const target = n >= 1 && n <= passageCount ? cited : invalid;
       if (!target.includes(n)) target.push(n);
     }
-    i = answer.indexOf('[', close + 1);
+    span = nextBracketed(answer, span.end + 1, unclosed);
   }
   return { cited, invalid };
+}
+
+/**
+ * The next bracket pair starting at or after `from`, or undefined. A closing bracket missing
+ * after some point never appears later, so `unclosed` remembers it and the scan stays linear
+ * on a run of unclosed brackets.
+ */
+function nextBracketed(
+  answer: string,
+  from: number,
+  unclosed: Set<string>,
+): { start: number; end: number } | undefined {
+  for (let start = from; start < answer.length; start++) {
+    const closing = CLOSING_BRACKET.get(answer[start]);
+    if (!closing || unclosed.has(closing)) continue;
+    const end = answer.indexOf(closing, start + 1);
+    if (end !== -1) return { start, end };
+    unclosed.add(closing);
+  }
+  return undefined;
 }
 
 /** The numbers in one bracket's contents ("1" or "1, 3"); none if it isn't a citation. */

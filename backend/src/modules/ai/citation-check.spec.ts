@@ -7,6 +7,14 @@ describe('citedPassages', () => {
     ['Both apply [1][3].', [1, 3]],
     ['Both apply [1, 3].', [1, 3]],
     ['Repeated [2] and again [2].', [2]],
+    // gpt-oss style, seen live: the check used to flag this answer as citing nothing
+    [
+      'A sales rep may apply a discount of up to 10 % without approval (see the standard discount tiers)【1】.',
+      [1],
+    ],
+    ['Both apply 【1】【3】.', [1, 3]],
+    ['Fullwidth square brackets ［2］ too.', [2]],
+    ['Mixed styles [1] and 【2】.', [1, 2]],
   ])('finds the cited passages in %s', (answer, cited) => {
     expect(citedPassages(answer, 3)).toEqual({ cited, invalid: [] });
   });
@@ -31,6 +39,28 @@ describe('citedPassages', () => {
       invalid: [],
     });
     expect(citedPassages('Cut off [1', 3)).toEqual({ cited: [], invalid: [] });
+  });
+
+  it('only closes a bracket with its own partner', () => {
+    expect(citedPassages('Odd 【1] and [2】.', 3)).toEqual({
+      cited: [],
+      invalid: [],
+    });
+    expect(citedPassages('Unclosed 【 then [2].', 3)).toEqual({
+      cited: [2],
+      invalid: [],
+    });
+  });
+
+  it('flags an invented fullwidth citation', () => {
+    expect(citedPassages('See 【7】.', 3)).toEqual({ cited: [], invalid: [7] });
+  });
+
+  it('stays fast on a long run of unclosed brackets', () => {
+    const answer = '['.repeat(50_000) + '【'.repeat(50_000) + ' [1]';
+    const started = Date.now();
+    expect(citedPassages(answer, 3).cited).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(500);
   });
 });
 
