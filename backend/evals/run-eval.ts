@@ -121,16 +121,18 @@ function loadScenarios(filter: string | undefined): Scenario[] {
   return filter ? scenarios.filter((s) => s.id.includes(filter)) : scenarios;
 }
 
-// The passages askPlaybook gives the model, captured from its reranker, so retrieval is measured
+// The passages askPlaybook gives the model (reranked or not), captured so retrieval is measured
 // separately from what the answer cites (the API returns only cited sources)
 const retrieved: string[] = [];
 function captureRetrieval(aiService: AIService): void {
   const service = aiService as unknown as {
-    rerankChunks: (...args: unknown[]) => Promise<{ documentTitle: string }[]>;
+    choosePassages: (
+      ...args: unknown[]
+    ) => Promise<{ documentTitle: string }[]>;
   };
-  const rerank = service.rerankChunks.bind(aiService);
-  service.rerankChunks = async (...args) => {
-    const chunks = await rerank(...args);
+  const choose = service.choosePassages.bind(aiService);
+  service.choosePassages = async (...args) => {
+    const chunks = await choose(...args);
     retrieved.splice(
       0,
       retrieved.length,

@@ -1,6 +1,6 @@
 {
   "recordedAt": "2026-10-27T19:15:00.000Z",
-  "note": "Worse of two full local runs (4.91 and 4.83 avg, 23/23 both): run-to-run noise was ~0.1. Update with `npm run eval:baseline` after an intentional quality change and commit this file with it. ungroundedAnswers (D8, answers citing no passage they were given) was added 2026-10-27 from a run where gpt-oss-120b was out of daily tokens and most answers came from the fallback models: re-baseline after a full primary-model run.",
+  "note": "Worse of two full local runs (4.91 and 4.83 avg, 23/23 both): run-to-run noise was ~0.1. Update with `npm run eval:baseline` after an intentional quality change and commit this file with it. ungroundedAnswers (D8, answers citing no passage they were given) was added 2026-10-27; four runs on 2026-10-28 measured 0, 0, 2 and 0, so 2 (max 3) stays.",
   "metrics": {
     "totalCount": 23,
     "avgScore": 4.83,
