@@ -21,6 +21,7 @@ import { MailModule } from '../../common/mail/mail.module';
     MailModule,
   ],
   providers: [AuthService, AuthResolver, JwtStrategy],
-  exports: [AuthService],
+  // JwtModule: the WebSocket gateway verifies session tokens with the same configuration
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
