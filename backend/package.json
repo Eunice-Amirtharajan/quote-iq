@@ -61,7 +61,7 @@
     "groq-sdk": "^1.2.1",
     "helmet": "^8.2.0",
     "ioredis": "^6.0.0",
-    "multer": "^2.4.0",
+    "multer": "^2.5.0",
     "nest-winston": "^1.10.2",
     "nodemailer": "^9.0.4",
     "openai": "^7.4.0",
