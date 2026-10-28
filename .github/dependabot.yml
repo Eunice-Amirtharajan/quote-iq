@@ -1,7 +1,8 @@
-# Weekly dependency updates. Minor and patch updates arrive as one grouped PR per folder;
-# major upgrades as their own PRs, since they need reading and usually code changes.
-# Security fixes are raised as soon as an advisory is published (enable "Dependabot security
-# updates" in the repo settings), regardless of this schedule.
+# Weekly dependency updates: one grouped PR per folder for minor and patch updates, and one
+# grouped PR per folder for security fixes (raised as soon as an advisory is published, via
+# "Dependabot security updates" in the repo settings). Major upgrades aren't proposed as version
+# updates: they're planned migrations (pending item H6). Security fixes still arrive even when
+# they need a major version, since the ignore rule below applies to version updates only.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -17,11 +18,20 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     groups:
       minor-and-patch:
+        applies-to: version-updates
         update-types:
           - minor
           - patch
+      security:
+        applies-to: security-updates
+        patterns:
+          - '*'
 
   - package-ecosystem: github-actions
     directory: /
