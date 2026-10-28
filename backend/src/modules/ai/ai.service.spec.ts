@@ -744,8 +744,8 @@ describe('AIService', () => {
       // If this fails you changed the summary prompt: bump SUMMARY_PROMPT_VERSION in
       // ai.service.ts so cached summaries from the old prompt are regenerated, then update both values here.
       expect({ version: SUMMARY_PROMPT_VERSION, hash }).toEqual({
-        version: 'summary-v1',
-        hash: 'bdb9183bd672305a46d03557af9b58fcfe58bf912a0549373c4cb046ecc7b7de',
+        version: 'summary-v2',
+        hash: '35f88ae1c4533f5e2f277fa80abb9039f0d0ee24f0eddd0ea5e8f8adb5ab0365',
       });
     });
 
@@ -1703,13 +1703,13 @@ describe('AIService', () => {
       expect(systemPrompt).toContain('Average deal size');
     });
 
-    it('throws NotFoundException when quotation not found', async () => {
+    it('throws NotFoundException when quotation not found, before any Groq call', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(null);
-      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
 
       await expect(
         service.askAboutQuotation('q-999', 'Any question?'),
       ).rejects.toThrow('Quotation q-999 not found');
+      expect(mockCreate).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException for blank question', async () => {
@@ -1719,7 +1719,8 @@ describe('AIService', () => {
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
-    it('rejects off-topic question via intent classifier before making embedding calls', async () => {
+    it('rejects off-topic question via intent classifier before the answer call', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(mockQuotation);
       mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'N' } }] });
       await expect(
         service.askAboutQuotation('q-1', 'Hi'),
@@ -1765,6 +1766,98 @@ describe('AIService', () => {
         service.askAboutQuotation('q-1', 'Any question?'),
       ).rejects.toThrow('503');
       expect(mockCreate).toHaveBeenCalledTimes(4); // classifier + 3 model retries
+    });
+  });
+
+  describe('names are not sent to the model (data minimisation)', () => {
+    const sentTexts = () =>
+      mockCreate.mock.calls.flatMap(
+        ([body]: [{ messages: { content: string }[] }]) =>
+          body.messages.map((m) => m.content),
+      );
+
+    beforeEach(() => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue({
+        ...mockQuotation,
+        notes: 'Bauer Logistics GmbH asked Anna Schmidt for a discount',
+      });
+      mockPrismaService.quotation.findMany.mockResolvedValue([]);
+    });
+
+    it('hides client and rep names in the quotation Q&A, question included, and restores them', async () => {
+      mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: 'Y' } }] }); // classifier
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'CLIENT_A usually accepts offers from SALES_REP_A.' } }],
+      });
+
+      const result = await service.askAboutQuotation(
+        'q-1',
+        'Will Bauer Logistics GmbH accept?',
+      );
+
+      for (const text of sentTexts()) {
+        expect(text).not.toContain('Bauer Logistics GmbH');
+        expect(text).not.toContain('Anna Schmidt');
+      }
+      // Both the classifier and the answer model got the pseudonymised question
+      expect(
+        sentTexts().filter((t) => t.includes('Will CLIENT_A accept?')),
+      ).toHaveLength(2);
+      expect(result.answer).toBe(
+        'Bauer Logistics GmbH usually accepts offers from Anna Schmidt.',
+      );
+    });
+
+    it('hides names in the summary prompt and restores them in the stored summary', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                summary: 'CLIENT_A is a repeat buyer.',
+                recommendation: 'PROCEED',
+                keyPoints: ['SALES_REP_A owns the account'],
+                riskFactors: ['CLIENT_A asked for a discount'],
+              }),
+            },
+          },
+        ],
+      });
+
+      const result = await service.generateQuotationSummary('q-1');
+
+      for (const text of sentTexts()) {
+        expect(text).not.toContain('Bauer Logistics GmbH');
+        expect(text).not.toContain('Anna Schmidt');
+        expect(text).toContain('CLIENT_A');
+      }
+      expect(result).toMatchObject({
+        summary: 'Bauer Logistics GmbH is a repeat buyer.',
+        keyPoints: ['Anna Schmidt owns the account'],
+        riskFactors: ['Bauer Logistics GmbH asked for a discount'],
+      });
+      const stored = mockPrismaService.aIInsight.upsert.mock.calls[0][0];
+      expect(stored.create.content).toContain('Bauer Logistics GmbH is a repeat buyer.');
+    });
+
+    it('embeds a quotation without its client name, but keeps it for keyword search', async () => {
+      mockPrismaService.quotation.findUnique = jest.fn().mockResolvedValueOnce({
+        ...mockQuotation,
+        title: 'Bauer Logistics GmbH fleet licences',
+        items: [{ description: 'Licence', quantity: 1, unitPrice: 500 }],
+      });
+      mockPrismaService.$executeRaw.mockClear();
+
+      await service.generateQuotationEmbedding('q-1');
+
+      const embedded = mockEmbeddingsCreate.mock.calls[0][0].input as string;
+      expect(embedded).not.toContain('Bauer Logistics GmbH');
+      expect(embedded).toContain('client: CLIENT_A');
+      // Tagged-template values: the stored searchText keeps the real name
+      const values = mockPrismaService.$executeRaw.mock.calls[0].slice(1);
+      expect(values).toContainEqual(
+        expect.stringContaining('client: Bauer Logistics GmbH'),
+      );
     });
   });
 
