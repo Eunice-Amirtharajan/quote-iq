@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2026-05-31" version="21.0.0">
+<mxfile host="app.diagrams.net" modified="2026-10-30" version="21.0.0">
   <diagram name="CI/CD Pipeline" id="cicd">
     <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -11,128 +11,152 @@
         </mxCell>
 
         <!-- TRIGGER -->
-        <mxCell id="trigger" value="git push to main" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="120" y="100" width="160" height="50" as="geometry" />
+        <mxCell id="trigger" value="git push to main&#xa;or pull request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="130" y="100" width="180" height="50" as="geometry" />
         </mxCell>
 
         <mxCell id="gha" value="GitHub Actions triggered&#xa;.github/workflows/ci.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="200" width="160" height="60" as="geometry" />
+          <mxGeometry x="130" y="200" width="180" height="60" as="geometry" />
         </mxCell>
 
         <!-- CI ZONE -->
         <mxCell id="ci-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;opacity=30;" vertex="1" parent="1">
-          <mxGeometry x="100" y="300" width="200" height="620" as="geometry" />
+          <mxGeometry x="100" y="300" width="240" height="590" as="geometry" />
         </mxCell>
-        <mxCell id="ci-label" value="CI — 3 sequential jobs (push/PR)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="100" y="305" width="200" height="25" as="geometry" />
+        <mxCell id="ci-label" value="CI — sequential jobs (push/PR)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="305" width="240" height="25" as="geometry" />
         </mxCell>
 
         <mxCell id="ci0" value="Job 1: secret-scan&#xa;Gitleaks (full git history)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="120" y="335" width="160" height="45" as="geometry" />
+          <mxGeometry x="120" y="335" width="200" height="45" as="geometry" />
         </mxCell>
-        <mxCell id="ci-job2-label" value="Job 2: test" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="120" y="385" width="160" height="18" as="geometry" />
+        <mxCell id="ci-job2-label" value="Job 2: test (Postgres :5433 + RabbitMQ)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="105" y="385" width="230" height="18" as="geometry" />
         </mxCell>
-        <mxCell id="ci1" value="npm ci" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="405" width="160" height="35" as="geometry" />
+        <mxCell id="ci1" value="Backend: npm ci&#xa;npm audit --omit=dev (critical) · lint:check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="405" width="200" height="45" as="geometry" />
         </mxCell>
         <mxCell id="ci2" value="npx prisma generate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="445" width="160" height="35" as="geometry" />
+          <mxGeometry x="120" y="455" width="200" height="35" as="geometry" />
         </mxCell>
         <mxCell id="ci3" value="prisma migrate deploy&#xa;(Docker PostgreSQL :5433)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="485" width="160" height="45" as="geometry" />
+          <mxGeometry x="120" y="495" width="200" height="45" as="geometry" />
         </mxCell>
-        <mxCell id="ci4" value="seed-ci.ts&#xa;(users + client, RabbitMQ up)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="535" width="160" height="45" as="geometry" />
+        <mxCell id="ci4" value="seed-ci.ts&#xa;(users + client)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="545" width="200" height="45" as="geometry" />
         </mxCell>
-        <mxCell id="ci5" value="npm run test:cov&#xa;(Jest unit tests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="585" width="160" height="35" as="geometry" />
+        <mxCell id="ci5" value="npm run test:cov (Jest unit tests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="595" width="200" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="ci6" value="npm run test:e2e&#xa;(Supertest E2E)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="625" width="160" height="35" as="geometry" />
+        <mxCell id="ci6" value="npm run test:e2e (Supertest E2E)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="635" width="200" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="ci7" value="SonarCloud analysis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="665" width="160" height="35" as="geometry" />
+        <mxCell id="ci6b" value="Frontend: npm ci · npm audit · lint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="675" width="200" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="ci-job3-label" value="Job 3: playwright&#xa;(own Postgres + RabbitMQ containers)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="120" y="705" width="160" height="30" as="geometry" />
+        <mxCell id="ci6c" value="vitest run --coverage (lcov)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="715" width="200" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="ci8" value="Frontend Playwright E2E&#xa;(backend started, /health polled)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="740" width="160" height="45" as="geometry" />
+        <mxCell id="ci7" value="SonarCloud analysis (both coverages)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="755" width="200" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="ci-job3-label" value="Job 3: playwright (needs test)&#xa;(own Postgres + RabbitMQ containers)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="105" y="793" width="230" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="ci8" value="Frontend Playwright E2E&#xa;(backend built + started, /health polled)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="120" y="830" width="200" height="45" as="geometry" />
         </mxCell>
 
-        <!-- LLM EVAL — separate manual-only job, not part of the push/PR sequence -->
+        <!-- MCP SERVER JOB — runs in parallel -->
+        <mxCell id="mcp-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="300" width="270" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp-label" value="mcp-server job (ci.yml, in parallel)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="305" width="270" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="mcp-step" value="Node 24: npm ci · npm audit&#xa;→ typecheck → tests (in-memory MCP client)&#xa;→ build" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1035" y="330" width="240" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- LLM EVAL GATE — separate workflow on AI-related PRs -->
         <mxCell id="llm-eval-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;opacity=30;" vertex="1" parent="1">
-          <mxGeometry x="1080" y="300" width="200" height="140" as="geometry" />
+          <mxGeometry x="1020" y="440" width="270" height="230" as="geometry" />
         </mxCell>
-        <mxCell id="llm-eval-label" value="Job 4: llm-eval&#xa;workflow_dispatch ONLY&#xa;(not on push/PR — real API cost)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="1080" y="305" width="200" height="40" as="geometry" />
+        <mxCell id="llm-eval-label" value="llm-eval.yml: LLM eval gate&#xa;PRs touching modules/ai, modules/documents,&#xa;evals, seed-documents or the sample playbook&#xa;(+ manual dispatch; one run at a time)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="445" width="270" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="llm-eval-step" value="seed-documents.ts (real embeddings)&#xa;→ run-eval.ts (LLM-as-judge)&#xa;→ retrieval-precision + grounded-refusal&#xa;→ upload results.json artifact&#xa;(continue-on-error — report only,&#xa;never blocks the build)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=6;" vertex="1" parent="1">
-          <mxGeometry x="1095" y="350" width="170" height="80" as="geometry" />
+        <mxCell id="llm-eval-step" value="unit-test the gate&#xa;→ seed-documents.ts (real embeddings)&#xa;→ run-eval.ts: 23 scenarios, Groq answers,&#xa;   gpt-4o-mini judge (429s retried)&#xa;→ eval:gate vs baseline.json: score, passes,&#xa;   false answers/refusals, retrieval, ungrounded&#xa;→ FAILS the PR on a regression" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1035" y="510" width="240" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- DEPENDABOT -->
+        <mxCell id="dependabot" value="Dependabot (weekly, 7-day cooldown)&#xa;grouped minor + patch PRs per folder&#xa;grouped security PRs; majors ignored&#xa;(backend · frontend · mcp-server)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="700" width="270" height="75" as="geometry" />
         </mxCell>
 
         <!-- GATE -->
-        <mxCell id="gate" value="All tests&#xa;passed?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="120" y="940" width="160" height="80" as="geometry" />
+        <mxCell id="gate" value="All jobs&#xa;passed?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="140" y="920" width="160" height="80" as="geometry" />
         </mxCell>
-
-        <mxCell id="blocked" value="❌ CI failed&#xa;(Railway + Vercel already deploying independently)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="60" y="840" width="180" height="60" as="geometry" />
+        <mxCell id="blocked" value="❌ CI failed: red check on the commit / PR&#xa;(Railway + Vercel deploy independently)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="930" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="passed" value="✅ green check&#xa;(branch protection would require it)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="130" y="1040" width="180" height="50" as="geometry" />
         </mxCell>
 
         <!-- RAILWAY ZONE -->
         <mxCell id="railway-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=30;" vertex="1" parent="1">
-          <mxGeometry x="380" y="300" width="240" height="500" as="geometry" />
+          <mxGeometry x="380" y="300" width="260" height="560" as="geometry" />
         </mxCell>
-        <mxCell id="railway-label" value="Railway US West — Backend Deploy" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="380" y="305" width="240" height="25" as="geometry" />
+        <mxCell id="railway-label" value="Railway EU — Backend Deploy" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="305" width="260" height="25" as="geometry" />
         </mxCell>
 
-        <mxCell id="r1" value="Railway detects CI passed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="340" width="200" height="40" as="geometry" />
+        <mxCell id="r1" value="Railway GitHub integration&#xa;detects push to main&#xa;(runs in parallel with CI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="340" width="220" height="55" as="geometry" />
         </mxCell>
-        <mxCell id="r2" value="Docker build (multi-stage)&#xa;Stage 1: npm ci + prisma generate + build&#xa;Stage 2: prod deps only + dist/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="400" width="200" height="70" as="geometry" />
+        <mxCell id="r2" value="Docker build (multi-stage)&#xa;Stage 1: npm ci + prisma generate + build&#xa;Stage 2: prod deps only + dist/, non-root user" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="415" width="220" height="80" as="geometry" />
         </mxCell>
         <mxCell id="r3" value="prisma migrate deploy&#xa;(Neon DB production)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="490" width="200" height="50" as="geometry" />
+          <mxGeometry x="400" y="505" width="220" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="r4" value="node dist/main&#xa;NestJS starts on :4000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="560" width="200" height="50" as="geometry" />
+        <mxCell id="r4" value="node dist/main&#xa;warm up the database, then listen on :4000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="575" width="220" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="r5" value="Railway health check" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="630" width="200" height="40" as="geometry" />
+        <mxCell id="r5" value="Railway health check&#xa;GET /health/ready (database reachable)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="645" width="220" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="r6" value="Traffic switch to new container&#xa;Old container stopped" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="400" y="690" width="200" height="50" as="geometry" />
+        <mxCell id="r6" value="Traffic switch to new container&#xa;Old container: SIGTERM → graceful drain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="715" width="220" height="50" as="geometry" />
         </mxCell>
         <mxCell id="r7" value="✅ api.quoteiq.cc live" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="400" y="760" width="200" height="40" as="geometry" />
+          <mxGeometry x="400" y="795" width="220" height="40" as="geometry" />
         </mxCell>
 
         <!-- VERCEL ZONE -->
         <mxCell id="vercel-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;opacity=30;" vertex="1" parent="1">
-          <mxGeometry x="700" y="300" width="240" height="500" as="geometry" />
+          <mxGeometry x="700" y="300" width="260" height="560" as="geometry" />
         </mxCell>
         <mxCell id="vercel-label" value="Vercel — Frontend Deploy" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="700" y="305" width="240" height="25" as="geometry" />
+          <mxGeometry x="700" y="305" width="260" height="25" as="geometry" />
         </mxCell>
 
         <mxCell id="v1" value="Vercel GitHub integration&#xa;detects push to main" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="340" width="200" height="50" as="geometry" />
+          <mxGeometry x="720" y="340" width="220" height="55" as="geometry" />
         </mxCell>
         <mxCell id="v2" value="Ignored build step check&#xa;git diff HEAD^ HEAD --quiet -- frontend/&#xa;Skip if no frontend changes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="410" width="200" height="60" as="geometry" />
+          <mxGeometry x="720" y="415" width="220" height="60" as="geometry" />
         </mxCell>
         <mxCell id="v3" value="npm run build&#xa;TypeScript compile&#xa;VITE_API_URL baked in&#xa;Minified + tree-shaken" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="490" width="200" height="80" as="geometry" />
+          <mxGeometry x="720" y="495" width="220" height="80" as="geometry" />
         </mxCell>
         <mxCell id="v4" value="Upload dist/ to Cloudflare CDN&#xa;100+ edge locations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="720" y="590" width="200" height="60" as="geometry" />
+          <mxGeometry x="720" y="595" width="220" height="60" as="geometry" />
         </mxCell>
         <mxCell id="v5" value="✅ quoteiq.cc live" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="720" y="760" width="200" height="40" as="geometry" />
+          <mxGeometry x="720" y="795" width="220" height="40" as="geometry" />
         </mxCell>
 
         <!-- EDGES -->
@@ -144,18 +168,25 @@
         <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci3" target="ci4" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci4" target="ci5" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci5" target="ci6" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e7b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci6" target="ci7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci6" target="ci6b" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7a2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci6b" target="ci6c" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci6c" target="ci7" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e7c" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="ci7" target="ci8" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" source="ci8" target="gate" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e8b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;" edge="1" source="gha" target="llm-eval-step" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8a" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" source="gha" target="mcp-step" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8b" value="PR touching AI paths" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;dashed=1;fontSize=10;" edge="1" source="trigger" target="llm-eval-zone" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8c" value="opens PRs" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#666666;dashed=1;fontSize=10;" edge="1" source="dependabot" target="trigger" parent="1"><mxGeometry relative="1" as="geometry" /></mxCell>
         <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" edge="1" source="gate" target="blocked" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e9-label" value="NO" style="edgeLabel;html=1;fontSize=10;fontStyle=1;" vertex="1" connectable="0" parent="e9"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="gate" target="r1" parent="1">
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="gate" target="passed" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e10-label" value="YES" style="edgeLabel;html=1;fontSize=10;fontStyle=1;" vertex="1" connectable="0" parent="e10"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10b" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" edge="1" source="trigger" target="r1" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" source="trigger" target="v1" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>

@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2026-05-31" version="21.0.0">
+<mxfile host="app.diagrams.net" modified="2026-10-30" version="21.0.0">
   <diagram name="Sequence - Auth Flow" id="auth-seq">
     <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -111,7 +111,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="m8" value="ExtractJwt.fromExtractors — extract cookie" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
+        <mxCell id="m8" value="ExtractJwt.fromExtractors — cookie, or Bearer header (MCP server)" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="540" y="580" /><mxPoint x="760" y="580" /></Array></mxGeometry>
         </mxCell>
         <mxCell id="m8-label" value="JwtAuthGuard → JwtStrategy.validate(payload)" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m8">

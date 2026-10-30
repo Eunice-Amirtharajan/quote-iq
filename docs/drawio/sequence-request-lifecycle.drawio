@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2026-05-31" version="21.0.0">
+<mxfile host="app.diagrams.net" modified="2026-10-30" version="21.0.0">
   <diagram name="Sequence - Request Lifecycle" id="req-lifecycle">
     <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -56,6 +56,11 @@
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1240" y="130" /><mxPoint x="1240" y="900" /></Array></mxGeometry>
         </mxCell>
 
+        <!-- Before Apollo: Express middleware -->
+        <mxCell id="note-middleware" value="Express middleware first: correlation id (AsyncLocalStorage),&#xa;Origin check (CSRF) → 403 for a foreign origin" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#ffe6cc;strokeColor=#d79b00;size=15;" vertex="1" parent="1">
+          <mxGeometry x="130" y="132" width="300" height="44" as="geometry" />
+        </mxCell>
+
         <!-- Messages -->
         <mxCell id="m1" value="POST /graphql + Cookie: access_token" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;endArrow=open;endFill=0;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="120" y="180" /><mxPoint x="310" y="180" /></Array></mxGeometry>
@@ -65,9 +70,9 @@
         <mxCell id="m2" value="Parse GraphQL operation" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="310" y="210" /><mxPoint x="500" y="210" /></Array></mxGeometry>
         </mxCell>
-        <mxCell id="m2-label" value="Invoke JwtAuthGuard" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m2-label" value="Validate (depth ≤ 8, ≤ 150 fields) → GqlThrottlerGuard (120/min/IP, else 429) → JwtAuthGuard" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m2"><mxGeometry relative="1" as="geometry" /></mxCell>
 
-        <mxCell id="note-jwt" value="Extract cookie → verify JWT → validate payload&#xa;findFirst(payload.sub, isActive: true) → attach req.user" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
+        <mxCell id="note-jwt" value="Extract cookie (or Bearer header) → verify JWT → validate payload&#xa;findFirst(payload.sub, isActive: true) → attach req.user" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#fff2cc;strokeColor=#d6b656;size=15;" vertex="1" parent="1">
           <mxGeometry x="520" y="225" width="280" height="55" as="geometry" />
         </mxCell>
 
@@ -91,8 +96,8 @@
         </mxCell>
         <mxCell id="m6-label" value="Route to Resolver method" style="edgeLabel;html=1;fontSize=10;" vertex="1" connectable="0" parent="m6"><mxGeometry relative="1" as="geometry" /></mxCell>
 
-        <mxCell id="note-ownership" value="Resolver performs ownership check&#xa;(e.g. SALES_REP can only access own records)" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#d5e8d4;strokeColor=#82b366;size=15;" vertex="1" parent="1">
-          <mxGeometry x="900" y="405" width="260" height="45" as="geometry" />
+        <mxCell id="note-ownership" value="Resolver performs ownership check&#xa;(e.g. SALES_REP can only access own records)&#xa;AI resolvers: AiQuotaInterceptor first (20 AI req/min per user → 429)" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fontSize=10;fillColor=#d5e8d4;strokeColor=#82b366;size=15;" vertex="1" parent="1">
+          <mxGeometry x="900" y="400" width="330" height="55" as="geometry" />
         </mxCell>
 
         <mxCell id="m7" value="Delegate to Service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=1;endArrow=open;endFill=0;" edge="1" parent="1">

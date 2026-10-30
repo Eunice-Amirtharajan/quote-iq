@@ -81,16 +81,16 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 
 ### RAG Knowledge Base (F1a — Playbook)
 - Sales Managers upload PDF playbook documents via the Documents page
-- Upload pipeline: PDF magic-byte validation → VirusTotal fallback → text extraction → OpenAI embedding → pgvector storage
+- Upload pipeline: PDF magic-byte validation → VirusTotal malware scan → text extraction → OpenAI moderation → chunking → OpenAI embedding → pgvector storage
 - Document lifecycle: PENDING_SCAN → SCANNING → PENDING_REVIEW → READY / REJECTED
-- `askPlaybook` and `askLessonsLearned` — natural language Q&A over the indexed document corpus; top-k cosine retrieval from `PlaybookChunk` table, answers grounded in retrieved passages
+- `askPlaybook` (uploaded documents, `DocumentChunk`) and `askLessonsLearned` (`PlaybookChunk`) — natural language Q&A with hybrid retrieval (pgvector + keyword search, merged with RRF); answers cite their passages, and only the sources an answer actually cites are returned
 - `ALLOW_UPLOAD` env var gates the upload endpoint; disabled in the public demo to prevent arbitrary uploads
 
 ### Async Embedding Pipeline (F2 — RabbitMQ)
 - `createQuotation` writes a `quote.created` event to the `OutboxEvent` table in the same transaction as the quotation; `OutboxService` publishes it to CloudAMQP (RabbitMQ) right after the commit and on a 5s safety-net timer, with publisher confirms, `FOR UPDATE SKIP LOCKED` leases and exponential backoff
 - `QueueConsumerModule` consumes the event and generates an OpenAI embedding for the quotation, stored in `QuotationEmbedding` (pgvector)
 - W3C trace context propagated across the AMQP boundary via `propagation.inject()` / `propagation.extract()` — single distributed trace spans publish + consume
-- Real-time status updates pushed to the frontend via WebSocket (`GatewayModule`)
+- The consumer computes the conversion score and pushes it to the frontend via WebSocket (`GatewayModule`, `score.ready`); connections are authenticated at the handshake and only Sales Managers can join score rooms
 
 ### User Management (Invite + Password Reset)
 - Sales Managers invite new users from the Users page — invite email sent via Mailtrap, link contains a 256-bit random token
@@ -105,6 +105,7 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 - Rate limiting — 120 requests/minute per IP via `@nestjs/throttler`; custom `GqlThrottlerGuard` extracts the request from the GraphQL execution context
 - CSRF protection — foreign origins get 403 before any route runs, cross-site writes without an Origin are rejected, and Apollo `csrfPrevention` blocks GraphQL GETs/simple requests without a preflight header
 - GraphQL query limits — max depth 8 and 150 fields per operation (aliases counted), checked before execution
+- WebSocket authorisation — the socket.io handshake verifies the same JWT as HTTP (the cookie, or `auth.token` for non-browser clients), and joining a quotation's score room requires the Sales Manager role, matching the manager-only `conversionScore` query
 - URL-based routing via `react-router-dom` v7 — bookmarkable URLs, working browser back button, deep-linking to quotation detail pages
 - Demo credentials gate via `VITE_SHOW_DEMO_CREDENTIALS` env var
 
@@ -131,17 +132,18 @@ These are deliberate scope decisions for a portfolio build, not oversights.
 1. **Upload** — PDF validated (magic bytes + MIME), scanned (VirusTotal), text extracted
 2. **Chunk** — document split into overlapping chunks, each embedded with OpenAI `text-embedding-3-small`
 3. **Store** — embeddings stored in `DocumentChunk.embedding` (pgvector `vector(1536)`)
-4. **Retrieve** — `askPlaybook` / `askLessonsLearned` queries: cosine similarity search (`<=>` operator) over `DocumentChunk`, top-k passages fed into Groq context window
-5. **Answer** — Groq generates grounded answer; no answer is returned if no relevant chunk found above threshold
+4. **Retrieve** — hybrid search: pgvector cosine distance (`<=>`) and Postgres full-text search run in parallel and are merged with reciprocal rank fusion (score = 1/(60 + rank)). If even the best match is too far away (cosine distance > 0.7), the question is refused before any LLM call. An LLM reranker exists but is off by default (`AI_PLAYBOOK_RERANK`): the eval showed no gain at this corpus size (ADR §65)
+5. **Answer** — Groq answers only from the numbered passages and cites them (`[1]`); client and rep names are replaced with placeholders first (ADR §64)
+6. **Check** — the citation check keeps only the sources the answer actually cites, drops invented ones, and flags an answer that cites nothing as "check before relying on it" (ADR §63)
 
 ### Quotation Embedding Pipeline (F2 — Async)
 
 1. **Trigger** — `createQuotation` commits the quotation and a `quote.created` outbox row together; `OutboxService` publishes it to CloudAMQP
 2. **Propagation** — `propagation.inject()` embeds W3C `traceparent` into AMQP headers for cross-service tracing
-3. **Consume** — `QueueConsumerModule` extracts trace context via `propagation.extract()` and calls `AIService.generateQuotationEmbedding()`
-4. **Embed** — quotation text (title + client + items) embedded with OpenAI `text-embedding-3-small`, stored in `QuotationEmbedding.embedding`
-5. **Retrieve** — `askAboutQuotation` similar-quotes panel runs hybrid retrieval: pgvector cosine similarity + BM25 keyword fallback
-6. **Push** — `GatewayModule` (WebSocket) broadcasts embedding status to connected clients
+3. **Consume** — `QueueConsumerModule` extracts trace context via `propagation.extract()`, computes the conversion score and calls `AIService.generateQuotationEmbedding()`; failures retry and end in a dead-letter queue
+4. **Push** — `GatewayModule` (WebSocket) sends `score.ready` to the managers viewing that quotation
+5. **Embed** — quotation text (title + client + items, client name replaced with a placeholder) embedded with OpenAI `text-embedding-3-small`, stored in `QuotationEmbedding.embedding`
+6. **Retrieve** — the similar-quotes panel runs hybrid retrieval: pgvector cosine similarity and keyword search (`ts_rank`), merged with RRF
 
 ### MCP Server — QuoteIQ for AI Assistants
 
@@ -264,7 +266,7 @@ OTEL_EXPORTER_OTLP_HEADERS=""   # "Authorization=Basic <base64>" for Grafana Clo
 
 ```bash
 VITE_API_URL="http://localhost:4000/graphql"   # Backend GraphQL endpoint
-VITE_WS_URL="ws://localhost:4000/graphql"      # WebSocket endpoint for real-time updates
+VITE_BACKEND_URL="http://localhost:4000"       # Backend base URL for the socket.io /scores connection
 VITE_SHOW_DEMO_CREDENTIALS="true"              # Show demo login credentials on login page
 ```
 
@@ -333,7 +335,7 @@ quote-iq/
 │       ├── context/         # AuthProvider, auth-context
 │       ├── graphql/         # queries.ts, mutations.ts
 │       ├── hooks/           # useAuth
-│       ├── lib/             # Apollo client (HttpLink + WebSocketLink)
+│       ├── lib/             # Apollo client (HttpLink), Idempotency-Key helper
 │       └── pages/           # Dashboard, Documents, Login, Playbook, QuotationDetail,
 │                            #   Quotations, WinLoss
 ├── docs/
@@ -359,7 +361,7 @@ Draw.io source files are in [`docs/drawio/`](docs/drawio/). Open with [Draw.io D
 |---|---|---|
 | HLD — System Architecture | [hld-system-architecture.drawio](docs/drawio/hld-system-architecture.drawio) | Full deployment topology — browser, Vercel, Railway, CloudAMQP, Supabase, Neon DB, Groq, OpenAI, Grafana Cloud |
 | LLD — NestJS Module Architecture | [lld-nestjs-module-architecture.drawio](docs/drawio/lld-nestjs-module-architecture.drawio) | Internal module structure — resolver → service → Prisma, guard chain, DocumentsModule, EventsModule, QueueConsumerModule, GatewayModule |
-| ERD — Data Model | [erd-data-model.drawio](docs/drawio/erd-data-model.drawio) | All 9 tables with fields, types, indexes, and FK relationships |
+| ERD — Data Model | [erd-data-model.drawio](docs/drawio/erd-data-model.drawio) | All 14 tables with fields, types, indexes, and FK relationships |
 | Auth Flow | [sequence-auth-flow.drawio](docs/drawio/sequence-auth-flow.drawio) | Login, authenticated request, page refresh session restore, logout |
 | Request Lifecycle | [sequence-request-lifecycle.drawio](docs/drawio/sequence-request-lifecycle.drawio) | GraphQL request from browser through guards, resolver, service to DB and back |
 | AI Pipeline | [ai-pipeline.drawio](docs/drawio/ai-pipeline.drawio) | Full AI pipeline — hybrid recommendation model (F1), playbook RAG (F1a), quotation embedding + similar-quotes (F2) |

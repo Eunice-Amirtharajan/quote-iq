@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2026-09-18" version="21.0.0">
+<mxfile host="app.diagrams.net" modified="2026-10-30" version="21.0.0">
   <diagram name="AI Pipeline" id="ai-pipeline">
     <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1600" math="0" shadow="0">
       <root>
@@ -19,26 +19,26 @@
         </mxCell>
 
         <!-- F1 START -->
-        <mxCell id="f1-start" value="Manager requests&#xa;AI Summary" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="240" y="130" width="140" height="55" as="geometry" />
+        <mxCell id="f1-start" value="Manager requests AI Summary&#xa;(AiQuotaInterceptor:&#xa;20 AI requests/min per user)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="210" y="112" width="200" height="82" as="geometry" />
         </mxCell>
 
         <!-- F1 CACHE CHECK -->
-        <mxCell id="f1-cache" value="Check AIInsight cache&#xa;insightType = SUMMARY&#xa;expiresAt &gt; now?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="220" y="230" width="180" height="90" as="geometry" />
+        <mxCell id="f1-cache" value="AIInsight cache:&#xa;SUMMARY, not expired,&#xa;same promptVersion?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="210" y="222" width="200" height="100" as="geometry" />
         </mxCell>
         <mxCell id="f1-cache-hit" value="Return cached&#xa;summary (24h TTL)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="470" y="252" width="160" height="45" as="geometry" />
         </mxCell>
         <mxCell id="f1-cache-yes" value="HIT" style="edgeLabel;html=1;fontSize=10;fontStyle=1;" vertex="1" connectable="0" parent="1">
-          <mxGeometry x="430" y="268" width="30" height="20" as="geometry" />
+          <mxGeometry x="430" y="250" width="30" height="20" as="geometry" />
         </mxCell>
 
         <!-- F1 FETCH DATA -->
         <mxCell id="f1-fetch" value="Fetch Quotation&#xa;+ items + createdBy&#xa;(Prisma findUnique)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="60" y="390" width="180" height="65" as="geometry" />
         </mxCell>
-        <mxCell id="f1-client-history" value="Fetch client history&#xa;prior quotations by clientName&#xa;last 5, case-insensitive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+        <mxCell id="f1-client-history" value="Fetch client history&#xa;prior quotations by clientId&#xa;last 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
           <mxGeometry x="260" y="390" width="180" height="65" as="geometry" />
         </mxCell>
 
@@ -53,17 +53,17 @@
           <mxGeometry x="75" y="545" width="170" height="60" as="geometry" />
         </mxCell>
         <mxCell id="rules-decision" value="rejectionRate &gt; 60% → RECONSIDER&#xa;approvalRate &gt; 60% AND |dealVsAvg| &lt; 20%&#xa;  → PROCEED&#xa;else → FOLLOW_UP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="260" y="545" width="170" height="80" as="geometry" />
+          <mxGeometry x="260" y="545" width="170" height="95" as="geometry" />
         </mxCell>
 
         <!-- F1 BUILD PROMPT -->
-        <mxCell id="f1-prompt" value="buildPrompt()&#xa;Computed verdict as anchor&#xa;User data isolated in &lt;xml&gt; tags&#xa;(prompt injection protection)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="60" y="755" width="200" height="70" as="geometry" />
+        <mxCell id="f1-prompt" value="buildPrompt()&#xa;Computed verdict as anchor&#xa;User data isolated in &lt;xml&gt; tags&#xa;(prompt injection protection)&#xa;Names → CLIENT_A / SALES_REP_A" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="740" width="200" height="95" as="geometry" />
         </mxCell>
 
         <!-- F1 GROQ -->
-        <mxCell id="f1-groq" value="Groq API&#xa;Llama 3.3 70B primary&#xa;→ Llama 3.1 8B fallback&#xa;→ Mixtral fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="280" y="755" width="180" height="70" as="geometry" />
+        <mxCell id="f1-groq" value="assertBudget (tokens/day)&#xa;→ Groq, inside circuit breaker:&#xa;gpt-oss-120b → qwen3.8-27b&#xa;→ gpt-oss-20b (25s each)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="265" y="740" width="200" height="95" as="geometry" />
         </mxCell>
 
         <!-- F1 ZOD + HARD OVERRIDE -->
@@ -71,23 +71,28 @@
           <mxGeometry x="480" y="400" width="160" height="60" as="geometry" />
         </mxCell>
         <mxCell id="f1-override" value="Hard override:&#xa;if rules = RECONSIDER&#xa;→ lock verdict regardless&#xa;of Groq output" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="480" y="490" width="200" height="70" as="geometry" />
+          <mxGeometry x="480" y="485" width="200" height="70" as="geometry" />
         </mxCell>
 
         <!-- F1 CACHE WRITE + RETURN -->
-        <mxCell id="f1-cache-write" value="Write AIInsight&#xa;expiresAt = now + 24h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="480" y="590" width="180" height="50" as="geometry" />
+        <mxCell id="f1-cache-write" value="Restore real names&#xa;Write AIInsight + provenance&#xa;(model, promptVersion, tokens)&#xa;expiresAt = now + 24h" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="480" y="575" width="200" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="f1-return" value="Return summary&#xa;+ recommendation&#xa;+ conversion score" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="490" y="670" width="160" height="55" as="geometry" />
+        <mxCell id="f1-return" value="Return summary&#xa;+ recommendation&#xa;+ “Generated by model · prompt”" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="660" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- F1 STALE FALLBACK -->
+        <mxCell id="f1-stale" value="Groq down, circuit open&#xa;or invalid output →&#xa;last stored summary,&#xa;marked “may be outdated”" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="750" width="210" height="85" as="geometry" />
         </mxCell>
 
         <!-- ===== F1a — PLAYBOOK RAG ===== -->
         <mxCell id="f1a-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=20;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="760" y="80" width="600" height="760" as="geometry" />
+          <mxGeometry x="760" y="80" width="680" height="760" as="geometry" />
         </mxCell>
         <mxCell id="f1a-label" value="F1a — Playbook RAG: Document Upload Pipeline + Q&amp;A" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=13;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="760" y="85" width="600" height="25" as="geometry" />
+          <mxGeometry x="760" y="85" width="680" height="25" as="geometry" />
         </mxCell>
 
         <!-- F1a UPLOAD PATH -->
@@ -96,25 +101,25 @@
         </mxCell>
 
         <mxCell id="f1a-upload" value="Manager uploads PDF&#xa;via Documents page" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="800" y="155" width="150" height="55" as="geometry" />
+          <mxGeometry x="800" y="150" width="150" height="65" as="geometry" />
         </mxCell>
         <mxCell id="f1a-validate" value="Validate&#xa;PDF magic bytes (%PDF)&#xa;MIME check · ≤20 MB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="780" y="250" width="160" height="65" as="geometry" />
+          <mxGeometry x="780" y="245" width="190" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-scan" value="Malware scan&#xa;ClamAV TCP :3310&#xa;→ VirusTotal fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="780" y="355" width="160" height="65" as="geometry" />
+        <mxCell id="f1a-supabase" value="Upload to Supabase Storage&#xa;Document = PENDING_SCAN&#xa;→ 202, rest runs async" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="335" width="190" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-supabase" value="Upload to Supabase Storage&#xa;storageKey + signed URL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="780" y="460" width="160" height="55" as="geometry" />
+        <mxCell id="f1a-scan" value="Malware scan: VirusTotal&#xa;(upload → poll analysis)&#xa;fail-closed: error = no review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="425" width="190" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-extract" value="Extract text&#xa;(pdf-parse)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="780" y="555" width="160" height="50" as="geometry" />
+        <mxCell id="f1a-extract" value="Extract text (pdfjs-dist)&#xa;fail-open: empty text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="515" width="190" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-chunk" value="Chunk text&#xa;with overlap" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="780" y="645" width="160" height="50" as="geometry" />
+        <mxCell id="f1a-chunk" value="OpenAI moderation gate&#xa;Chunk: 500 words, 50 overlap&#xa;→ PENDING_REVIEW" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="595" width="190" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-embed-store" value="Embed each chunk&#xa;OpenAI text-embedding-3-small&#xa;Store in DocumentChunk.embedding&#xa;(pgvector vector(1536))&#xa;→ Document.status = READY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="780" y="735" width="200" height="90" as="geometry" />
+        <mxCell id="f1a-embed-store" value="Manager approves →&#xa;embed each chunk&#xa;(text-embedding-3-small)&#xa;DocumentChunk.embedding&#xa;vector(1536) → READY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="690" width="190" height="90" as="geometry" />
         </mxCell>
 
         <!-- F1a QUERY PATH -->
@@ -122,87 +127,116 @@
           <mxGeometry x="1010" y="120" width="330" height="22" as="geometry" />
         </mxCell>
 
-        <mxCell id="f1a-question" value="Manager asks question&#xa;(natural language)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="1030" y="155" width="150" height="55" as="geometry" />
+        <mxCell id="f1a-question" value="Manager asks question&#xa;(UI or MCP search_playbook)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="148" width="190" height="68" as="geometry" />
         </mxCell>
         <mxCell id="f1a-embed-q" value="Embed question&#xa;OpenAI text-embedding-3-small" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="250" width="180" height="55" as="geometry" />
+          <mxGeometry x="1020" y="240" width="190" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-retrieve" value="Hybrid retrieval (searchDocumentChunks)&#xa;Leg 1: pgvector cosine — embedding &lt;=&gt; $queryVec&#xa;Leg 2: Postgres keyword — ts_rank/plainto_tsquery&#xa;Fused via RRF: score = 1/(60+rank), summed&#xa;across both legs (DocumentChunk table)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1010" y="355" width="220" height="100" as="geometry" />
+        <mxCell id="f1a-retrieve" value="Hybrid retrieval&#xa;Leg 1: pgvector cosine (&lt;=&gt;)&#xa;Leg 2: Postgres full-text (ts_rank)&#xa;Merged with RRF: 1/(60+rank)&#xa;DocumentChunk (playbook)&#xa;PlaybookChunk (lessons learned)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1005" y="320" width="220" height="105" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-no-result" value="bestDistance &gt; 0.7&#xa;or no chunks → return&#xa;'no relevant info'&#xa;(skips rerank + LLM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1260" y="355" width="150" height="90" as="geometry" />
+        <mxCell id="f1a-no-result" value="bestDistance &gt; 0.7&#xa;or no chunks → refuse:&#xa;'no relevant info'&#xa;(no LLM call)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="330" width="150" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-rerank" value="rerankChunks()&#xa;Groq cross-encoder reranking&#xa;of top RRF-fused chunks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1010" y="480" width="220" height="65" as="geometry" />
+        <mxCell id="f1a-rerank" value="Optional LLM rerank&#xa;OFF by default (AI_PLAYBOOK_RERANK)&#xa;eval: no gain at this corpus size (§65)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1005" y="445" width="220" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-groq-answer" value="Groq API&#xa;System: ground in retrieved passages&#xa;User: the question&#xa;Answer: 2–4 grounded sentences" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="1010" y="580" width="220" height="80" as="geometry" />
+        <mxCell id="f1a-groq-answer" value="assertBudget → Groq (pinned models,&#xa;circuit breaker), names → placeholders&#xa;Answer only from numbered&#xa;passages and cite them [n]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1005" y="545" width="220" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="f1a-answer-return" value="Return grounded answer" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="1040" y="620" width="160" height="50" as="geometry" />
+        <mxCell id="f1a-citation" value="Citation check (§63)&#xa;keep only cited sources ([n], 【n】, ［n］)&#xa;drop invented numbers&#xa;cites nothing → grounded = false" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1005" y="660" width="220" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="f1a-answer-return" value="Return answer + cited sources&#xa;(ungrounded: “check before&#xa;relying on it”)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1005" y="760" width="220" height="78" as="geometry" />
         </mxCell>
 
-        <!-- ===== F2 — ASYNC QUOTATION EMBEDDING ===== -->
-        <mxCell id="f2-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;opacity=20;verticalAlign=top;" vertex="1" parent="1">
-          <mxGeometry x="40" y="900" width="1320" height="440" as="geometry" />
+        <!-- ===== CROSS-CUTTING GUARDS ===== -->
+        <mxCell id="guards-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;opacity=20;" vertex="1" parent="1">
+          <mxGeometry x="1480" y="80" width="680" height="760" as="geometry" />
         </mxCell>
-        <mxCell id="f2-label" value="F2 — Async Quotation Embedding Pipeline + Similar-Quotes Retrieval (RabbitMQ / CloudAMQP)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=13;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="905" width="1320" height="25" as="geometry" />
+        <mxCell id="guards-label" value="Guards on every AI request (ADR §57–§66)" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1480" y="85" width="680" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="guards-cost" value="COST AND LIMITS&#xa;• Per-user rate: 20 AI requests/min (AiQuotaInterceptor)&#xa;• Per-user budget: 200k tokens per UTC day, checked where tokens are spent,&#xa;   so a cached answer is never refused (AiUsage table)&#xa;• max_tokens cap per feature; minimal reasoning effort for simple tasks&#xa;• askAboutQuotation: cheap 1-token classifier refuses off-topic questions (fails open)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="125" width="640" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="guards-resilience" value="RESILIENCE&#xa;• Models pinned per role, checked at startup; a retired model → next pin + alert&#xa;• Fallback chain: gpt-oss-120b → qwen3.8-27b → gpt-oss-20b, 25s timeout each, 429/5xx/404 → next&#xa;• Circuit breaker around the whole chain: after repeated failures, fail fast for 30s&#xa;• Summary falls back to the last stored one, marked “may be outdated”" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="255" width="640" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="guards-data" value="DATA PROTECTION&#xa;• Client and rep names → CLIENT_A / SALES_REP_A in every prompt and embedding input,&#xa;   restored in the answer (pseudonymisation, GDPR data minimisation)&#xa;• User data inside &lt;xml&gt; tags, treated as data only (prompt injection)&#xa;• Structured output validated with Zod; rules-engine verdict can lock the answer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="370" width="640" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="guards-quality" value="QUALITY AND TRACEABILITY&#xa;• Citation check on every RAG answer; ai_ungrounded_answers_total metric&#xa;• Provenance: model, prompt version and tokens stored with each summary;&#xa;   prompt version is part of the cache key (guard test fails CI without a bump)&#xa;• LLM eval gate on PRs: 23 scenarios, gpt-4o-mini judge, fails on regression vs baseline.json&#xa;• Metrics: tokens per feature, model invocations, circuit state; Prometheus alert rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="485" width="640" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="guards-mcp" value="MCP SERVER (mcp-server/, §66)&#xa;• Tools search_playbook and get_quotation call the same GraphQL API as the UI&#xa;• Acts as the signed-in user: roles, data scope and AI quotas apply unchanged&#xa;• Read-only tools (readOnlyHint); tool output treated as untrusted input" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=11;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="615" width="640" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== F2 — ASYNC SCORING + QUOTATION EMBEDDING ===== -->
+        <mxCell id="f2-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;opacity=20;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="900" width="1400" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="f2-label" value="F2 — Async Scoring + Quotation Embedding (transactional outbox → RabbitMQ / CloudAMQP → WebSocket) + Similar-Quotes Retrieval" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="905" width="1400" height="25" as="geometry" />
         </mxCell>
 
         <!-- F2 PUBLISH PATH -->
-        <mxCell id="f2-create" value="createQuotation&#xa;or updateQuotation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="60" y="950" width="160" height="55" as="geometry" />
+        <mxCell id="f2-create" value="createQuotation&#xa;(Idempotency-Key: a retry&#xa;returns the same quote)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="945" width="170" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="f2-inject" value="propagation.inject()&#xa;W3C traceparent into&#xa;AMQP headers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="60" y="1040" width="160" height="65" as="geometry" />
+        <mxCell id="f2-inject" value="One transaction:&#xa;quotation + OutboxEvent&#xa;(quote.created, correlation id,&#xa;W3C traceparent)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1035" width="170" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="f2-publish" value="EventsModule publishes&#xa;quote.created event&#xa;to CloudAMQP exchange" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="60" y="1145" width="160" height="70" as="geometry" />
+        <mxCell id="f2-graphql-return" value="GraphQL response&#xa;returned at commit&#xa;(not blocked by&#xa;RabbitMQ)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="260" y="1035" width="130" height="75" as="geometry" />
         </mxCell>
-        <mxCell id="f2-graphql-return" value="GraphQL response returned&#xa;immediately (not blocked)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="60" y="1255" width="160" height="55" as="geometry" />
+        <mxCell id="f2-publish" value="OutboxService relay&#xa;after commit + every 5s&#xa;publisher confirms,&#xa;SKIP LOCKED lease, backoff" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1145" width="170" height="80" as="geometry" />
         </mxCell>
 
         <!-- F2 AMQP -->
-        <mxCell id="f2-amqp" value="CloudAMQP&#xa;RabbitMQ&#xa;quote.created queue" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="360" y="1090" width="120" height="80" as="geometry" />
+        <mxCell id="f2-amqp" value="CloudAMQP RabbitMQ&#xa;quote.created queue&#xa;DLQ: quoteiq.scoring.dlq" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="1145" width="160" height="85" as="geometry" />
         </mxCell>
 
         <!-- F2 CONSUME PATH -->
-        <mxCell id="f2-consume" value="QueueConsumerService&#xa;handleQuoteCreated()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="560" y="950" width="170" height="55" as="geometry" />
+        <mxCell id="f2-consume" value="QueueConsumerService&#xa;onQuoteCreated()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="945" width="220" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="f2-extract" value="propagation.extract()&#xa;W3C traceparent from&#xa;AMQP headers&#xa;→ child span opens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="560" y="1040" width="170" height="70" as="geometry" />
+        <mxCell id="f2-extract" value="propagation.extract()&#xa;W3C traceparent from AMQP headers&#xa;→ child span opens" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1020" width="220" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="f2-embed" value="AIService.generateQuotationEmbedding()&#xa;Build searchText (title + client + items)&#xa;OpenAI text-embedding-3-small&#xa;Upsert QuotationEmbedding&#xa;(pgvector vector(1536))" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="560" y="1150" width="200" height="100" as="geometry" />
+        <mxCell id="f2-gateway" value="getConversionScore()&#xa;→ ScoreGateway emits score.ready&#xa;to the quotation's room&#xa;(JWT checked at handshake,&#xa;only Sales Managers can join)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1105" width="220" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="f2-gateway" value="GatewayModule.emit()&#xa;embedding-status → DONE&#xa;WebSocket push to browser" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="560" y="1285" width="180" height="55" as="geometry" />
+        <mxCell id="f2-embed" value="generateQuotationEmbedding()&#xa;searchText: title + client + items&#xa;client name → placeholder for OpenAI&#xa;Upsert QuotationEmbedding&#xa;(pgvector vector(1536))" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1215" width="220" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="f2-dlq" value="Any failure → Nack → retry&#xa;→ DLQ after max retries" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#b85450;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1330" width="220" height="45" as="geometry" />
         </mxCell>
 
         <!-- F2 SIMILAR QUOTES RETRIEVAL -->
-        <mxCell id="f2-similar-label" value="SIMILAR-QUOTES PANEL (askAboutQuotation / similar-quotes)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=11;fontStyle=2;" vertex="1" parent="1">
-          <mxGeometry x="830" y="935" width="500" height="22" as="geometry" />
+        <mxCell id="f2-similar-label" value="SIMILAR-QUOTES PANEL (similarQuotations)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="840" y="935" width="500" height="22" as="geometry" />
         </mxCell>
-        <mxCell id="f2-query-start" value="Manager views&#xa;quotation detail" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="860" y="965" width="140" height="55" as="geometry" />
+        <mxCell id="f2-query-start" value="User views&#xa;quotation detail" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="960" y="965" width="150" height="55" as="geometry" />
         </mxCell>
-        <mxCell id="f2-embed-query" value="Embed current quotation&#xa;text for similarity query" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="860" y="1060" width="180" height="55" as="geometry" />
+        <mxCell id="f2-embed-query" value="Load this quotation's stored embedding&#xa;(no new OpenAI call)&#xa;Scope: reps see only their own quotes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="920" y="1045" width="230" height="85" as="geometry" />
         </mxCell>
-        <mxCell id="f2-cosine" value="pgvector cosine search&#xa;SELECT ... ORDER BY&#xa;embedding &lt;=&gt; $vec LIMIT 5&#xa;(QuotationEmbedding table)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="860" y="1155" width="200" height="80" as="geometry" />
+        <mxCell id="f2-cosine" value="Leg 1: pgvector cosine&#xa;embedding &lt;=&gt; $vec&#xa;(QuotationEmbedding)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="840" y="1150" width="200" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="f2-bm25" value="BM25 keyword fallback&#xa;if cosine score below&#xa;similarity threshold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1085" y="1155" width="170" height="80" as="geometry" />
+        <mxCell id="f2-bm25" value="Leg 2: keyword search&#xa;ts_rank / plainto_tsquery&#xa;on searchText" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="1150" width="200" height="70" as="geometry" />
         </mxCell>
-        <mxCell id="f2-panel" value="Render similar-quotes panel&#xa;ranked by cosine similarity" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="890" y="1280" width="170" height="55" as="geometry" />
+        <mxCell id="f2-panel" value="Merge with RRF 1/(60+rank)&#xa;→ render similar-quotes panel" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="935" y="1265" width="200" height="70" as="geometry" />
         </mxCell>
 
         <!-- ===== F1 CONNECTIONS ===== -->
@@ -236,6 +270,9 @@
         <mxCell id="cf1-9" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1-groq" target="f1-zod" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="cf1-9b" value="fails" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;dashed=1;fontSize=10;" edge="1" source="f1-groq" target="f1-stale" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="cf1-10" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f1-zod" target="f1-override" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -250,13 +287,13 @@
         <mxCell id="cf1a-1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;" edge="1" source="f1a-upload" target="f1a-validate" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf1a-2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f1a-validate" target="f1a-scan" parent="1">
+        <mxCell id="cf1a-2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f1a-validate" target="f1a-supabase" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf1a-3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f1a-scan" target="f1a-supabase" parent="1">
+        <mxCell id="cf1a-3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f1a-supabase" target="f1a-scan" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf1a-4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1a-supabase" target="f1a-extract" parent="1">
+        <mxCell id="cf1a-4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1a-scan" target="f1a-extract" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="cf1a-5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1a-extract" target="f1a-chunk" parent="1">
@@ -280,7 +317,10 @@
         <mxCell id="cf1a-q3c" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f1a-rerank" target="f1a-groq-answer" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf1a-q4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f1a-groq-answer" target="f1a-answer-return" parent="1">
+        <mxCell id="cf1a-q4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="f1a-groq-answer" target="f1a-citation" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cf1a-q5" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f1a-citation" target="f1a-answer-return" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
@@ -288,10 +328,10 @@
         <mxCell id="cf2-1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f2-create" target="f2-inject" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf2-2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f2-inject" target="f2-publish" parent="1">
+        <mxCell id="cf2-3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f2-inject" target="f2-graphql-return" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf2-3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f2-publish" target="f2-graphql-return" parent="1">
+        <mxCell id="cf2-2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f2-inject" target="f2-publish" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="cf2-4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f2-publish" target="f2-amqp" parent="1">
@@ -303,10 +343,13 @@
         <mxCell id="cf2-6" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;" edge="1" source="f2-consume" target="f2-extract" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf2-7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f2-extract" target="f2-embed" parent="1">
+        <mxCell id="cf2-7" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f2-extract" target="f2-gateway" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf2-8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" edge="1" source="f2-embed" target="f2-gateway" parent="1">
+        <mxCell id="cf2-8" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f2-gateway" target="f2-embed" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cf2-9" value="throws" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;dashed=1;fontSize=10;" edge="1" source="f2-embed" target="f2-dlq" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="cf2-s1" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;" edge="1" source="f2-query-start" target="f2-embed-query" parent="1">
@@ -315,7 +358,7 @@
         <mxCell id="cf2-s2" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" edge="1" source="f2-embed-query" target="f2-cosine" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="cf2-s3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="f2-cosine" target="f2-bm25" parent="1">
+        <mxCell id="cf2-s3" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;" edge="1" source="f2-embed-query" target="f2-bm25" parent="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="cf2-s4" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" edge="1" source="f2-cosine" target="f2-panel" parent="1">
