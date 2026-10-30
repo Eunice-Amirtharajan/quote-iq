@@ -1,4 +1,4 @@
-<mxfile host="65bd71144e">
+<mxfile host="app.diagrams.net" modified="2026-10-30" version="21.0.0">
     <diagram name="LLD - NestJS Module Architecture" id="lld">
         <mxGraphModel dx="1283" dy="1230" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2000" pageHeight="1400" math="0" shadow="0">
             <root>
@@ -7,130 +7,187 @@
                 <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;" value="QuoteIQ — Low Level Design: NestJS Module Architecture" vertex="1">
                     <mxGeometry height="40" width="1200" x="300" y="20" as="geometry"/>
                 </mxCell>
+
+                <!-- Clients -->
                 <mxCell id="client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" value="Apollo Client&#xa;(Browser)" vertex="1">
-                    <mxGeometry height="50" width="120" x="40" y="220" as="geometry"/>
+                    <mxGeometry height="50" width="130" x="40" y="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="ws-client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="WebSocket&#xa;(Browser)" vertex="1">
-                    <mxGeometry height="50" width="120" x="40" y="300" as="geometry"/>
+                <mxCell id="mcp-client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="MCP server (stdio)&#xa;GraphQL as the user&#xa;(Bearer token)" vertex="1">
+                    <mxGeometry height="60" width="130" x="40" y="290" as="geometry"/>
                 </mxCell>
+                <mxCell id="ws-client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="socket.io client&#xa;(Browser, useScoreSocket)" vertex="1">
+                    <mxGeometry height="50" width="130" x="40" y="745" as="geometry"/>
+                </mxCell>
+
+                <!-- Transport layer -->
                 <mxCell id="gql-layer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;opacity=20;verticalAlign=top;" value="" vertex="1">
-                    <mxGeometry height="700" width="170" x="210" y="80" as="geometry"/>
+                    <mxGeometry height="1000" width="170" x="210" y="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="gql-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" value="Transport Layer" vertex="1">
                     <mxGeometry height="22" width="170" x="210" y="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="apollo-server" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Apollo Server&#xa;/graphql (HTTP + WS)" vertex="1">
+                <mxCell id="apollo-server" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Apollo Server&#xa;/graphql (HTTP)" vertex="1">
                     <mxGeometry height="50" width="130" x="230" y="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="jwt-guard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="JwtAuthGuard&#xa;cookie → user" vertex="1">
-                    <mxGeometry height="50" width="130" x="230" y="200" as="geometry"/>
+                <mxCell id="csrf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Origin check (CSRF)&#xa;+ csrfPrevention" vertex="1">
+                    <mxGeometry height="50" width="130" x="230" y="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="query-limits" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Query limits&#xa;depth 8 · 150 fields" vertex="1">
+                    <mxGeometry height="50" width="130" x="230" y="240" as="geometry"/>
+                </mxCell>
+                <mxCell id="jwt-guard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="JwtAuthGuard&#xa;cookie or Bearer → user" vertex="1">
+                    <mxGeometry height="50" width="130" x="230" y="300" as="geometry"/>
                 </mxCell>
                 <mxCell id="roles-guard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="RolesGuard&#xa;@Roles() metadata" vertex="1">
-                    <mxGeometry height="50" width="130" x="230" y="265" as="geometry"/>
+                    <mxGeometry height="50" width="130" x="230" y="360" as="geometry"/>
                 </mxCell>
                 <mxCell id="throttler" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="GqlThrottlerGuard&#xa;120 req/min/IP" vertex="1">
-                    <mxGeometry height="50" width="130" x="230" y="330" as="geometry"/>
+                    <mxGeometry height="50" width="130" x="230" y="420" as="geometry"/>
                 </mxCell>
                 <mxCell id="current-user" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="@CurrentUser()&#xa;param decorator" vertex="1">
-                    <mxGeometry height="50" width="130" x="230" y="395" as="geometry"/>
+                    <mxGeometry height="50" width="130" x="230" y="480" as="geometry"/>
+                </mxCell>
+                <mxCell id="ai-quota-interceptor" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="AiQuotaInterceptor&#xa;20 AI req/min per user" vertex="1">
+                    <mxGeometry height="50" width="130" x="230" y="540" as="geometry"/>
                 </mxCell>
                 <mxCell id="correlation" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="CorrelationModule&#xa;AsyncLocalStorage" vertex="1">
-                    <mxGeometry height="50" width="130" x="230" y="460" as="geometry"/>
+                    <mxGeometry height="50" width="130" x="230" y="600" as="geometry"/>
                 </mxCell>
                 <mxCell id="otel-common" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="common/tracing&#xa;tracer singleton" vertex="1">
-                    <mxGeometry height="50" width="130" x="230" y="525" as="geometry"/>
+                    <mxGeometry height="50" width="130" x="230" y="660" as="geometry"/>
                 </mxCell>
+                <mxCell id="socket-auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="socket.io /scores&#xa;SocketAuthService:&#xa;JWT at handshake" vertex="1">
+                    <mxGeometry height="60" width="130" x="230" y="740" as="geometry"/>
+                </mxCell>
+
+                <!-- Resolvers -->
                 <mxCell id="resolvers-zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=20;" value="" vertex="1">
-                    <mxGeometry height="850" width="170" x="430" y="80" as="geometry"/>
+                    <mxGeometry height="1000" width="230" x="420" y="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="resolvers-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" value="Resolvers" vertex="1">
-                    <mxGeometry height="22" width="170" x="430" y="85" as="geometry"/>
+                <mxCell id="resolvers-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" value="Resolvers / Controllers / Gateway" vertex="1">
+                    <mxGeometry height="22" width="230" x="420" y="85" as="geometry"/>
                 </mxCell>
                 <mxCell id="auth-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="AuthResolver&#xa;login · logout · me&#xa;salesReps · users&#xa;deactivateUser&#xa;inviteUser&#xa;acceptInvite&#xa;requestPasswordReset&#xa;resetPassword" vertex="1">
-                    <mxGeometry height="105" width="160" x="445" y="120" as="geometry"/>
+                    <mxGeometry height="115" width="210" x="430" y="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="quotations-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="QuotationsResolver&#xa;quotations · quotation&#xa;createQuotation · updateQuotation&#xa;updateStatus · delete&#xa;statusHistory · quotationSnapshots" vertex="1">
-                    <mxGeometry height="105" width="140" x="445" y="280" as="geometry"/>
+                <mxCell id="quotations-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="QuotationsResolver&#xa;quotations · quotation&#xa;createQuotation (Idempotency-Key)&#xa;updateQuotation&#xa;updateQuotationStatus · delete&#xa;statusHistory · quotationSnapshots" vertex="1">
+                    <mxGeometry height="125" width="210" x="430" y="245" as="geometry"/>
                 </mxCell>
                 <mxCell id="public-quotations-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="PublicQuotationsResolver&#xa;quotationByToken&#xa;(unauthenticated)" vertex="1">
-                    <mxGeometry height="55" width="140" x="445" y="395" as="geometry"/>
+                    <mxGeometry height="55" width="210" x="430" y="380" as="geometry"/>
                 </mxCell>
-                <mxCell id="dashboard-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="DashboardResolver&#xa;dashboardStats" vertex="1">
-                    <mxGeometry height="50" width="140" x="445" y="460" as="geometry"/>
+                <mxCell id="dashboard-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="DashboardResolver&#xa;dashboardStats · repPerformance&#xa;clientConcentration · approvalRateTrend&#xa;dealVelocity · staleQuotations&#xa;quarterlyHistory · repDealSizeWinRates" vertex="1">
+                    <mxGeometry height="105" width="210" x="430" y="445" as="geometry"/>
                 </mxCell>
                 <mxCell id="clients-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="ClientsResolver&#xa;clients · createClient&#xa;updateClient · deleteClient" vertex="1">
-                    <mxGeometry height="70" width="140" x="445" y="525" as="geometry"/>
+                    <mxGeometry height="60" width="210" x="430" y="560" as="geometry"/>
                 </mxCell>
                 <mxCell id="ai-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="AIResolver (SALES_MANAGER)&#xa;quotationSummary&#xa;conversionScore · conversionScores&#xa;winLossAnalysis&#xa;askAboutQuotation · similarQuotations&#xa;askPlaybook · askLessonsLearned" vertex="1">
-                    <mxGeometry height="115" width="140" x="445" y="610" as="geometry"/>
+                    <mxGeometry height="125" width="210" x="430" y="630" as="geometry"/>
                 </mxCell>
-                <mxCell id="docs-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="DocumentsResolver&#xa;documents · hasReadyDocuments&#xa;uploadDocument&#xa;approveDocument · rejectDocument&#xa;deleteDocument" vertex="1">
-                    <mxGeometry height="90" width="140" x="445" y="740" as="geometry"/>
+                <mxCell id="docs-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="DocumentsResolver&#xa;documents · hasReadyDocuments&#xa;approveDocument · rejectDocument&#xa;deleteDocument&#xa;+ DocumentsController (REST)&#xa;POST /documents/upload (Multer)" vertex="1">
+                    <mxGeometry height="105" width="210" x="430" y="765" as="geometry"/>
                 </mxCell>
-                <mxCell id="gateway-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="GatewayModule&#xa;@WebSocketGateway&#xa;embedding-status events" vertex="1">
-                    <mxGeometry height="60" width="140" x="445" y="845" as="geometry"/>
+                <mxCell id="gateway-resolver" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="ScoreGateway (GatewayModule)&#xa;join(quotationId):&#xa;SALES_MANAGER only&#xa;emits score.ready to the room" vertex="1">
+                    <mxGeometry height="75" width="210" x="430" y="880" as="geometry"/>
                 </mxCell>
+                <mxCell id="health-controller" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="HealthController&#xa;/health (liveness)&#xa;/health/ready (DB, RabbitMQ,&#xa;shutting down → 503)" vertex="1">
+                    <mxGeometry height="75" width="210" x="430" y="965" as="geometry"/>
+                </mxCell>
+
+                <!-- Services -->
                 <mxCell id="services-zone" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;opacity=20;" value="" vertex="1">
-                    <mxGeometry height="850" width="200" x="650" y="80" as="geometry"/>
+                    <mxGeometry height="1000" width="280" x="680" y="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="services-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=1;" value="Services" vertex="1">
-                    <mxGeometry height="22" width="200" x="650" y="85" as="geometry"/>
+                    <mxGeometry height="22" width="280" x="680" y="85" as="geometry"/>
                 </mxCell>
-                <mxCell id="auth-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="AuthService&#xa;login · logout · salesReps&#xa;listUsers · getUserById&#xa;inviteUser · acceptInvite&#xa;deactivateUser · deleteUser&#xa;requestPasswordReset&#xa;resetPassword&#xa;bcrypt · JWT sign · cookie" vertex="1">
-                    <mxGeometry height="150" width="170" x="665" y="120" as="geometry"/>
+                <mxCell id="auth-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="AuthService&#xa;login · logout · salesReps&#xa;listUsers · getUserById&#xa;inviteUser · acceptInvite&#xa;deactivateUser · deleteUser&#xa;requestPasswordReset · resetPassword&#xa;bcrypt · JWT sign · cookie&#xa;TokenStore (Redis) · MailService" vertex="1">
+                    <mxGeometry height="125" width="260" x="690" y="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="quotations-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="QuotationsService&#xa;findAll(filter) · findOne · create&#xa;update(DRAFT guard) · updateStatus&#xa;delete · findStatusHistory&#xa;findSnapshots · findByPublicToken&#xa;publishes quote.created via AMQP&#xa;OTel: amqp.publish span" vertex="1">
-                    <mxGeometry height="120" width="170" x="665" y="280" as="geometry"/>
+                <mxCell id="quotations-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="QuotationsService&#xa;findAll(filter) · findOne · create&#xa;update(DRAFT guard) · updateStatus&#xa;delete · findStatusHistory&#xa;findSnapshots · findByPublicToken&#xa;create: quotation + OutboxEvent&#xa;in one transaction" vertex="1">
+                    <mxGeometry height="110" width="260" x="690" y="255" as="geometry"/>
                 </mxCell>
-                <mxCell id="dashboard-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="DashboardService&#xa;getStats (Promise.all)&#xa;SQL GROUP BY aggregation" vertex="1">
-                    <mxGeometry height="60" width="170" x="665" y="410" as="geometry"/>
+                <mxCell id="idempotency-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" value="IdempotencyService&#xa;key stored in the same transaction&#xa;unique (user, operation, key), SHA-256 input" vertex="1">
+                    <mxGeometry height="55" width="260" x="690" y="375" as="geometry"/>
                 </mxCell>
-                <mxCell id="clients-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="ClientsService&#xa;findAll · findOne · create&#xa;update · delete" vertex="1">
-                    <mxGeometry height="70" width="170" x="665" y="480" as="geometry"/>
+                <mxCell id="outbox-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" value="OutboxService&#xa;enqueue(tx) · relay() after commit + 5s timer&#xa;publisher confirms · SKIP LOCKED lease&#xa;exponential backoff · cleanup" vertex="1">
+                    <mxGeometry height="75" width="260" x="690" y="440" as="geometry"/>
                 </mxCell>
-                <mxCell id="ai-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="AIService (OTel spans on all methods)&#xa;generateQuotationSummary&#xa;getConversionScore(s)&#xa;getWinLossAnalysis · askAboutQuotation&#xa;askPlaybook · askLessonsLearned&#xa;searchLessonsLearned · similarQuotations&#xa;generateQuotationEmbedding&#xa;generateDocumentEmbeddings&#xa;computeRecommendation · callGroq" vertex="1">
-                    <mxGeometry height="150" width="170" x="665" y="560" as="geometry"/>
+                <mxCell id="dashboard-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="DashboardService&#xa;getStats (Promise.all) · analytics queries&#xa;SQL GROUP BY aggregation" vertex="1">
+                    <mxGeometry height="50" width="260" x="690" y="525" as="geometry"/>
                 </mxCell>
-                <mxCell id="docs-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="DocumentsService (OTel span)&#xa;processDocument: validate → scan&#xa;→ extract → embed&#xa;hasReadyDocuments · rejectDocument&#xa;StorageService · ScanService&#xa;ExtractionService · ModerationService" vertex="1">
-                    <mxGeometry height="100" width="170" x="665" y="720" as="geometry"/>
+                <mxCell id="clients-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="ClientsService&#xa;findAll · findOne · create · update · delete" vertex="1">
+                    <mxGeometry height="40" width="260" x="690" y="585" as="geometry"/>
                 </mxCell>
-                <mxCell id="consumer-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="QueueConsumerService&#xa;handleQuoteCreated()&#xa;propagation.extract (OTel)&#xa;→ generateQuotationEmbedding&#xa;→ GatewayModule.emit()" vertex="1">
-                    <mxGeometry height="80" width="170" x="665" y="830" as="geometry"/>
+                <mxCell id="ai-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="AIService (OTel spans on all methods)&#xa;generateQuotationSummary (stale fallback)&#xa;getConversionScore(s) · getWinLossAnalysis&#xa;askAboutQuotation (1-token classifier)&#xa;askPlaybook · askLessonsLearned (hybrid RRF)&#xa;similarQuotations · generate*Embedding(s)&#xa;computeRecommendation&#xa;runGroqChain: pinned models + CircuitBreaker&#xa;Pseudonyms (hide / reveal) · citation check" vertex="1">
+                    <mxGeometry height="140" width="260" x="690" y="635" as="geometry"/>
+                </mxCell>
+                <mxCell id="ai-quota-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="AiQuotaService&#xa;assertRate · assertBudget (memoised per request)&#xa;tokens charged per user per UTC day (AiUsage)" vertex="1">
+                    <mxGeometry height="75" width="260" x="690" y="785" as="geometry"/>
+                </mxCell>
+                <mxCell id="docs-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="DocumentsService (OTel span)&#xa;processDocument: scan → extract&#xa;→ moderate → chunk → PENDING_REVIEW&#xa;approve → embed → READY&#xa;StorageService · ScanService&#xa;ExtractionService · ModerationService" vertex="1">
+                    <mxGeometry height="95" width="260" x="690" y="870" as="geometry"/>
+                </mxCell>
+                <mxCell id="consumer-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" value="QueueConsumerService&#xa;onQuoteCreated(): extract trace context&#xa;→ getConversionScore → emitScoreReady&#xa;→ generateQuotationEmbedding&#xa;failure → Nack → retry → DLQ" vertex="1">
+                    <mxGeometry height="80" width="260" x="690" y="975" as="geometry"/>
+                </mxCell>
+
+                <!-- Infrastructure -->
+                <mxCell id="grafana-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Grafana Cloud&#xa;Tempo (OTel)" vertex="1">
+                    <mxGeometry height="40" width="220" x="1000" y="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="metrics" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="MetricsModule&#xa;prom-client · GET /metrics" vertex="1">
+                    <mxGeometry height="40" width="220" x="1000" y="175" as="geometry"/>
                 </mxCell>
                 <mxCell id="prisma-service" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" value="PrismaService&#xa;Neon WebSocket adapter&#xa;4-min keepalive ping" vertex="1">
-                    <mxGeometry height="70" width="160" x="920" y="310" as="geometry"/>
+                    <mxGeometry height="70" width="220" x="1000" y="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="lifecycle" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="GracefulShutdown (common/lifecycle)&#xa;SIGTERM: fail readiness → 5s&#xa;→ stop accepting → drain&#xa;→ close WS, outbox, Prisma, Redis, AMQP&#xa;→ shutdownTracing → exit 0" vertex="1">
+                    <mxGeometry height="90" width="220" x="1000" y="315" as="geometry"/>
+                </mxCell>
+                <mxCell id="circuit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="CircuitBreaker (common/resilience)&#xa;closed / open (30s) / half-open" vertex="1">
+                    <mxGeometry height="45" width="220" x="1000" y="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="groq-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="Groq API&#xa;gpt-oss-120b · qwen3.8-27b · gpt-oss-20b" vertex="1">
+                    <mxGeometry height="55" width="220" x="1000" y="480" as="geometry"/>
+                </mxCell>
+                <mxCell id="openai-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="OpenAI API&#xa;(embeddings, moderation)" vertex="1">
+                    <mxGeometry height="45" width="220" x="1000" y="550" as="geometry"/>
+                </mxCell>
+                <mxCell id="supabase-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="Supabase Storage" vertex="1">
+                    <mxGeometry height="40" width="220" x="1000" y="610" as="geometry"/>
+                </mxCell>
+                <mxCell id="clamav-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="VirusTotal" vertex="1">
+                    <mxGeometry height="40" width="220" x="1000" y="665" as="geometry"/>
+                </mxCell>
+                <mxCell id="redis-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="Redis (tokens) · Mailtrap (SMTP)" vertex="1">
+                    <mxGeometry height="40" width="220" x="1000" y="720" as="geometry"/>
                 </mxCell>
                 <mxCell id="postgres-db" parent="1" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="PostgreSQL&#xa;(Neon DB + pgvector)" vertex="1">
-                    <mxGeometry height="70" width="100" x="1140" y="290" as="geometry"/>
+                    <mxGeometry height="70" width="110" x="1280" y="300" as="geometry"/>
                 </mxCell>
-                <mxCell id="rabbitmq-ext" parent="1" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="CloudAMQP&#xa;RabbitMQ" vertex="1">
-                    <mxGeometry height="60" width="100" x="1140" y="420" as="geometry"/>
+                <mxCell id="rabbitmq-ext" parent="1" style="shape=mxgraph.flowchart.database;html=1;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="CloudAMQP&#xa;RabbitMQ (+ DLQ)" vertex="1">
+                    <mxGeometry height="65" width="110" x="1280" y="520" as="geometry"/>
                 </mxCell>
-                <mxCell id="groq-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="Groq API" vertex="1">
-                    <mxGeometry height="40" width="100" x="920" y="480" as="geometry"/>
-                </mxCell>
-                <mxCell id="openai-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="OpenAI API&#xa;(embeddings)" vertex="1">
-                    <mxGeometry height="40" width="100" x="920" y="540" as="geometry"/>
-                </mxCell>
-                <mxCell id="supabase-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="Supabase&#xa;Storage" vertex="1">
-                    <mxGeometry height="40" width="100" x="920" y="600" as="geometry"/>
-                </mxCell>
-                <mxCell id="clamav-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="ClamAV&#xa;+ VirusTotal" vertex="1">
-                    <mxGeometry height="40" width="100" x="920" y="660" as="geometry"/>
-                </mxCell>
-                <mxCell id="grafana-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Grafana Cloud&#xa;Tempo (OTel)" vertex="1">
-                    <mxGeometry height="40" width="100" x="920" y="180" as="geometry"/>
-                </mxCell>
+
+                <!-- Edges -->
                 <mxCell id="e1" edge="1" parent="1" source="client" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" target="apollo-server">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e1b" edge="1" parent="1" source="ws-client" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" target="gateway-resolver">
+                <mxCell id="e1m" edge="1" parent="1" source="mcp-client" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;strokeWidth=2;" target="jwt-guard">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1b" edge="1" parent="1" source="ws-client" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" target="socket-auth">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1c" edge="1" parent="1" source="socket-auth" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" target="gateway-resolver">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e2" edge="1" parent="1" source="current-user" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" target="quotations-resolver">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e2b" edge="1" parent="1" source="current-user" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" target="ai-resolver">
+                <mxCell id="e2b" edge="1" parent="1" source="ai-quota-interceptor" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" target="ai-resolver">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e3" edge="1" parent="1" source="quotations-resolver" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;" target="quotations-service">
@@ -145,6 +202,12 @@
                 <mxCell id="e3c" edge="1" parent="1" source="docs-resolver" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" target="docs-service">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
+                <mxCell id="e3e" edge="1" parent="1" source="quotations-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d79b00;" target="idempotency-service">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3f" edge="1" parent="1" source="ai-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" target="ai-quota-service">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
                 <mxCell id="e4" edge="1" parent="1" source="quotations-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;" target="prisma-service">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
@@ -154,10 +217,13 @@
                 <mxCell id="e5" edge="1" parent="1" source="prisma-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;" target="postgres-db">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="e6" edge="1" parent="1" source="quotations-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;fontSize=10;" target="rabbitmq-ext" value="publish">
+                <mxCell id="e6" edge="1" parent="1" source="outbox-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;fontSize=10;" target="rabbitmq-ext" value="publish">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e7" edge="1" parent="1" source="rabbitmq-ext" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;strokeWidth=2;fontSize=10;" target="consumer-service" value="consume">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7b" edge="1" parent="1" source="consumer-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#b85450;dashed=1;fontSize=10;" target="gateway-resolver" value="emitScoreReady">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="e8" edge="1" parent="1" source="ai-service" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;" target="groq-ext">

@@ -1,4 +1,4 @@
-<mxfile host="65bd71144e">
+<mxfile host="app.diagrams.net" modified="2026-10-30" version="21.0.0">
     <diagram name="Infrastructure &amp; Observability" id="infra">
         <mxGraphModel dx="1526" dy="689" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
             <root>
@@ -20,7 +20,7 @@
                     <mxGeometry x="60" y="200" width="240" height="160" as="geometry"/>
                 </mxCell>
                 <mxCell id="github-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;opacity=40;" parent="1" vertex="1">
-                    <mxGeometry x="400" y="80" width="220" height="300" as="geometry"/>
+                    <mxGeometry x="400" y="80" width="250" height="470" as="geometry"/>
                 </mxCell>
                 <mxCell id="github-zone-label" value="GitHub" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
                     <mxGeometry x="400" y="85" width="220" height="25" as="geometry"/>
@@ -28,8 +28,8 @@
                 <mxCell id="github-repo" value="Repository&#xa;(main branch)" style="shape=mxgraph.veeam2.server;html=1;fillColor=#f5f5f5;strokeColor=#333333;verticalLabelPosition=bottom;verticalAlign=top;align=center;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="460" y="115" width="60" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="gh-actions" value="GitHub Actions CI (.github/workflows/ci.yml)&#xa;&#xa;1. secret-scan (Gitleaks)&#xa;2. test — unit + backend E2E&#xa;   (Docker + Postgres + RabbitMQ)&#xa;   + SonarCloud analysis&#xa;3. playwright — frontend E2E&#xa;   (separate job, own containers)&#xa;4. llm-eval — manual dispatch only&#xa;   (askPlaybook eval harness,&#xa;   non-blocking, report-only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;fontSize=11;align=left;spacingLeft=8;" parent="1" vertex="1">
-                    <mxGeometry x="415" y="195" width="220" height="260" as="geometry"/>
+                <mxCell id="gh-actions" value="GitHub Actions CI (.github/workflows/ci.yml)&#xa;&#xa;1. secret-scan (Gitleaks)&#xa;2. test — npm audit + lint, unit +&#xa;   backend E2E (Docker Postgres +&#xa;   RabbitMQ), frontend unit tests,&#xa;   SonarCloud analysis&#xa;3. playwright — frontend E2E&#xa;   (separate job, own containers)&#xa;• mcp-server — typecheck, tests, build&#xa;&#xa;llm-eval.yml — eval gate on PRs that&#xa;touch AI code: fails on a regression&#xa;vs baseline.json&#xa;&#xa;Dependabot — weekly grouped&#xa;minor/patch + security PRs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=2;fontSize=11;align=left;spacingLeft=8;" parent="1" vertex="1">
+                    <mxGeometry x="410" y="195" width="230" height="345" as="geometry"/>
                 </mxCell>
                 <mxCell id="vercel-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;opacity=40;" parent="1" vertex="1">
                     <mxGeometry x="680" y="80" width="260" height="300" as="geometry"/>
@@ -58,20 +58,20 @@
                 <mxCell id="docker-label" value="Docker Container" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=11;fontStyle=2;" parent="1" vertex="1">
                     <mxGeometry x="1015" y="118" width="270" height="20" as="geometry"/>
                 </mxCell>
-                <mxCell id="nestjs-box" value="NestJS 11&#xa;Apollo GraphQL Server&#xa;:4000/graphql" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
+                <mxCell id="nestjs-box" value="NestJS 11 · Apollo GraphQL&#xa;:4000/graphql · socket.io /scores&#xa;SIGTERM → graceful drain (≤25s)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontSize=11;fontStyle=1;" parent="1" vertex="1">
                     <mxGeometry x="1035" y="145" width="220" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="health-endpoint" value="GET /health&#xa;→ 200 { status: ok }&#xa;No DB call — always fast" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                <mxCell id="health-endpoint" value="GET /health — liveness, no DB call&#xa;GET /health/ready — DB + RabbitMQ&#xa;(503 if DB down or shutting down)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="1035" y="225" width="220" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="prisma-box" value="Prisma ORM&#xa;PrismaNeonHttp adapter&#xa;HTTP per query (no TCP pool)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
+                <mxCell id="prisma-box" value="Prisma ORM&#xa;PrismaNeon WebSocket adapter&#xa;pooled · supports transactions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="1035" y="305" width="220" height="60" as="geometry"/>
                 </mxCell>
                 <mxCell id="railway-metrics" value="Railway Built-in&#xa;CPU · Memory · Network&#xa;Logs (real-time stdout)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" parent="1" vertex="1">
                     <mxGeometry x="1015" y="390" width="270" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="railway-healthcheck" value="Railway Health Check&#xa;GET /health every 30s&#xa;Auto-restart on failure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="1015" y="460" width="270" height="50" as="geometry"/>
+                <mxCell id="railway-healthcheck" value="Railway deploy health check&#xa;GET /health/ready (120s timeout)&#xa;new deploy goes live only when ready" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1015" y="460" width="270" height="55" as="geometry"/>
                 </mxCell>
                 <mxCell id="neon-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;opacity=40;" parent="1" vertex="1">
                     <mxGeometry x="995" y="635" width="300" height="130" as="geometry"/>
@@ -124,12 +124,12 @@
                 <mxCell id="e-vercel-deploy" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;strokeWidth=2;" parent="1" source="gh-actions" target="vercel-build" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="660" y="280"/>
-                            <mxPoint x="660" y="145"/>
+                            <mxPoint x="670" y="280"/>
+                            <mxPoint x="670" y="145"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e-vercel-label" value="deploy on CI pass" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-vercel-deploy" vertex="1" connectable="0">
+                <mxCell id="e-vercel-label" value="deploy on push (Git integration)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-vercel-deploy" vertex="1" connectable="0">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="40" y="-40" as="offset"/>
                     </mxGeometry>
@@ -137,13 +137,13 @@
                 <mxCell id="e-railway-deploy" style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;strokeWidth=2;" parent="1" source="gh-actions" target="nestjs-box" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="640" y="280"/>
-                            <mxPoint x="640" y="60"/>
+                            <mxPoint x="660" y="280"/>
+                            <mxPoint x="660" y="60"/>
                             <mxPoint x="1145" y="60"/>
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e-railway-label" value="Docker deploy on CI pass" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-railway-deploy" vertex="1" connectable="0">
+                <mxCell id="e-railway-label" value="Docker deploy on push (in parallel with CI)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-railway-deploy" vertex="1" connectable="0">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
@@ -185,7 +185,7 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e-prisma-neon-label" value="HTTPS (HTTP driver)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-prisma-neon" vertex="1" connectable="0">
+                <mxCell id="e-prisma-neon-label" value="WebSocket (Neon serverless driver)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-prisma-neon" vertex="1" connectable="0">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
@@ -198,7 +198,7 @@
                         </Array>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="e-railway-health-label" value="GET /health every 30s" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-railway-health" vertex="1" connectable="0">
+                <mxCell id="e-railway-health-label" value="GET /health/ready on deploy" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;" parent="e-railway-health" vertex="1" connectable="0">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
@@ -231,6 +231,21 @@
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint x="20" y="-42" as="offset"/>
                     </mxGeometry>
+                </mxCell>
+                <mxCell id="obs-zone" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;strokeWidth=2;opacity=40;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="620" width="540" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="obs-zone-label" value="Traces, metrics and alerts" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="625" width="540" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="obs-tempo" value="Grafana Cloud Tempo&#xa;OTLP HTTP traces from the backend&#xa;W3C trace context across RabbitMQ&#xa;(Jaeger locally)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="415" y="660" width="250" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="obs-prometheus" value="Prometheus + Grafana (Docker Compose, local)&#xa;scrapes GET /metrics every 15s&#xa;resolver p95 · Groq fallback rate · circuit state&#xa;AI tokens per feature · estimated AI spend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="675" y="660" width="255" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="obs-alerts" value="Prometheus alert rules (observability/alerts.yml):&#xa;AiTokenSpike · AiCompletionsTruncated · AiPinnedModelUnavailable&#xa;Logs: Winston JSON with correlation id → Railway stdout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="415" y="775" width="515" height="75" as="geometry"/>
                 </mxCell>
                 <mxCell id="legend-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;opacity=80;" parent="1" vertex="1">
                     <mxGeometry x="40" y="730" width="300" height="130" as="geometry"/>
