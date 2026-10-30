@@ -1,4 +1,9 @@
-import { ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { DocumentStatus, Role } from '@prisma/client';
 import type { User } from '@prisma/client';
@@ -21,6 +26,7 @@ const mockPrisma = {
   document: {
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     findMany: jest.fn(),
     findUnique: jest.fn(),
     delete: jest.fn(),
@@ -199,24 +205,50 @@ describe('DocumentsService', () => {
       );
     });
 
-    it('marks document FAILED with the reason when the scan errors', async () => {
-      mockScan.scan.mockRejectedValue(new Error('VirusTotal upload failed'));
+    const lastFailedReason = (): string => {
+      const failed = mockPrisma.document.update.mock.calls
+        .map(
+          ([arg]) =>
+            arg as { data: { status: string; rejectedReason?: string } },
+        )
+        .filter((arg) => arg.data.status === DocumentStatus.FAILED);
+      expect(failed).toHaveLength(1);
+      return failed[0].data.rejectedReason ?? '';
+    };
+
+    it('marks document FAILED with a user-safe reason when the scan errors', async () => {
+      mockScan.scan.mockRejectedValue(
+        new Error('VIRUSTOTAL_API_KEY is not configured'),
+      );
       const svc = makeService();
       await svc.uploadDocument(makeFile(), manager);
       await waitForBackground();
       await waitForBackground();
-      expect(mockPrisma.document.update).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          where: { id: 'doc-1' },
-          data: expect.objectContaining({
-            status: DocumentStatus.FAILED,
-            rejectedReason: expect.stringContaining('VirusTotal upload failed'),
-          }),
-        }),
-      );
+      const reason = lastFailedReason();
+      expect(reason).toContain('The malware scan could not be completed');
+      // The raw error can name env vars or file paths: logged, never shown
+      expect(reason).not.toContain('VIRUSTOTAL_API_KEY');
     });
 
-    it('still settles when marking the document FAILED fails too', async () => {
+    it('marks document FAILED with a generic reason when a later step errors', async () => {
+      mockPrisma.$transaction.mockRejectedValue(
+        new Error(
+          'Invalid `prisma.documentChunk.create()` invocation in /app/src/x.ts',
+        ),
+      );
+      const svc = makeService();
+      await svc.uploadDocument(makeFile(), manager);
+      await waitForBackground();
+      await waitForBackground();
+      const reason = lastFailedReason();
+      expect(reason).toMatch(/^Processing failed\./);
+      expect(reason).not.toContain('prisma');
+    });
+
+    it('logs and still settles when marking the document FAILED fails too', async () => {
+      const logError = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
       mockScan.scan.mockRejectedValue(new Error('VirusTotal upload failed'));
       mockPrisma.document.update
         .mockResolvedValueOnce({ id: 'doc-1', status: DocumentStatus.SCANNING })
@@ -225,7 +257,11 @@ describe('DocumentsService', () => {
       await svc.uploadDocument(makeFile(), manager);
       await waitForBackground();
       await waitForBackground();
-      expect(mockPrisma.document.update).toHaveBeenCalledTimes(2);
+      expect(logError).toHaveBeenCalledWith(
+        expect.objectContaining({ docId: 'doc-1' }),
+        'Could not mark document as FAILED',
+      );
+      logError.mockRestore();
     });
 
     it('proceeds with empty text when extraction throws', async () => {
@@ -266,23 +302,24 @@ describe('DocumentsService', () => {
       );
     });
 
-    it('updates document status to READY for manager', async () => {
-      mockPrisma.document.update.mockResolvedValue({
+    it('updates a document awaiting review to READY for manager', async () => {
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.document.findUnique.mockResolvedValue({
         id: 'doc-1',
         status: DocumentStatus.READY,
       });
       const svc = makeService();
       const result = await svc.approveDocument('doc-1', manager);
-      expect(mockPrisma.document.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { status: DocumentStatus.READY } }),
-      );
-      expect((result as { status: DocumentStatus }).status).toBe(
-        DocumentStatus.READY,
-      );
+      expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+        where: { id: 'doc-1', status: DocumentStatus.PENDING_REVIEW },
+        data: { status: DocumentStatus.READY },
+      });
+      expect(result.status).toBe(DocumentStatus.READY);
     });
 
     it('triggers embedding generation after approval', async () => {
-      mockPrisma.document.update.mockResolvedValue({
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.document.findUnique.mockResolvedValue({
         id: 'doc-1',
         status: DocumentStatus.READY,
       });
@@ -291,6 +328,37 @@ describe('DocumentsService', () => {
       // Give the void promise time to settle
       await new Promise((r) => setImmediate(r));
       expect(mockAI.generateDocumentEmbeddings).toHaveBeenCalledWith('doc-1');
+    });
+
+    it.each([
+      DocumentStatus.FAILED,
+      DocumentStatus.SCANNING,
+      DocumentStatus.REJECTED,
+      DocumentStatus.READY,
+    ])(
+      'refuses to approve a %s document, so unscanned text never reaches the RAG corpus',
+      async (status) => {
+        mockPrisma.document.updateMany.mockResolvedValue({ count: 0 });
+        mockPrisma.document.findUnique.mockResolvedValue({
+          id: 'doc-1',
+          status,
+        });
+        const svc = makeService();
+        await expect(
+          svc.approveDocument('doc-1', manager),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        await new Promise((r) => setImmediate(r));
+        expect(mockAI.generateDocumentEmbeddings).not.toHaveBeenCalled();
+      },
+    );
+
+    it('throws NotFoundException for an unknown document', async () => {
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.document.findUnique.mockResolvedValue(null);
+      const svc = makeService();
+      await expect(svc.approveDocument('nope', manager)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -302,21 +370,33 @@ describe('DocumentsService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('updates document status to REJECTED with reason', async () => {
-      mockPrisma.document.update.mockResolvedValue({
+    it('updates a document awaiting review to REJECTED with reason', async () => {
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.document.findUnique.mockResolvedValue({
         id: 'doc-1',
         status: DocumentStatus.REJECTED,
       });
       const svc = makeService();
       await svc.rejectDocument('doc-1', 'harmful content', manager);
-      expect(mockPrisma.document.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: {
-            status: DocumentStatus.REJECTED,
-            rejectedReason: 'harmful content',
-          },
-        }),
-      );
+      expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+        where: { id: 'doc-1', status: DocumentStatus.PENDING_REVIEW },
+        data: {
+          status: DocumentStatus.REJECTED,
+          rejectedReason: 'harmful content',
+        },
+      });
+    });
+
+    it('refuses to reject a document that is not awaiting review', async () => {
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 0 });
+      mockPrisma.document.findUnique.mockResolvedValue({
+        id: 'doc-1',
+        status: DocumentStatus.READY,
+      });
+      const svc = makeService();
+      await expect(
+        svc.rejectDocument('doc-1', 'too late', manager),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

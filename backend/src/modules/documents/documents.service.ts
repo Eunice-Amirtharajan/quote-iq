@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from './storage.service';
@@ -19,6 +20,21 @@ import { tracer } from '../../common/tracing/tracer';
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = 'application/pdf';
 const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
+
+/** A pipeline failure with a message that is safe to show the user; the cause is logged. */
+class PipelineStepError extends Error {
+  constructor(
+    readonly userMessage: string,
+    cause: unknown,
+  ) {
+    super(
+      `${userMessage}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      {
+        cause,
+      },
+    );
+  }
+}
 
 @Injectable()
 export class DocumentsService {
@@ -115,16 +131,18 @@ export class DocumentsService {
   /**
    * A pipeline error (e.g. VirusTotal down) must not leave the document in SCANNING, where the UI
    * shows "scanning" forever and delete is blocked for 10 minutes. FAILED is terminal: the manager
-   * sees the reason and can delete the document and upload it again.
+   * sees the reason and can delete the document and upload it again. The reason shown is a fixed
+   * user-facing text; the raw error (which can name env vars or file paths) is only logged.
    */
   private async markFailed(docId: string, err: unknown): Promise<void> {
-    const message = err instanceof Error ? err.message : String(err);
+    const reason =
+      err instanceof PipelineStepError ? err.userMessage : 'Processing failed';
     try {
       await this.prisma.document.update({
         where: { id: docId },
         data: {
           status: DocumentStatus.FAILED,
-          rejectedReason: `Processing failed: ${message.slice(0, 200)}. Delete the document and upload it again.`,
+          rejectedReason: `${reason}. Delete the document and upload it again; if it keeps failing, contact an administrator.`,
         },
       });
     } catch (updateErr) {
@@ -141,8 +159,16 @@ export class DocumentsService {
       data: { status: DocumentStatus.SCANNING },
     });
 
-    // 1. Malware scan
-    const scanResult = await this.scan.scan(buffer);
+    // 1. Malware scan — fail-closed: an error stops the pipeline (markFailed)
+    let scanResult: Awaited<ReturnType<ScanService['scan']>>;
+    try {
+      scanResult = await this.scan.scan(buffer);
+    } catch (err) {
+      throw new PipelineStepError(
+        'The malware scan could not be completed',
+        err,
+      );
+    }
     if (scanResult.infected) {
       await this.prisma.document.update({
         where: { id: docId },
@@ -199,10 +225,7 @@ export class DocumentsService {
     if (approver.role !== Role.SALES_MANAGER) {
       throw new ForbiddenException('Only Sales Managers can approve documents');
     }
-    const doc = await this.prisma.document.update({
-      where: { id: docId },
-      data: { status: DocumentStatus.READY },
-    });
+    const doc = await this.leaveReview(docId, { status: DocumentStatus.READY });
 
     // Kick off embedding generation asynchronously — does not block the response
     /* istanbul ignore next 3 */
@@ -224,10 +247,34 @@ export class DocumentsService {
     if (rejecter.role !== Role.SALES_MANAGER) {
       throw new ForbiddenException('Only Sales Managers can reject documents');
     }
-    return this.prisma.document.update({
-      where: { id: docId },
-      data: { status: DocumentStatus.REJECTED, rejectedReason: reason },
+    return this.leaveReview(docId, {
+      status: DocumentStatus.REJECTED,
+      rejectedReason: reason,
     });
+  }
+
+  /**
+   * Approve and reject only apply to a document awaiting review: one that FAILED or was REJECTED
+   * was never fully scanned and moderated, so approving it would put unchecked text into the RAG
+   * corpus. The UI only offers the buttons on PENDING_REVIEW; this enforces it for direct API calls.
+   * The status check and the update are one statement, so two concurrent calls can't both win.
+   */
+  private async leaveReview(
+    docId: string,
+    data: { status: DocumentStatus; rejectedReason?: string },
+  ): Promise<DocumentType_> {
+    const { count } = await this.prisma.document.updateMany({
+      where: { id: docId, status: DocumentStatus.PENDING_REVIEW },
+      data,
+    });
+    const doc = await this.prisma.document.findUnique({ where: { id: docId } });
+    if (!doc) throw new NotFoundException(`Document ${docId} not found`);
+    if (count === 0) {
+      throw new BadRequestException(
+        `Only documents awaiting review can be approved or rejected (this one is ${doc.status})`,
+      );
+    }
+    return doc;
   }
 
   async deleteDocument(docId: string, deleter: User): Promise<void> {
