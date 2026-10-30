@@ -479,6 +479,16 @@ describe('QuotationsPage', () => {
       expect(screen.getAllByText('72%').length).toBeGreaterThan(0);
     });
 
+    it('explains an empty win chance in a tooltip', async () => {
+      renderAsManager(managerSuccessMock);
+      await screen.findAllByText('Enterprise License');
+      // q-1 is APPROVED: the cell explains why there is no score
+      const cell = screen.getByTitle('Outcome known — no prediction needed');
+      expect(cell).toHaveTextContent('—');
+      // screen readers get the same explanation as hidden text
+      expect(cell.querySelector('.sr-only')).toHaveTextContent('Outcome known — no prediction needed');
+    });
+
     it('does not show win chance on a non-SENT card', async () => {
       renderAsManager(managerSuccessMock);
       await screen.findAllByText('Enterprise License');

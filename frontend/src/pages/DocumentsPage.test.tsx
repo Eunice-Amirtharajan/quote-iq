@@ -65,6 +65,21 @@ describe("DocumentsPage", () => {
     expect(await screen.findByText(/failed to load documents/i)).toBeInTheDocument();
   });
 
+  it("polls while a document is scanning, so a failure shows without a reload", async () => {
+    render_([
+      docsMock([makeDoc({ status: "SCANNING" })]),
+      docsMock([
+        makeDoc({
+          status: "FAILED",
+          rejectedReason: "The malware scan could not be completed. Delete the document and upload it again.",
+        }),
+      ]),
+    ]);
+    expect(await screen.findByText("Scanning")).toBeInTheDocument();
+    expect(await screen.findByText("Failed", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText(/malware scan could not be completed/i)).toBeInTheDocument();
+  });
+
   it("renders status badge for PENDING_REVIEW as 'Needs review'", async () => {
     render_([docsMock()]);
     expect(await screen.findByText("Needs review")).toBeInTheDocument();

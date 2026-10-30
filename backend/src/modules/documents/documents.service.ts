@@ -4,6 +4,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from './storage.service';
@@ -13,16 +16,37 @@ import { ModerationService } from './moderation.service';
 import { DocumentStatus, Role } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { AIService } from '../ai/ai.service';
-import { SpanStatusCode } from '@opentelemetry/api';
+import { ROOT_CONTEXT, SpanStatusCode, context } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = 'application/pdf';
 const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
 
+/** A pipeline failure with a message that is safe to show the user; the cause is logged. */
+class PipelineStepError extends Error {
+  constructor(
+    readonly userMessage: string,
+    cause: unknown,
+  ) {
+    super(
+      `${userMessage}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      {
+        cause,
+      },
+    );
+  }
+}
+
+// A scan polls VirusTotal for at most ~1 min, so a document still scanning after this long has
+// lost its process (crash, deploy, OOM). Also the age after which delete is allowed mid-scan.
+const STRANDED_AFTER_MS = 10 * 60 * 1000;
+const SWEEP_EVERY_MS = 5 * 60 * 1000;
+
 @Injectable()
-export class DocumentsService {
+export class DocumentsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DocumentsService.name);
+  private sweepTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -32,6 +56,53 @@ export class DocumentsService {
     private readonly moderation: ModerationService,
     private readonly ai: AIService,
   ) {}
+
+  onModuleInit(): void {
+    // Run each sweep from an empty trace context, so it doesn't join the startup trace
+    const sweep = () =>
+      context.with(ROOT_CONTEXT, () => void this.failStrandedDocuments());
+    sweep();
+    this.sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
+    this.sweepTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
+
+  /**
+   * The pipeline's own error handler (markFailed) only runs while its process is alive. A crash or
+   * deploy mid-scan leaves the document in PENDING_SCAN or SCANNING for good, so this marks such
+   * documents FAILED once they're older than any real scan. It runs on startup and every 5 min
+   * (a restarted instance can't sweep its own stranded documents at boot: they're still too new).
+   * Safe with several replicas: the age cutoff never touches a scan still in progress.
+   */
+  async failStrandedDocuments(now = new Date()): Promise<number> {
+    try {
+      const { count } = await this.prisma.document.updateMany({
+        where: {
+          status: {
+            in: [DocumentStatus.PENDING_SCAN, DocumentStatus.SCANNING],
+          },
+          updatedAt: { lt: new Date(now.getTime() - STRANDED_AFTER_MS) },
+        },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason:
+            'Processing was interrupted. Delete the document and upload it again.',
+        },
+      });
+      if (count > 0) {
+        this.logger.warn(
+          `Marked ${count} stranded document(s) FAILED (no progress for ${STRANDED_AFTER_MS / 60_000} min)`,
+        );
+      }
+      return count;
+    } catch (err) {
+      this.logger.error({ err }, 'Stranded-document sweep failed');
+      return 0;
+    }
+  }
 
   async uploadDocument(
     file: Express.Multer.File,
@@ -104,11 +175,37 @@ export class DocumentsService {
         return await this._processDocument(docId, buffer);
       } catch (err) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        await this.markFailed(docId, err);
         throw err;
       } finally {
         span.end();
       }
     });
+  }
+
+  /**
+   * A pipeline error (e.g. VirusTotal down) must not leave the document in SCANNING, where the UI
+   * shows "scanning" forever and delete is blocked for 10 minutes. FAILED is terminal: the manager
+   * sees the reason and can delete the document and upload it again. The reason shown is a fixed
+   * user-facing text; the raw error (which can name env vars or file paths) is only logged.
+   */
+  private async markFailed(docId: string, err: unknown): Promise<void> {
+    const reason =
+      err instanceof PipelineStepError ? err.userMessage : 'Processing failed';
+    try {
+      await this.prisma.document.update({
+        where: { id: docId },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason: `${reason}. Delete the document and upload it again; if it keeps failing, contact an administrator.`,
+        },
+      });
+    } catch (updateErr) {
+      this.logger.error(
+        { docId, updateErr },
+        'Could not mark document as FAILED',
+      );
+    }
   }
 
   private async _processDocument(docId: string, buffer: Buffer): Promise<void> {
@@ -117,8 +214,16 @@ export class DocumentsService {
       data: { status: DocumentStatus.SCANNING },
     });
 
-    // 1. Malware scan
-    const scanResult = await this.scan.scan(buffer);
+    // 1. Malware scan — fail-closed: an error stops the pipeline (markFailed)
+    let scanResult: Awaited<ReturnType<ScanService['scan']>>;
+    try {
+      scanResult = await this.scan.scan(buffer);
+    } catch (err) {
+      throw new PipelineStepError(
+        'The malware scan could not be completed',
+        err,
+      );
+    }
     if (scanResult.infected) {
       await this.prisma.document.update({
         where: { id: docId },
@@ -175,10 +280,7 @@ export class DocumentsService {
     if (approver.role !== Role.SALES_MANAGER) {
       throw new ForbiddenException('Only Sales Managers can approve documents');
     }
-    const doc = await this.prisma.document.update({
-      where: { id: docId },
-      data: { status: DocumentStatus.READY },
-    });
+    const doc = await this.leaveReview(docId, { status: DocumentStatus.READY });
 
     // Kick off embedding generation asynchronously — does not block the response
     /* istanbul ignore next 3 */
@@ -200,10 +302,34 @@ export class DocumentsService {
     if (rejecter.role !== Role.SALES_MANAGER) {
       throw new ForbiddenException('Only Sales Managers can reject documents');
     }
-    return this.prisma.document.update({
-      where: { id: docId },
-      data: { status: DocumentStatus.REJECTED, rejectedReason: reason },
+    return this.leaveReview(docId, {
+      status: DocumentStatus.REJECTED,
+      rejectedReason: reason,
     });
+  }
+
+  /**
+   * Approve and reject only apply to a document awaiting review: one that FAILED or was REJECTED
+   * was never fully scanned and moderated, so approving it would put unchecked text into the RAG
+   * corpus. The UI only offers the buttons on PENDING_REVIEW; this enforces it for direct API calls.
+   * The status check and the update are one statement, so two concurrent calls can't both win.
+   */
+  private async leaveReview(
+    docId: string,
+    data: { status: DocumentStatus; rejectedReason?: string },
+  ): Promise<DocumentType_> {
+    const { count } = await this.prisma.document.updateMany({
+      where: { id: docId, status: DocumentStatus.PENDING_REVIEW },
+      data,
+    });
+    const doc = await this.prisma.document.findUnique({ where: { id: docId } });
+    if (!doc) throw new NotFoundException(`Document ${docId} not found`);
+    if (count === 0) {
+      throw new BadRequestException(
+        `Only documents awaiting review can be approved or rejected (this one is ${doc.status})`,
+      );
+    }
+    return doc;
   }
 
   async deleteDocument(docId: string, deleter: User): Promise<void> {
@@ -213,7 +339,7 @@ export class DocumentsService {
     const doc = await this.prisma.document.findUnique({ where: { id: docId } });
     if (!doc) return; // already gone — idempotent
     if (doc.status === DocumentStatus.SCANNING) {
-      const staleCutoff = new Date(Date.now() - 10 * 60 * 1000); // 10 min
+      const staleCutoff = new Date(Date.now() - STRANDED_AFTER_MS);
       if (doc.updatedAt > staleCutoff) {
         throw new BadRequestException(
           'Cannot delete a document while it is being scanned — try again in a moment',

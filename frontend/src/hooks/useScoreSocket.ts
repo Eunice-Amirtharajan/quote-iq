@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import { apiBase } from "../lib/api-base";
 
 interface ScoreReadyPayload {
   quotationId: string;
@@ -12,7 +13,7 @@ interface LiveScore {
   label: string;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3000";
+const BACKEND_URL = apiBase(import.meta.env);
 
 export function useScoreSocket(quotationId: string): LiveScore | null {
   const [liveScore, setLiveScore] = useState<LiveScore | null>(null);

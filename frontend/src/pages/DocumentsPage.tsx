@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { NetworkStatus } from "@apollo/client";
 import { sanitizeText } from "../utils/sanitize";
+import { apiBase } from "../lib/api-base";
 import { DOCUMENTS_QUERY } from "../graphql/queries";
 import {
   APPROVE_DOCUMENT_MUTATION,
@@ -25,6 +26,8 @@ interface Document {
   rejectedReason?: string | null;
   createdAt: string;
 }
+
+const POLL_MS = 3000;
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   PENDING_SCAN: "Queued",
@@ -145,22 +148,32 @@ export default function DocumentsPage() {
   const [rejectTarget, setRejectTarget] = useState<Document | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
 
-  const { data, previousData, loading, networkStatus, error, refetch } = useQuery<{ documents: Document[] }>(
-    DOCUMENTS_QUERY,
-    { fetchPolicy: "network-only", notifyOnNetworkStatusChange: true },
-  );
+  const { data, previousData, loading, networkStatus, error, refetch, startPolling, stopPolling } = useQuery<{
+    documents: Document[];
+  }>(DOCUMENTS_QUERY, { fetchPolicy: "network-only", notifyOnNetworkStatusChange: true });
   const initialLoading = loading && networkStatus === NetworkStatus.loading;
 
+  // Scanning runs in the background after the upload returns; poll while any document is still
+  // in progress, so READY / REJECTED / FAILED appear without a reload. Stops once none are.
+  const inProgress = (data?.documents ?? []).some(
+    (doc) => doc.status === "PENDING_SCAN" || doc.status === "SCANNING",
+  );
+  useEffect(() => {
+    if (!inProgress) return;
+    startPolling(POLL_MS);
+    return () => stopPolling();
+  }, [inProgress, startPolling, stopPolling]);
+
   const [approve] = useMutation(APPROVE_DOCUMENT_MUTATION, {
-    onCompleted: () => refetch(),
+    onCompleted: () => { void refetch(); },
     onError: (e) => setMutationError(e.message),
   });
   const [reject] = useMutation(REJECT_DOCUMENT_MUTATION, {
-    onCompleted: () => { setRejectTarget(null); refetch(); },
+    onCompleted: () => { setRejectTarget(null); void refetch(); },
     onError: (e) => setMutationError(e.message),
   });
   const [deleteDoc] = useMutation(DELETE_DOCUMENT_MUTATION, {
-    onCompleted: () => { setDeleteTarget(null); refetch(); },
+    onCompleted: () => { setDeleteTarget(null); void refetch(); },
     onError: (e) => { setDeleteTarget(null); setMutationError(e.message); },
   });
 
@@ -170,10 +183,7 @@ export default function DocumentsPage() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const apiBase = import.meta.env.VITE_API_URL
-        ? import.meta.env.VITE_API_URL.replace("/graphql", "")
-        : "http://localhost:4000";
-      const res = await fetch(`${apiBase}/documents/upload`, {
+      const res = await fetch(`${apiBase(import.meta.env)}/documents/upload`, {
         method: "POST",
         body: form,
         credentials: "include",
