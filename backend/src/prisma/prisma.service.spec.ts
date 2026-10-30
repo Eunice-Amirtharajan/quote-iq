@@ -26,15 +26,22 @@ const mockLogger = { warn: jest.fn() };
 
 describe('PrismaService — Neon URL', () => {
   let service: PrismaService;
+  const savedUrl = process.env.DATABASE_URL;
 
   beforeEach(async () => {
+    // Set explicitly: relying on an ambient DATABASE_URL (.env locally, the CI variable in CI)
+    // made these tests fail wherever none was set
+    process.env.DATABASE_URL = 'postgresql://user:pass@ep-xxx.neon.tech/db';
     const module: TestingModule = await Test.createTestingModule({
       providers: [PrismaService],
     }).compile();
     service = module.get<PrismaService>(PrismaService);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    process.env.DATABASE_URL = savedUrl;
+    jest.clearAllMocks();
+  });
 
   it('sets neonConfig.webSocketConstructor to ws at module load', () => {
     expect(neonConfig.webSocketConstructor).toBe(ws);

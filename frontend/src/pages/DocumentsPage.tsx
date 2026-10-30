@@ -165,15 +165,15 @@ export default function DocumentsPage() {
   }, [inProgress, startPolling, stopPolling]);
 
   const [approve] = useMutation(APPROVE_DOCUMENT_MUTATION, {
-    onCompleted: () => refetch(),
+    onCompleted: () => { void refetch(); },
     onError: (e) => setMutationError(e.message),
   });
   const [reject] = useMutation(REJECT_DOCUMENT_MUTATION, {
-    onCompleted: () => { setRejectTarget(null); refetch(); },
+    onCompleted: () => { setRejectTarget(null); void refetch(); },
     onError: (e) => setMutationError(e.message),
   });
   const [deleteDoc] = useMutation(DELETE_DOCUMENT_MUTATION, {
-    onCompleted: () => { setDeleteTarget(null); refetch(); },
+    onCompleted: () => { setDeleteTarget(null); void refetch(); },
     onError: (e) => { setDeleteTarget(null); setMutationError(e.message); },
   });
 

@@ -24,4 +24,14 @@ describe("apiBase", () => {
   it("defaults to the local backend on port 4000", () => {
     expect(apiBase({})).toBe("http://localhost:4000");
   });
+
+  it("keeps an API URL that has no /graphql path as it is", () => {
+    expect(apiBase({ VITE_API_URL: "https://api.example.com/" })).toBe("https://api.example.com");
+  });
+
+  it("stays fast on a pathological run of slashes", () => {
+    const start = performance.now();
+    expect(apiBase({ VITE_BACKEND_URL: `https://x${"/".repeat(100_000)}` })).toBe("https://x");
+    expect(performance.now() - start).toBeLessThan(100);
+  });
 });
