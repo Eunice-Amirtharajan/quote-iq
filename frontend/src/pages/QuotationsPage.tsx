@@ -10,6 +10,13 @@ import CreateQuotationModal from "../components/CreateQuotationModal";
 
 const PAGE_SIZE = 20;
 
+/** Why the win-chance cell is empty: only a SENT quotation is still waiting for the client's answer. */
+function noScoreReason(status: string): string {
+  if (status === "DRAFT") return "Scored once the quotation is sent";
+  if (status === "SENT") return "Score not available yet";
+  return "Outcome known — no prediction needed";
+}
+
 interface Quotation {
   id: string;
   quotationNumber: string;
@@ -398,12 +405,16 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                       </td>
                       {isManager && (
                         <td className="px-6 py-4 text-right">
-                          {q.status === "SENT" ? (
-                            <span className="text-sm text-gray-700">
-                              {scoreMap[q.id] !== undefined ? `${scoreMap[q.id]}%` : "—"}
-                            </span>
+                          {q.status === "SENT" && scoreMap[q.id] !== undefined ? (
+                            <span className="text-sm text-gray-700">{scoreMap[q.id]}%</span>
                           ) : (
-                            <span className="text-gray-300 text-sm">—</span>
+                            <span
+                              className="text-gray-300 text-sm cursor-help"
+                              title={noScoreReason(q.status)}
+                              aria-label={noScoreReason(q.status)}
+                            >
+                              —
+                            </span>
                           )}
                         </td>
                       )}

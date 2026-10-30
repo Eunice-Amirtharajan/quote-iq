@@ -199,6 +199,35 @@ describe('DocumentsService', () => {
       );
     });
 
+    it('marks document FAILED with the reason when the scan errors', async () => {
+      mockScan.scan.mockRejectedValue(new Error('VirusTotal upload failed'));
+      const svc = makeService();
+      await svc.uploadDocument(makeFile(), manager);
+      await waitForBackground();
+      await waitForBackground();
+      expect(mockPrisma.document.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { id: 'doc-1' },
+          data: expect.objectContaining({
+            status: DocumentStatus.FAILED,
+            rejectedReason: expect.stringContaining('VirusTotal upload failed'),
+          }),
+        }),
+      );
+    });
+
+    it('still settles when marking the document FAILED fails too', async () => {
+      mockScan.scan.mockRejectedValue(new Error('VirusTotal upload failed'));
+      mockPrisma.document.update
+        .mockResolvedValueOnce({ id: 'doc-1', status: DocumentStatus.SCANNING })
+        .mockRejectedValueOnce(new Error('db down'));
+      const svc = makeService();
+      await svc.uploadDocument(makeFile(), manager);
+      await waitForBackground();
+      await waitForBackground();
+      expect(mockPrisma.document.update).toHaveBeenCalledTimes(2);
+    });
+
     it('proceeds with empty text when extraction throws', async () => {
       mockExtraction.extractText.mockRejectedValue(
         new Error('PDF parse error'),

@@ -104,11 +104,35 @@ export class DocumentsService {
         return await this._processDocument(docId, buffer);
       } catch (err) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: String(err) });
+        await this.markFailed(docId, err);
         throw err;
       } finally {
         span.end();
       }
     });
+  }
+
+  /**
+   * A pipeline error (e.g. VirusTotal down) must not leave the document in SCANNING, where the UI
+   * shows "scanning" forever and delete is blocked for 10 minutes. FAILED is terminal: the manager
+   * sees the reason and can delete the document and upload it again.
+   */
+  private async markFailed(docId: string, err: unknown): Promise<void> {
+    const message = err instanceof Error ? err.message : String(err);
+    try {
+      await this.prisma.document.update({
+        where: { id: docId },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason: `Processing failed: ${message.slice(0, 200)}. Delete the document and upload it again.`,
+        },
+      });
+    } catch (updateErr) {
+      this.logger.error(
+        { docId, updateErr },
+        'Could not mark document as FAILED',
+      );
+    }
   }
 
   private async _processDocument(docId: string, buffer: Buffer): Promise<void> {

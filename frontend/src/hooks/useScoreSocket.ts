@@ -12,7 +12,14 @@ interface LiveScore {
   label: string;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3000";
+// Same server as GraphQL: without VITE_BACKEND_URL, derive it from VITE_API_URL so the two can't
+// point at different backends (the old default, port 3000, matched nothing).
+export function backendUrl(env: Readonly<Record<string, string | undefined>>): string {
+  if (env.VITE_BACKEND_URL) return env.VITE_BACKEND_URL;
+  return (env.VITE_API_URL ?? "http://localhost:4000/graphql").replace(/\/graphql\/?$/, "");
+}
+
+const BACKEND_URL = backendUrl(import.meta.env);
 
 export function useScoreSocket(quotationId: string): LiveScore | null {
   const [liveScore, setLiveScore] = useState<LiveScore | null>(null);
