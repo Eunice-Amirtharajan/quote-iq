@@ -166,11 +166,15 @@ describe('QuotationsService', () => {
       updatedAt: new Date(),
     });
 
-    it('fetches all quotations for SALES_MANAGER', async () => {
+    it('fetches all quotations for SALES_MANAGER, newest first with id breaking ties', async () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_MANAGER));
       expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
+        expect.objectContaining({
+          where: { AND: [{}, {}] },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: 0,
+        }),
       );
     });
 
@@ -178,8 +182,91 @@ describe('QuotationsService', () => {
       mockPrismaService.quotation.findMany.mockResolvedValue([]);
       await service.findAll(mockUser(Role.SALES_REP));
       expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { createdById: 'user-1' } }),
+        expect.objectContaining({
+          where: { createdById: 'user-1', AND: [{}, {}] },
+        }),
       );
+    });
+
+    describe('cursor (keyset) pagination', () => {
+      const after = {
+        createdAt: new Date('2026-04-10T00:00:00.000Z'),
+        id: '11111111-1111-1111-1111-111111111111',
+      };
+
+      it('returns the rows after the cursor, with a lte bound the index can seek to', async () => {
+        mockPrismaService.quotation.findMany.mockResolvedValue([]);
+        await service.findAll(
+          mockUser(Role.SALES_REP),
+          20,
+          undefined,
+          undefined,
+          after,
+        );
+        expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              createdById: 'user-1',
+              AND: [
+                {},
+                {
+                  createdAt: { lte: after.createdAt },
+                  OR: [
+                    { createdAt: { lt: after.createdAt } },
+                    { createdAt: after.createdAt, id: { lt: after.id } },
+                  ],
+                },
+              ],
+            },
+            skip: 0,
+          }),
+        );
+      });
+
+      it('keeps search and cursor separate, since both use OR', async () => {
+        mockPrismaService.quotation.findMany.mockResolvedValue([]);
+        await service.findAll(
+          mockUser(Role.SALES_MANAGER),
+          20,
+          undefined,
+          { search: 'cloud' },
+          after,
+        );
+        const { where } = mockPrismaService.quotation.findMany.mock
+          .calls[0][0] as { where: { AND: { OR: unknown[] }[] } };
+        expect(where.AND[0].OR).toHaveLength(3); // title, number, client
+        expect(where.AND[1].OR).toHaveLength(2); // the cursor
+      });
+
+      it('rejects a cursor combined with skip', async () => {
+        await expect(
+          service.findAll(
+            mockUser(Role.SALES_MANAGER),
+            20,
+            40,
+            undefined,
+            after,
+          ),
+        ).rejects.toThrow('Use either after or skip, not both');
+      });
+
+      it.each([
+        [{ ...after, id: 'not-a-uuid' }, 'after.id must be a valid UUID'],
+        [
+          { ...after, createdAt: new Date('nope') },
+          'after.createdAt must be a valid date',
+        ],
+      ])('rejects a malformed cursor', async (cursor, message) => {
+        await expect(
+          service.findAll(
+            mockUser(Role.SALES_MANAGER),
+            20,
+            undefined,
+            undefined,
+            cursor,
+          ),
+        ).rejects.toThrow(message);
+      });
     });
 
     it('applies status filter when provided', async () => {
@@ -202,11 +289,16 @@ describe('QuotationsService', () => {
       expect(mockPrismaService.quotation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: expect.arrayContaining([
-              expect.objectContaining({
-                title: expect.objectContaining({ contains: 'enterprise' }),
-              }),
-            ]),
+            AND: [
+              {
+                OR: expect.arrayContaining([
+                  expect.objectContaining({
+                    title: expect.objectContaining({ contains: 'enterprise' }),
+                  }),
+                ]),
+              },
+              {},
+            ],
           }),
         }),
       );

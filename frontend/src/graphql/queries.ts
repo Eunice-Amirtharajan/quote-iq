@@ -143,8 +143,8 @@ export const REP_DEAL_SIZE_WIN_RATES_QUERY = gql`
 `;
 
 export const QUOTATIONS_QUERY = gql`
-  query Quotations($take: Int, $skip: Int, $filter: QuotationFilterInput) {
-    quotations(take: $take, skip: $skip, filter: $filter) {
+  query Quotations($take: Int, $filter: QuotationFilterInput, $after: QuotationCursorInput) {
+    quotations(take: $take, filter: $filter, after: $after) {
       id
       quotationNumber
       title

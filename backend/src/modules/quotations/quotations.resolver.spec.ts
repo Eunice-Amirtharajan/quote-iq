@@ -66,19 +66,25 @@ describe('QuotationsResolver', () => {
         undefined,
         undefined,
         undefined,
+        undefined,
       );
       expect(result).toEqual([mockQuotation]);
     });
 
-    it('forwards take, skip, and filter to service', async () => {
+    it('forwards take, skip, filter and the cursor to service', async () => {
       const filter = { status: QuotationStatus.DRAFT, search: 'enterprise' };
+      const after = {
+        createdAt: new Date('2026-04-10T00:00:00.000Z'),
+        id: '11111111-1111-1111-1111-111111111111',
+      };
       mockQuotationsService.findAll.mockResolvedValue([mockQuotation]);
-      await resolver.quotations(mockUser, 5, 10, filter);
+      await resolver.quotations(mockUser, 5, undefined, filter, after);
       expect(mockQuotationsService.findAll).toHaveBeenCalledWith(
         mockUser,
         5,
-        10,
+        undefined,
         filter,
+        after,
       );
     });
   });

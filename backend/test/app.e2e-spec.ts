@@ -908,6 +908,79 @@ describe('QuoteIQ E2E', () => {
     });
   });
 
+  describe('Quotations — cursor pagination', () => {
+    type Row = { id: string; createdAt: string };
+    // Its own quotations, found by a unique title: a fresh CI database has too few rows
+    // left over from other tests to page through, so the test must not rely on them
+    const title = `E2E cursor page ${Date.now()}`;
+    const filter = { search: title };
+    const created: string[] = [];
+
+    const list = async (variables: Record<string, unknown>) => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', managerCookie)
+        .send({
+          query: `query ($take: Int, $skip: Int, $after: QuotationCursorInput, $filter: QuotationFilterInput) {
+            quotations(take: $take, skip: $skip, after: $after, filter: $filter) { id createdAt }
+          }`,
+          variables: { filter, ...variables },
+        })
+        .expect(200);
+      return res.body as {
+        data?: { quotations: Row[] };
+        errors?: { message: string }[];
+      };
+    };
+
+    beforeAll(async () => {
+      for (let i = 0; i < 5; i++) {
+        const res = await request(app.getHttpServer())
+          .post('/graphql')
+          .set('Cookie', managerCookie)
+          .send({
+            query: `mutation { createQuotation(input: { title: "${title}" clientId: "${e2eClientId}" taxRate: 0 items: [{ description: "Item" quantity: 1 unitPrice: 100 }] }) { id } }`,
+          })
+          .expect(200);
+        created.push(res.body.data.createQuotation.id as string);
+      }
+    });
+
+    afterAll(async () => {
+      for (const id of created) {
+        await request(app.getHttpServer())
+          .post('/graphql')
+          .set('Cookie', managerCookie)
+          .send({ query: `mutation { deleteQuotation(id: "${id}") }` });
+      }
+    });
+
+    it('pages through every quotation exactly once, in the same order as one big page', async () => {
+      const all = (await list({ take: 100 })).data!.quotations;
+      expect(all).toHaveLength(5);
+
+      const paged: Row[] = [];
+      let after: Row | undefined;
+      for (let i = 0; i < 10; i++) {
+        const page = (await list({ take: 2, after })).data!.quotations;
+        paged.push(...page);
+        if (page.length < 2) break;
+        after = page.at(-1);
+      }
+
+      expect(paged.map((q) => q.id)).toEqual(all.map((q) => q.id));
+      expect(new Set(paged.map((q) => q.id)).size).toBe(paged.length);
+    });
+
+    it('rejects a cursor combined with skip', async () => {
+      const [first] = (await list({ take: 1 })).data!.quotations;
+      const body = await list({ take: 2, skip: 2, after: first });
+      expect(body.errors?.[0].message).toContain(
+        'Use either after or skip, not both',
+      );
+    });
+  });
+
   describe('conversionScore query', () => {
     it('manager can fetch conversion score for a SENT quotation', async () => {
       const response = await request(app.getHttpServer())

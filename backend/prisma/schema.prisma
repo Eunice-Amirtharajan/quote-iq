@@ -77,7 +77,10 @@ model Quotation {
   quotationEmbedding QuotationEmbedding?
   snapshots          QuotationSnapshot[]
 
-  @@index([createdById])
+  // The list's sort order (newest first, id breaks ties) for keyset pagination: the manager's
+  // list uses the first, a rep's own list the second (which also serves createdById lookups)
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([createdById, createdAt(sort: Desc), id(sort: Desc)])
   @@index([clientId])
   @@index([status])
   @@index([createdById, status])

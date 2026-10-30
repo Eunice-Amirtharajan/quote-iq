@@ -22,6 +22,7 @@ import { StatusHistoryType } from './status-history.entity';
 import { QuotationSnapshotType } from './quotation-snapshot.entity';
 import {
   CreateQuotationInput,
+  QuotationCursorInput,
   QuotationFilterInput,
   UpdateQuotationInput,
   UpdateQuotationStatusInput,
@@ -51,6 +52,8 @@ export class QuotationsResolver {
     @Args('skip', {
       nullable: true,
       type: /* istanbul ignore next */ () => Int,
+      deprecationReason:
+        'Use `after`: offset pages repeat or skip rows when quotations are created while paging, and get slower the deeper they go',
     })
     skip?: number,
     @Args('filter', {
@@ -58,6 +61,13 @@ export class QuotationsResolver {
       type: /* istanbul ignore next */ () => QuotationFilterInput,
     })
     filter?: QuotationFilterInput,
+    @Args('after', {
+      nullable: true,
+      type: /* istanbul ignore next */ () => QuotationCursorInput,
+      description:
+        'Return the quotations after this one (the last row of the previous page)',
+    })
+    after?: QuotationCursorInput,
   ): Promise<QuotationType[]> {
     const end = this.resolverDuration.startTimer({ resolver: 'quotations' });
     try {
@@ -66,6 +76,7 @@ export class QuotationsResolver {
         take,
         skip,
         filter,
+        after,
       );
       end({ status: 'success' });
       return result;
