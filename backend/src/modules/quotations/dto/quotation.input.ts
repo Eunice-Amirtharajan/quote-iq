@@ -1,4 +1,11 @@
-import { InputType, Field, Float, Int, ID } from '@nestjs/graphql';
+import {
+  InputType,
+  Field,
+  Float,
+  Int,
+  ID,
+  GraphQLISODateTime,
+} from '@nestjs/graphql';
 import { QuotationStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common';
 
@@ -20,6 +27,31 @@ export class QuotationFilterInput {
   static validateRepId(repId: string | undefined): void {
     if (repId !== undefined && !UUID_RE.test(repId)) {
       throw new BadRequestException('repId must be a valid UUID');
+    }
+  }
+}
+
+/**
+ * Keyset cursor for the quotations list: the createdAt and id of the last row already shown.
+ * The next page is the rows strictly after it in (createdAt DESC, id DESC) order, so rows created
+ * while paging can't shift a page (OFFSET's duplicates and skips), and a deep page costs the same
+ * as the first. Both values come from a row the client has, so a deleted row is still a valid cursor.
+ */
+@InputType()
+export class QuotationCursorInput {
+  @Field(() => GraphQLISODateTime)
+  createdAt!: Date;
+
+  @Field(() => ID)
+  id!: string;
+
+  static validate(cursor: QuotationCursorInput | undefined): void {
+    if (cursor === undefined) return;
+    if (!UUID_RE.test(cursor.id)) {
+      throw new BadRequestException('after.id must be a valid UUID');
+    }
+    if (Number.isNaN(new Date(cursor.createdAt).getTime())) {
+      throw new BadRequestException('after.createdAt must be a valid date');
     }
   }
 }

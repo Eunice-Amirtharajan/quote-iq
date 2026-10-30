@@ -384,7 +384,15 @@ type Query {
   quotation(id: ID!): QuotationType
   quotationByToken(token: String!): PublicQuotationType
   quotationSnapshots(quotationId: ID!): [QuotationSnapshotType!]!
-  quotations(filter: QuotationFilterInput, skip: Int, take: Int): [QuotationType!]!
+  quotations(
+    """
+    Return the quotations after this one (the last row of the previous page)
+    """
+    after: QuotationCursorInput
+    filter: QuotationFilterInput
+    skip: Int @deprecated(reason: "Use `after`: offset pages repeat or skip rows when quotations are created while paging, and get slower the deeper they go")
+    take: Int
+  ): [QuotationType!]!
 
   """
   Win rate per rep in each deal-size band, with team averages as the baseline
@@ -419,6 +427,11 @@ type Query {
 """Answer to a free-text question about a quotation"""
 type QuotationAnswerType {
   answer: String!
+}
+
+input QuotationCursorInput {
+  createdAt: DateTime!
+  id: ID!
 }
 
 input QuotationFilterInput {

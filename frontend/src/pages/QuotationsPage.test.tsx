@@ -48,7 +48,7 @@ const mockOnSelect = vi.fn();
 
 const successMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
     result:  { data: { quotations: mockQuotations } },
   },
 ];
@@ -60,7 +60,7 @@ const mockReps = [
 
 const managerSuccessMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
     result:  { data: { quotations: mockQuotations } },
   },
   {
@@ -76,14 +76,14 @@ const managerSuccessMock: MockLink.MockedResponse[] = [
 
 const emptyMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
     result:  { data: { quotations: [] } },
   },
 ];
 
 const errorMock: MockLink.MockedResponse[] = [
   {
-    request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+    request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
     error:   new Error('Failed to fetch'),
   },
 ];
@@ -158,11 +158,11 @@ describe('QuotationsPage', () => {
   it('shows filter-specific empty message when filter active and no results', async () => {
     const statusMock: MockLink.MockedResponse[] = [
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
         result: { data: { quotations: mockQuotations } },
       },
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: { status: 'REJECTED' } } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: { status: 'REJECTED' } } },
         result: { data: { quotations: [] } },
       },
     ];
@@ -249,13 +249,13 @@ describe('QuotationsPage', () => {
   it('refetches with status filter and shows empty state', async () => {
     const statusMock: MockLink.MockedResponse[] = [
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
         result: { data: { quotations: mockQuotations } },
       },
       {
         request: {
           query: QUOTATIONS_QUERY,
-          variables: { take: 20, skip: 0, filter: { status: 'DRAFT' } },
+          variables: { take: 20, filter: { status: 'DRAFT' } },
         },
         result: { data: { quotations: [] } },
       },
@@ -329,7 +329,7 @@ describe('QuotationsPage', () => {
       const repFilterMock: MockLink.MockedResponse[] = [
         ...managerSuccessMock,
         {
-          request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: { repId: 'u-rep' } } },
+          request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: { repId: 'u-rep' } } },
           result: { data: { quotations: [mockQuotations[0]] } },
         },
       ];
@@ -370,7 +370,7 @@ describe('QuotationsPage', () => {
       createdAt: new Date().toISOString(),
     };
     const mocks: MockLink.MockedResponse[] = [
-      { request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } }, result: { data: { quotations: mockQuotations } } },
+      { request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } }, result: { data: { quotations: mockQuotations } } },
       { request: { query: CLIENTS_QUERY }, result: { data: { clients: [{ __typename: 'ClientType', id: 'c-1', name: 'Hans Bauer', email: null }] } } },
       {
         request: {
@@ -379,7 +379,7 @@ describe('QuotationsPage', () => {
         },
         result: { data: { createQuotation: newQuotation } },
       },
-      { request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } }, result: { data: { quotations: [...mockQuotations, newQuotation] } } },
+      { request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } }, result: { data: { quotations: [...mockQuotations, newQuotation] } } },
     ];
 
     renderAs(mockRep, mocks);
@@ -421,7 +421,7 @@ describe('QuotationsPage', () => {
     }));
     const fullPageMock: MockLink.MockedResponse[] = [
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
         result: { data: { quotations: fullPage } },
       },
     ];
@@ -517,11 +517,11 @@ describe('QuotationsPage', () => {
     const repFilterMock: MockLink.MockedResponse[] = [
       ...managerSuccessMock,
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: { repId: 'u-rep' } } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: { repId: 'u-rep' } } },
         result: { data: { quotations: [mockQuotations[0]] } },
       },
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
         result: { data: { quotations: mockQuotations } },
       },
     ];
@@ -567,19 +567,19 @@ describe('QuotationsPage', () => {
     const page2 = [{ id: 'q-20', quotationNumber: 'QT-2026-0020', title: 'Quote 20', client: { id: 'c-20', name: 'Client' }, status: 'DRAFT', total: 1000, createdAt: '2026-04-10T00:00:00.000Z' }];
     const mocks: MockLink.MockedResponse[] = [
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 0, filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined } },
         result: { data: { quotations: fullPage } },
       },
       {
-        request: { query: QUOTATIONS_QUERY, variables: { take: 20, skip: 20, filter: undefined } },
+        request: { query: QUOTATIONS_QUERY, variables: { take: 20, filter: undefined, after: { createdAt: '2026-04-10T00:00:00.000Z', id: 'q-19' } } },
         result: { data: { quotations: page2 } },
       },
     ];
     renderAs(mockRep, mocks);
     const loadMoreBtn = await screen.findByText('Load more');
     await user.click(loadMoreBtn);
-    // After clicking, page advances to 1; now 21 items returned total which is < 20*2=40,
-    // so hasMore becomes false and the button disappears
+    // Load more sends the last row as the cursor (the mock only matches those variables);
+    // the short second page means there is nothing more, so the button disappears
     await waitFor(() => expect(screen.queryByText('Load more')).not.toBeInTheDocument());
   });
 });

@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   PrismaService,
   isDbConnectionError,
+  poolMax,
+  withConnectionLimit,
   withDbRetry,
 } from './prisma.service';
 import { PrismaNeon } from '@prisma/adapter-neon';
@@ -96,6 +98,57 @@ describe('PrismaService — neon.database URL variant', () => {
     const service = module.get<PrismaService>(PrismaService);
     expect(service).toBeDefined();
     expect(PrismaNeon).toHaveBeenCalled();
+  });
+
+  it('passes an explicit pool size to the Neon pool', async () => {
+    process.env.DATABASE_POOL_MAX = '4';
+    try {
+      await Test.createTestingModule({ providers: [PrismaService] }).compile();
+      expect(PrismaNeon).toHaveBeenCalledWith(
+        expect.objectContaining({ max: 4 }),
+      );
+    } finally {
+      delete process.env.DATABASE_POOL_MAX;
+    }
+  });
+});
+
+describe('poolMax', () => {
+  it('defaults to 10, the Neon pool default', () => {
+    expect(poolMax(undefined)).toBe(10);
+  });
+
+  it('uses a positive integer from DATABASE_POOL_MAX', () => {
+    expect(poolMax('25')).toBe(25);
+  });
+
+  it.each(['0', '-3', '2.5', 'lots', ''])(
+    'falls back to the default for %p',
+    (value) => {
+      expect(poolMax(value)).toBe(10);
+    },
+  );
+});
+
+describe('withConnectionLimit', () => {
+  it('adds connection_limit for the TCP engine', () => {
+    expect(
+      withConnectionLimit(
+        'postgresql://u:p@localhost:5433/db?schema=public',
+        5,
+      ),
+    ).toBe(
+      'postgresql://u:p@localhost:5433/db?schema=public&connection_limit=5',
+    );
+  });
+
+  it('keeps a connection_limit already in the URL', () => {
+    expect(
+      withConnectionLimit(
+        'postgresql://u:p@localhost/db?connection_limit=2',
+        5,
+      ),
+    ).toBe('postgresql://u:p@localhost/db?connection_limit=2');
   });
 });
 

@@ -69,7 +69,8 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const repRef = useRef<HTMLDivElement>(null);
   const [searchText, setSearchText] = useState<string>("");
   const [committedSearch, setCommittedSearch] = useState<string>("");
-  const [page, setPage] = useState(0);
+  // id of the last row when a "Load more" came back short: there is nothing after it
+  const [exhaustedAfter, setExhaustedAfter] = useState<string | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -85,7 +86,6 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
 
   const handleSearchChange = (value: string) => {
     setSearchText(value);
-    setPage(0);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => setCommittedSearch(value), 400);
   };
@@ -93,7 +93,6 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const clearSearch = () => {
     setSearchText("");
     setCommittedSearch("");
-    setPage(0);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
   };
 
@@ -108,7 +107,7 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
 
   const { data, loading, error, fetchMore } = useQuery<{
     quotations: Quotation[];
-  }>(QUOTATIONS_QUERY, { variables: { take: PAGE_SIZE, skip: 0, filter } });
+  }>(QUOTATIONS_QUERY, { variables: { take: PAGE_SIZE, filter } });
 
   const { data: repsData } = useQuery<{ salesReps: SalesRep[] }>(
     SALES_REPS_QUERY,
@@ -118,7 +117,11 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   const quotations = data?.quotations ?? [];
   const salesReps = repsData?.salesReps ?? [];
   const canCreate = user?.role === "SALES_REP" || isManager;
-  const hasMore = quotations.length === PAGE_SIZE * (page + 1);
+  const last = quotations.at(-1);
+  // Every page is full until the end, so a multiple of PAGE_SIZE may have more; a refetch that
+  // replaces the list gives a different last row, which re-enables the button
+  const hasMore =
+    last !== undefined && quotations.length % PAGE_SIZE === 0 && exhaustedAfter !== last.id;
   const sentIds = quotations
     .filter((quote) => quote.status === "SENT")
     .map((quote) => quote.id);
@@ -139,11 +142,14 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
   }
 
   const loadMore = () => {
-    const nextPage = page + 1;
+    if (!last) return;
     fetchMore({
-      variables: { take: PAGE_SIZE, skip: nextPage * PAGE_SIZE, filter },
-    }).catch(() => {});
-    setPage(nextPage);
+      variables: { take: PAGE_SIZE, filter, after: { createdAt: last.createdAt, id: last.id } },
+    })
+      .then((result) => {
+        if ((result.data?.quotations.length ?? 0) < PAGE_SIZE) setExhaustedAfter(last.id);
+      })
+      .catch(() => {});
   };
 
   return (
@@ -202,7 +208,6 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
-              setPage(0);
             }}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
           >
@@ -243,7 +248,6 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                       setRepFilter("");
                       setRepSearch("");
                       setRepOpen(false);
-                      setPage(0);
                     }}
                     className="pr-2 text-gray-400 hover:text-gray-600 text-xs leading-none"
                     aria-label="Clear rep filter"
@@ -266,7 +270,6 @@ export default function QuotationsPage({ onSelect }: Readonly<Props>) {
                             setRepFilter(r.id);
                             setRepSearch("");
                             setRepOpen(false);
-                            setPage(0);
                           }}
                           className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${repFilter === r.id ? "font-medium text-gray-900" : "text-gray-700"}`}
                         >

@@ -1,6 +1,7 @@
 import { ApolloClient, InMemoryCache, HttpLink, from } from "@apollo/client";
 import { CombinedGraphQLErrors } from "@apollo/client/errors";
 import { onError } from "@apollo/client/link/error";
+import { mergeQuotationPages } from "./quotation-pages";
 
 /* v8 ignore next 3 */
 if (import.meta.env.PROD === true && !import.meta.env.VITE_API_URL) {
@@ -42,16 +43,11 @@ export const client = new ApolloClient({
       DashboardStatsType: { keyFields: false },
       Query: {
         fields: {
-          // Merge paginated quotation pages so fetchMore appends instead of
-          // replacing. keyArgs lists the variables that identify a distinct
-          // list — filter changes reset the list; take/skip are pagination
-          // cursors and must NOT be key args.
+          // keyArgs lists the variables that identify a distinct list: a filter change starts a
+          // new list; take/after are pagination and must NOT be key args.
           quotations: {
             keyArgs: ["filter"],
-            /* v8 ignore next 3 */
-            merge(existing: unknown[] | undefined, incoming: unknown[]) {
-              return [...(existing ?? []), ...incoming];
-            },
+            merge: mergeQuotationPages,
           },
         },
       },
