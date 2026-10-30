@@ -5,6 +5,8 @@ import {
   ForbiddenException,
   Logger,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from './storage.service';
@@ -14,7 +16,7 @@ import { ModerationService } from './moderation.service';
 import { DocumentStatus, Role } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { AIService } from '../ai/ai.service';
-import { SpanStatusCode } from '@opentelemetry/api';
+import { ROOT_CONTEXT, SpanStatusCode, context } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -36,9 +38,15 @@ class PipelineStepError extends Error {
   }
 }
 
+// A scan polls VirusTotal for at most ~1 min, so a document still scanning after this long has
+// lost its process (crash, deploy, OOM). Also the age after which delete is allowed mid-scan.
+const STRANDED_AFTER_MS = 10 * 60 * 1000;
+const SWEEP_EVERY_MS = 5 * 60 * 1000;
+
 @Injectable()
-export class DocumentsService {
+export class DocumentsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DocumentsService.name);
+  private sweepTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -48,6 +56,53 @@ export class DocumentsService {
     private readonly moderation: ModerationService,
     private readonly ai: AIService,
   ) {}
+
+  onModuleInit(): void {
+    // Run each sweep from an empty trace context, so it doesn't join the startup trace
+    const sweep = () =>
+      context.with(ROOT_CONTEXT, () => void this.failStrandedDocuments());
+    sweep();
+    this.sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
+    this.sweepTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
+
+  /**
+   * The pipeline's own error handler (markFailed) only runs while its process is alive. A crash or
+   * deploy mid-scan leaves the document in PENDING_SCAN or SCANNING for good, so this marks such
+   * documents FAILED once they're older than any real scan. It runs on startup and every 5 min
+   * (a restarted instance can't sweep its own stranded documents at boot: they're still too new).
+   * Safe with several replicas: the age cutoff never touches a scan still in progress.
+   */
+  async failStrandedDocuments(now = new Date()): Promise<number> {
+    try {
+      const { count } = await this.prisma.document.updateMany({
+        where: {
+          status: {
+            in: [DocumentStatus.PENDING_SCAN, DocumentStatus.SCANNING],
+          },
+          updatedAt: { lt: new Date(now.getTime() - STRANDED_AFTER_MS) },
+        },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason:
+            'Processing was interrupted. Delete the document and upload it again.',
+        },
+      });
+      if (count > 0) {
+        this.logger.warn(
+          `Marked ${count} stranded document(s) FAILED (no progress for ${STRANDED_AFTER_MS / 60_000} min)`,
+        );
+      }
+      return count;
+    } catch (err) {
+      this.logger.error({ err }, 'Stranded-document sweep failed');
+      return 0;
+    }
+  }
 
   async uploadDocument(
     file: Express.Multer.File,
@@ -284,7 +339,7 @@ export class DocumentsService {
     const doc = await this.prisma.document.findUnique({ where: { id: docId } });
     if (!doc) return; // already gone — idempotent
     if (doc.status === DocumentStatus.SCANNING) {
-      const staleCutoff = new Date(Date.now() - 10 * 60 * 1000); // 10 min
+      const staleCutoff = new Date(Date.now() - STRANDED_AFTER_MS);
       if (doc.updatedAt > staleCutoff) {
         throw new BadRequestException(
           'Cannot delete a document while it is being scanned — try again in a moment',

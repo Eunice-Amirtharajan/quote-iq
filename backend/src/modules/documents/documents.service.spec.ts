@@ -294,6 +294,59 @@ describe('DocumentsService', () => {
     });
   });
 
+  describe('failStrandedDocuments (crash / deploy mid-scan)', () => {
+    const now = new Date('2026-10-30T12:00:00.000Z');
+
+    it('marks documents with no progress for 10 min FAILED, and only those', async () => {
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 2 });
+      const svc = makeService();
+      await expect(svc.failStrandedDocuments(now)).resolves.toBe(2);
+      expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: {
+            in: [DocumentStatus.PENDING_SCAN, DocumentStatus.SCANNING],
+          },
+          updatedAt: { lt: new Date('2026-10-30T11:50:00.000Z') },
+        },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason: expect.stringContaining('interrupted'),
+        },
+      });
+    });
+
+    it('logs and returns 0 instead of throwing when the database is down', async () => {
+      const logError = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      mockPrisma.document.updateMany.mockRejectedValue(new Error('db down'));
+      const svc = makeService();
+      await expect(svc.failStrandedDocuments(now)).resolves.toBe(0);
+      expect(logError).toHaveBeenCalledWith(
+        expect.anything(),
+        'Stranded-document sweep failed',
+      );
+      logError.mockRestore();
+    });
+
+    it('sweeps on startup and every 5 min, and stops on shutdown', () => {
+      jest.useFakeTimers();
+      try {
+        mockPrisma.document.updateMany.mockResolvedValue({ count: 0 });
+        const svc = makeService();
+        svc.onModuleInit();
+        expect(mockPrisma.document.updateMany).toHaveBeenCalledTimes(1);
+        jest.advanceTimersByTime(5 * 60 * 1000);
+        expect(mockPrisma.document.updateMany).toHaveBeenCalledTimes(2);
+        svc.onModuleDestroy();
+        jest.advanceTimersByTime(10 * 60 * 1000);
+        expect(mockPrisma.document.updateMany).toHaveBeenCalledTimes(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
+
   describe('approveDocument', () => {
     it('throws ForbiddenException for SALES_REP', async () => {
       const svc = makeService();
