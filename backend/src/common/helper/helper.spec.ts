@@ -1,4 +1,19 @@
-import { describeError, escapeXml } from './helper';
+import { describeError, escapeXml, unescapeXml } from './helper';
+
+describe('unescapeXml', () => {
+  it('reverses escapeXml', () => {
+    const text = `<a href='url'>"text" & more</a>`;
+    expect(unescapeXml(escapeXml(text))).toBe(text);
+  });
+
+  it('decodes &amp; last, so an escaped entity stays an entity', () => {
+    expect(unescapeXml('&amp;lt;')).toBe('&lt;');
+  });
+
+  it('leaves plain text unchanged', () => {
+    expect(unescapeXml("Don't & won't")).toBe("Don't & won't");
+  });
+});
 
 describe('escapeXml', () => {
   it('escapes ampersand first to avoid double-encoding', () => {

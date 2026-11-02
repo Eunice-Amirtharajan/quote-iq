@@ -10,6 +10,19 @@ export function escapeXml(str: string): string {
 }
 
 /**
+ * Reverses escapeXml on model output: a model shown escaped text may echo `&#39;` or `&amp;`
+ * back, which would show up literally in the UI. `&amp;` goes last so `&amp;lt;` stays `&lt;`.
+ */
+export function unescapeXml(str: string): string {
+  return str
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&amp;', '&');
+}
+
+/**
  * Error details for a log line. Some errors aren't Error instances (Prisma's Neon driver adapter
  * throws plain objects), and String() turns those into "[object Object]", losing the cause.
  */

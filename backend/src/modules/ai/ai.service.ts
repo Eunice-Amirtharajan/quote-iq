@@ -34,7 +34,11 @@ import {
 import { QuotationType } from '../quotations/quotation.entity';
 import { InsightType, QuotationStatus } from '@prisma/client';
 import OpenAI from 'openai';
-import { escapeXml, describeError } from '../../common/helper/helper';
+import {
+  escapeXml,
+  unescapeXml,
+  describeError,
+} from '../../common/helper/helper';
 import { CatalogStatus, ModelCatalog, modelPinsFromEnv } from './model-catalog';
 import { AiQuotaService, currentAiUser } from './ai-quota.service';
 import { checkCitedSources, citedPassages } from './citation-check';
@@ -1845,10 +1849,12 @@ ${numbered}`;
 
     const reranked = await this.choosePassages(trimmed, topChunks);
 
+    // Escaped like quotation data: an uploaded document containing "</playbook>" must not be
+    // able to close the tag and put its text outside the data
     const context = reranked
       .map(
         (c, i) =>
-          `[${i + 1}] ${c.documentTitle} (chunk ${c.chunkIndex})\n${c.content}`,
+          `[${i + 1}] ${escapeXml(c.documentTitle)} (chunk ${c.chunkIndex})\n${escapeXml(c.content)}`,
       )
       .join('\n\n---\n\n');
 
@@ -1863,10 +1869,8 @@ Be concise — 2–4 sentences. Always cite the source number(s) you used, e.g. 
 ${context}
 </playbook>`;
 
-    const answer = await this.queryGroqModels(
-      systemPrompt,
-      trimmed,
-      'playbook_qa',
+    const answer = unescapeXml(
+      await this.queryGroqModels(systemPrompt, trimmed, 'playbook_qa'),
     );
 
     // A refusal makes no claim, so there is nothing to cite
@@ -1930,7 +1934,10 @@ ${context}
       }
 
       const context = chunks
-        .map((c, i) => `[${i + 1}] ${c.source}\n${c.content}`)
+        .map(
+          (c, i) =>
+            `[${i + 1}] ${escapeXml(c.source)}\n${escapeXml(c.content)}`,
+        )
         .join('\n\n---\n\n');
 
       const systemPrompt = `You are an engineering assistant with access to a lessons-learned log.
@@ -1957,9 +1964,10 @@ ${context}
       const parsedAnswer = LessonsLearnedResponseSchema.parse(
         JSON.parse(answer),
       );
-      // Keep only entries that were actually retrieved; the model may name one that doesn't exist
+      // Keep only entries that were actually retrieved; the model may name one that doesn't exist.
+      // It saw escaped headings, so it may cite them escaped
       const { known, unknown } = checkCitedSources(
-        parsedAnswer.citedEntries,
+        parsedAnswer.citedEntries.map(unescapeXml),
         chunks.map((c) => c.source),
       );
       const grounded = this.checkGrounded(
@@ -1967,7 +1975,11 @@ ${context}
         known.length,
         unknown.length,
       );
-      return { answer: parsedAnswer.answer, sources: known, grounded };
+      return {
+        answer: unescapeXml(parsedAnswer.answer),
+        sources: known,
+        grounded,
+      };
     } catch (error) {
       this.logger.error(
         `Failed to retrieve the lessons learned response`,
