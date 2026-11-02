@@ -92,8 +92,8 @@ function renderModal(mocks: any[]) {
 async function selectClient(user: ReturnType<typeof userEvent.setup>, clientName: string) {
   const clientInput = screen.getByPlaceholderText(/Search or create a client/i);
   await user.click(clientInput);
-  await screen.findByRole('listbox');
-  await user.click(screen.getByRole('option', { name: clientName }));
+  // The listbox renders before the clients query resolves, so wait for the option itself
+  await user.click(await screen.findByRole('option', { name: clientName }));
 }
 
 describe('CreateQuotationModal', () => {
