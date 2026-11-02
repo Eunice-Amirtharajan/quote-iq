@@ -1478,6 +1478,40 @@ describe('QuotationsService', () => {
       expect(result).toEqual(updatedQuotation);
     });
 
+    describe('embedding refresh', () => {
+      const generateEmbedding = () =>
+        (
+          service as unknown as {
+            aiService: { generateQuotationEmbedding: jest.Mock };
+          }
+        ).aiService.generateQuotationEmbedding;
+
+      it('regenerates the embedding after an edit, so similar-quote search uses the new text', async () => {
+        await service.update(
+          'q-1',
+          { title: 'Updated Title', clientId: CLIENT_UPDATE_UUID, version: 1 },
+          'user-1',
+        );
+        expect(generateEmbedding()).toHaveBeenCalledWith('q-1');
+      });
+
+      it('still returns the update when regenerating fails, and logs it', async () => {
+        generateEmbedding().mockRejectedValueOnce(new Error('OpenAI down'));
+        const result = await service.update(
+          'q-1',
+          { title: 'Updated Title', clientId: CLIENT_UPDATE_UUID, version: 1 },
+          'user-1',
+        );
+        expect(result).toEqual(updatedQuotation);
+        await new Promise((r) => setImmediate(r));
+        expect(mockLogger.error).toHaveBeenCalledWith(
+          'Failed to regenerate embedding on edit for quotationId:q-1',
+          expect.any(String),
+          'QuotationsService',
+        );
+      });
+    });
+
     it('recalculates totals when items are replaced', async () => {
       // findFirst order: validateUpdatePermissions → taxRate lookup → version check
       mockPrismaService.quotation.findFirst

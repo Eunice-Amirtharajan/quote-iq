@@ -498,15 +498,7 @@ export class QuotationsService {
       await this.prisma.aIInsight.deleteMany({ where: { quotationId: id } });
 
       // Regenerate embedding — outcome field in corpus text has changed
-      void this.aiService
-        .generateQuotationEmbedding(id)
-        .catch((err: unknown) =>
-          this.logger.error(
-            `Failed to regenerate embedding on status change for quotationId:${id}`,
-            describeError(err),
-            QuotationsService.name,
-          ),
-        );
+      this.refreshEmbedding(id, 'status change');
 
       return quotation;
     } catch (error) {
@@ -855,7 +847,28 @@ export class QuotationsService {
       },
     });
 
+    // The embedding is built from title, client and items, so an edit makes it stale; without
+    // this, similar-quote search used the old text until the next status change
+    this.refreshEmbedding(id, 'edit');
+
     return updated;
+  }
+
+  /**
+   * Regenerates the quotation's embedding in the background after a change to its text or
+   * outcome. Fire-and-forget: the request has already committed, and a failure only means
+   * similar-quote search uses the previous embedding until the next change.
+   */
+  private refreshEmbedding(id: string, reason: string): void {
+    void this.aiService
+      .generateQuotationEmbedding(id)
+      .catch((err: unknown) =>
+        this.logger.error(
+          `Failed to regenerate embedding on ${reason} for quotationId:${id}`,
+          describeError(err),
+          QuotationsService.name,
+        ),
+      );
   }
 
   async findSnapshots(
