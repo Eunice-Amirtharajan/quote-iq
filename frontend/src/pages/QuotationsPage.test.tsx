@@ -393,9 +393,8 @@ describe('QuotationsPage', () => {
     // Select client from the ClientSelector dropdown
     const clientInput = screen.getByPlaceholderText(/Search.*a client/i);
     await user.click(clientInput);
-    const listbox = await screen.findByRole('listbox');
-    await user.click(screen.getByRole('option', { name: 'Hans Bauer' }));
-    expect(listbox).toBeDefined();
+    // The listbox renders before the clients query resolves, so wait for the option itself
+    await user.click(await screen.findByRole('option', { name: 'Hans Bauer' }));
 
     await user.type(screen.getAllByPlaceholderText('Description')[0], 'Consulting');
     const priceInputs = screen.getAllByPlaceholderText('0.00');
