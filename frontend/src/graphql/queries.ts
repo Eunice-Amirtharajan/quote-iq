@@ -344,6 +344,16 @@ export const DOCUMENTS_QUERY = gql`
   }
 `;
 
+export const DOCUMENT_CHUNKS_QUERY = gql`
+  query DocumentChunks($id: String!) {
+    documentChunks(id: $id) {
+      chunkIndex
+      content
+      flags
+    }
+  }
+`;
+
 export const HAS_READY_DOCUMENTS_QUERY = gql`
   query HasReadyDocuments {
     hasReadyDocuments

@@ -33,6 +33,24 @@ export class DocumentType {
   storageKey!: string;
 }
 
+@ObjectType({
+  description:
+    'A passage of a document as extracted for the AI, for review before approval',
+})
+export class DocumentChunkType {
+  @Field(() => Int)
+  chunkIndex!: number;
+
+  @Field(() => String)
+  content!: string;
+
+  @Field(() => [String], {
+    description:
+      'Instruction-like phrases found in the passage (e.g. "ignore previous instructions"); a prompt to look closer, not a verdict',
+  })
+  flags!: string[];
+}
+
 type _FieldsMatch =
   DocumentType extends Pick<
     Document,
