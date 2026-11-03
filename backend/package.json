@@ -25,6 +25,7 @@
     "eval": "tsx evals/run-eval.ts",
     "eval:gate": "tsx evals/check-gate.ts",
     "eval:baseline": "tsx evals/check-gate.ts --update-baseline",
+    "eval:retrieval": "tsx evals/check-retrieval-only.ts",
     "test:evals": "jest --rootDir evals",
     "seed:load-test": "npx tsx src/prisma/seed-load-test.ts",
     "seed:load-test:dry": "npx tsx src/prisma/seed-load-test.ts --dry-run"
