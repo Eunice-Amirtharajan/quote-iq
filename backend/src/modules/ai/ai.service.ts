@@ -1593,13 +1593,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
       ORDER BY embedding <=> ${vector}::vector
       LIMIT 10
     `,
-      this.prisma.$queryRaw<Array<{ source: string; content: string }>>`
-      SELECT source, content
-      FROM "PlaybookChunk"
-      WHERE content_tsv @@ plainto_tsquery('english', ${query})
-         OR similarity(content, ${query}) > 0.2
-      LIMIT 10
-    `,
+      this.keywordLessons(query),
     ]);
     const scoreMap = new Map<
       string,
@@ -1619,6 +1613,25 @@ Answer in 2–4 sentences. Be direct and factual.`;
     });
 
     return [...scoreMap.values()].sort((a, b) => b.score - a.score).slice(0, 5);
+  }
+
+  /**
+   * The keyword half of lessons search: full-text matches ranked by ts_rank, then trigram-only
+   * matches (typos, partial words) by similarity. RRF fuses by position, so this order matters.
+   */
+  private keywordLessons(
+    query: string,
+  ): Promise<Array<{ source: string; content: string }>> {
+    return this.prisma.$queryRaw<Array<{ source: string; content: string }>>`
+      SELECT source, content
+      FROM "PlaybookChunk"
+      WHERE content_tsv @@ plainto_tsquery('english', ${query})
+         OR similarity(content, ${query}) > 0.2
+      ORDER BY ts_rank(content_tsv, plainto_tsquery('english', ${query})) DESC,
+               similarity(content, ${query}) DESC,
+               source
+      LIMIT 10
+    `;
   }
 
   async generateDocumentEmbeddings(documentId: string): Promise<void> {
@@ -1693,22 +1706,7 @@ Answer in 2–4 sentences. Be direct and factual.`;
         ORDER BY dc.embedding <=> ${vector}::vector
         LIMIT 8
       `,
-      this.prisma.$queryRaw<
-        Array<{
-          id: string;
-          documentId: string;
-          chunkIndex: number;
-          content: string;
-          documentTitle: string;
-        }>
-      >`
-        SELECT dc.id, dc."documentId", dc."chunkIndex", dc.content, d.filename AS "documentTitle"
-        FROM "DocumentChunk" dc
-        JOIN "Document" d ON d.id = dc."documentId"
-        WHERE d.status = 'READY'
-          AND to_tsvector('english', dc.content) @@ plainto_tsquery('english', ${query})
-        LIMIT 8
-      `,
+      this.keywordChunks(query),
     ]);
 
     // Cosine distance of the closest chunk — 0 = identical, 2 = opposite.
@@ -1747,6 +1745,32 @@ Answer in 2–4 sentences. Be direct and factual.`;
       .map((v) => v.chunk);
 
     return { chunks, bestDistance };
+  }
+
+  /**
+   * The keyword half of playbook search over approved documents, ranked by ts_rank on the stored,
+   * GIN-indexed content_tsv column. It used to be an unranked match computed per query, which
+   * handed RRF an arbitrary order.
+   */
+  private keywordChunks(query: string): Promise<
+    Array<{
+      id: string;
+      documentId: string;
+      chunkIndex: number;
+      content: string;
+      documentTitle: string;
+    }>
+  > {
+    return this.prisma.$queryRaw`
+      SELECT dc.id, dc."documentId", dc."chunkIndex", dc.content, d.filename AS "documentTitle"
+      FROM "DocumentChunk" dc
+      JOIN "Document" d ON d.id = dc."documentId"
+      WHERE d.status = 'READY'
+        AND dc.content_tsv @@ plainto_tsquery('english', ${query})
+      ORDER BY ts_rank(dc.content_tsv, plainto_tsquery('english', ${query})) DESC,
+               dc.id
+      LIMIT 8
+    `;
   }
 
   /** The 3 passages the answer model gets: the LLM reranker's pick if enabled, else search order. */

@@ -8,7 +8,10 @@ import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
 import { corsOptions } from '../src/common/cors/cors-options';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { SUMMARY_PROMPT_VERSION } from '../src/modules/ai/ai.service';
+import {
+  AIService,
+  SUMMARY_PROMPT_VERSION,
+} from '../src/modules/ai/ai.service';
 
 const FRONTEND_ORIGIN = 'http://localhost:5173';
 
@@ -1633,6 +1636,117 @@ describe('QuoteIQ E2E', () => {
         .expect(200);
 
       expect(res.body.errors[0].message).toMatch(/not found/i);
+    });
+  });
+
+  describe('Keyword search ranking (the keyword half of hybrid search)', () => {
+    let prisma: PrismaService;
+    type KeywordSearch = {
+      keywordChunks(query: string): Promise<{ id: string; content: string }[]>;
+      keywordLessons(query: string): Promise<{ source: string }[]>;
+    };
+    let search: KeywordSearch;
+    const docIds: string[] = [];
+    const lessonSources = [
+      'e2e-lesson-strong',
+      'e2e-lesson-weak',
+      'e2e-lesson-typo',
+    ];
+    const STRONG =
+      'Discount approval is needed above 15%. Discount approval comes from the manager, and every discount approval is logged.';
+    const WEAK =
+      'Payment terms are 30 days. An early-payment discount may apply, subject to approval by finance, alongside many unrelated notes on invoicing and delivery.';
+
+    const createDoc = async (
+      status: 'READY' | 'PENDING_REVIEW',
+      chunks: string[],
+    ) => {
+      const manager = await prisma.user.findUniqueOrThrow({
+        where: { email: 'marcus@quoteiq.com' },
+      });
+      const key = `e2e/${randomUUID()}.pdf`;
+      const doc = await prisma.document.create({
+        data: {
+          filename: `e2e-keyword-${status}.pdf`,
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+          storageKey: key,
+          storageUrl: `https://storage.invalid/${key}`,
+          status,
+          uploadedById: manager.id,
+          chunks: {
+            create: chunks.map((content, chunkIndex) => ({
+              chunkIndex,
+              content,
+            })),
+          },
+        },
+      });
+      docIds.push(doc.id);
+    };
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+      search = app.get(AIService);
+      // WEAK first, so insertion order can't be what puts STRONG on top
+      await createDoc('READY', [
+        WEAK,
+        STRONG,
+        'The office is closed on public holidays.',
+      ]);
+      await createDoc('PENDING_REVIEW', [
+        'discount approval discount approval discount approval',
+      ]);
+      const lessons: [string, string][] = [
+        [
+          'e2e-lesson-weak',
+          'Timeouts protect the API and a circuit breaker helps too, among many other notes on logging, metrics, tracing and deployment pipelines.',
+        ],
+        [
+          'e2e-lesson-strong',
+          'The circuit breaker opens after five failures. A circuit breaker then fails fast, and the circuit breaker probes again later.',
+        ],
+        // A typo: no full-text match ("braker"), found only by trigram similarity
+        ['e2e-lesson-typo', 'circuit braker'],
+      ];
+      for (const [source, content] of lessons) {
+        await prisma.$executeRaw`
+          INSERT INTO "PlaybookChunk" (id, source, content, "createdAt")
+          VALUES (gen_random_uuid(), ${source}, ${content}, NOW())
+        `;
+      }
+    });
+
+    afterAll(async () => {
+      await prisma.document.deleteMany({ where: { id: { in: docIds } } });
+      await prisma.$executeRaw`
+        DELETE FROM "PlaybookChunk" WHERE source = ANY(${lessonSources}::text[])
+      `;
+    });
+
+    it('ranks playbook matches by relevance, from approved documents only', async () => {
+      const results = await search.keywordChunks('discount approval');
+      const ours = results
+        .map((r) => r.content)
+        .filter((c) => c === STRONG || c === WEAK);
+
+      expect(ours).toEqual([STRONG, WEAK]);
+      expect(results.map((r) => r.content)).not.toContain(
+        'discount approval discount approval discount approval',
+      );
+    });
+
+    it('ranks lessons full-text matches by relevance, then typo matches', async () => {
+      const results = await search.keywordLessons('circuit breaker');
+      const ours = results
+        .map((r) => r.source)
+        .filter((source) => lessonSources.includes(source));
+
+      expect(ours).toEqual([
+        'e2e-lesson-strong',
+        'e2e-lesson-weak',
+        'e2e-lesson-typo',
+      ]);
     });
   });
 });
