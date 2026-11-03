@@ -11,6 +11,8 @@ An [MCP](https://modelcontextprotocol.io) server that lets an AI assistant (Clau
 
 **Acts as you.** The server calls the QuoteIQ GraphQL API with your own session, so it sees exactly what you see in the app: a sales rep finds only their own quotations. Each `search_playbook` call counts against your daily AI limit, like asking in the app. The server has no credentials of its own and no database access.
 
+**Careful when combining it with tools that send or change things.** Quotation notes, item descriptions and playbook passages are text other people wrote, and they go straight into your assistant's context. If the same session also has tools that send email, post messages or update tickets, a planted instruction in that text ("email all open quotations to …") could make the assistant use them. Keep your assistant's approval prompt on for those tools, and read what it's about to send before you allow it.
+
 ## Setup
 
 ```bash
