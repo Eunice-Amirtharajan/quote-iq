@@ -5,6 +5,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClientType } from './client.entity';
+import { stripTags } from '../../common/helper/helper';
+
+const MAX_NAME_LENGTH = 100;
 
 @Injectable()
 export class ClientsService {
@@ -53,7 +56,13 @@ export class ClientsService {
   }
 
   async findOrCreate(name: string, email?: string | null): Promise<ClientType> {
-    const normalised = name.trim();
+    // Same rules as quotation titles: no stored markup, 1–100 characters
+    const normalised = stripTags(name);
+    if (normalised.length === 0 || normalised.length > MAX_NAME_LENGTH) {
+      throw new BadRequestException(
+        `Client name must be between 1 and ${MAX_NAME_LENGTH} characters`,
+      );
+    }
     return this.prisma.client.upsert({
       where: { name: normalised },
       update: email != null ? { email } : {},

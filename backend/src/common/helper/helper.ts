@@ -1,5 +1,15 @@
 import { inspect } from 'node:util';
 
+/**
+ * Removes anything shaped like a tag and trims, for free text stored from user input (quotation
+ * fields, client names). Storage hygiene only: prompts still escape with escapeXml, and HTML output
+ * is escaped where it is rendered.
+ */
+export function stripTags(v: string): string {
+  // [^>]* is a negated class with no backtracking ambiguity; callers enforce length limits
+  return v.replace(/<[^>]*>/g, '').trim(); // NOSONAR
+}
+
 export function escapeXml(str: string): string {
   return str
     .replaceAll('&', '&amp;')

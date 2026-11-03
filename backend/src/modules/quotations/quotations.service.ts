@@ -30,7 +30,7 @@ import {
   IdempotencyService,
 } from '../idempotency/idempotency.service';
 import { AIService } from '../ai/ai.service';
-import { describeError } from '../../common/helper/helper';
+import { describeError, stripTags } from '../../common/helper/helper';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -253,14 +253,9 @@ export class QuotationsService {
     }
   }
 
-  private static stripTags(v: string): string {
-    // [^>]* is a negated class with no backtracking ambiguity; callers enforce length limits before this runs.
-    return v.replace(/<[^>]*>/g, '').trim(); // NOSONAR
-  }
-
   /** Sanitises and validates createQuotation input; throws BadRequestException on the first problem. */
   private static validateCreateInput(input: CreateQuotationInput) {
-    const title = QuotationsService.stripTags(input.title);
+    const title = stripTags(input.title);
     if (!title || title.length > 100) {
       throw new BadRequestException(
         'title must be between 1 and 100 characters',
@@ -275,7 +270,7 @@ export class QuotationsService {
     const notes =
       input.notes == null
         ? undefined
-        : QuotationsService.stripTags(input.notes).slice(0, 500) || undefined;
+        : stripTags(input.notes).slice(0, 500) || undefined;
 
     const taxRate = input.taxRate ?? 0;
     if (taxRate < 0 || taxRate > 100) {
@@ -283,7 +278,7 @@ export class QuotationsService {
     }
 
     const sanitizedItems = input.items.map((item) => {
-      const description = QuotationsService.stripTags(item.description);
+      const description = stripTags(item.description);
       if (!description || description.length > 200) {
         throw new BadRequestException(
           'Each item description must be between 1 and 200 characters',
@@ -632,9 +627,7 @@ export class QuotationsService {
   }
 
   private normalizeTitle(input: string | null | undefined): string | undefined {
-    return input != null
-      ? this.validateTitle(QuotationsService.stripTags(input))
-      : undefined;
+    return input != null ? this.validateTitle(stripTags(input)) : undefined;
   }
 
   private normalizeClientId(
@@ -647,7 +640,7 @@ export class QuotationsService {
     input: string | null | undefined,
   ): string | null | undefined {
     if (input == null) return undefined;
-    const rawNotes = QuotationsService.stripTags(input).slice(0, 500);
+    const rawNotes = stripTags(input).slice(0, 500);
     return rawNotes.length > 0 ? rawNotes : null;
   }
 
@@ -936,7 +929,7 @@ export class QuotationsService {
     quantity: number;
     unitPrice: number;
   }): { description: string; quantity: number; unitPrice: number } {
-    const description = QuotationsService.stripTags(item.description);
+    const description = stripTags(item.description);
     if (description.length === 0 || description.length > 200)
       throw new BadRequestException(
         'Each item description must be between 1 and 200 characters',

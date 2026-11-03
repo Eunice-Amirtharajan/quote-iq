@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { CLIENTS_QUERY } from "../graphql/queries";
 import { CREATE_CLIENT_MUTATION } from "../graphql/mutations";
+import { sanitizeText } from "../utils/sanitize";
 
 interface Client {
   id: string;
@@ -95,10 +96,11 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
         type="text"
         autoComplete="off"
         value={inputValue}
+        maxLength={100}
         placeholder={canCreate ? "Search or create a client…" : "Search for a client…"}
         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
         onChange={(e) => {
-          setInputValue(e.target.value);
+          setInputValue(sanitizeText(e.target.value).slice(0, 100));
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
