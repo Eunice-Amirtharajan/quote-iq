@@ -184,6 +184,19 @@ type DealVelocityType {
   transition: String!
 }
 
+"""
+A passage of a document as extracted for the AI, for review before approval
+"""
+type DocumentChunkType {
+  chunkIndex: Int!
+  content: String!
+
+  """
+  Instruction-like phrases found in the passage (e.g. "ignore previous instructions"); a prompt to look closer, not a verdict
+  """
+  flags: [String!]!
+}
+
 enum DocumentStatus {
   FAILED
   PENDING_REVIEW
@@ -367,6 +380,11 @@ type Query {
   conversionScores(quotationIds: [ID!]!): [ConversionScoreType!]!
   dashboardStats(range: DateRangeInput): DashboardStatsType!
   dealVelocity(range: DateRangeInput): [DealVelocityType!]!
+
+  """
+  The extracted passages of a document, as the AI will read them (managers only)
+  """
+  documentChunks(id: String!): [DocumentChunkType!]!
 
   """List all uploaded documents (managers only)"""
   documents: [DocumentType!]!

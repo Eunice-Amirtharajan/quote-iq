@@ -72,6 +72,18 @@ describe('ClientSelector', () => {
     await waitFor(() => expect(screen.queryByText('Acme Corp')).not.toBeInTheDocument());
   });
 
+  it('strips tags and caps the name at 100 characters as you type', () => {
+    renderSelector({ canCreate: true }, [
+      clientsMock,
+      { request: { query: CLIENTS_QUERY, variables: { search: 'New Co' } }, result: { data: { clients: [] } } },
+    ]);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: '<b>New</b> Co' } });
+    expect(input).toHaveValue('New Co');
+    fireEvent.change(input, { target: { value: 'A'.repeat(150) } });
+    expect(input).toHaveValue('A'.repeat(100));
+  });
+
   it('closes dropdown and resets input on Escape key', async () => {
     renderSelector({});
     const input = screen.getByRole('textbox');

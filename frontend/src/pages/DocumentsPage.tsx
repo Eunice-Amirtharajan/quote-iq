@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@apollo/client/react";
 import { NetworkStatus } from "@apollo/client";
 import { sanitizeText } from "../utils/sanitize";
 import { apiBase } from "../lib/api-base";
-import { DOCUMENTS_QUERY } from "../graphql/queries";
+import { DOCUMENTS_QUERY, DOCUMENT_CHUNKS_QUERY } from "../graphql/queries";
 import {
   APPROVE_DOCUMENT_MUTATION,
   REJECT_DOCUMENT_MUTATION,
@@ -104,6 +104,120 @@ function RejectModal({ filename, onConfirm, onCancel }: Readonly<RejectModalProp
   );
 }
 
+interface Chunk {
+  chunkIndex: number;
+  content: string;
+  flags: string[];
+}
+
+interface ReviewModalProps {
+  doc: Document;
+  onApprove: () => void;
+  onReject: () => void;
+  onClose: () => void;
+}
+
+// Shows the stored chunks, not the PDF: that's what gets embedded and sent to the model, including
+// text a PDF viewer hides (white on white, tiny fonts). Approval only happens from here.
+function ReviewModal({ doc, onApprove, onReject, onClose }: Readonly<ReviewModalProps>) {
+  const { data, loading, error } = useQuery<{ documentChunks: Chunk[] }>(DOCUMENT_CHUNKS_QUERY, {
+    variables: { id: doc.id },
+    fetchPolicy: "network-only",
+  });
+  const chunks = data?.documentChunks ?? [];
+  const flagged = chunks.filter((c) => c.flags.length > 0).length;
+  const reviewing = doc.status === "PENDING_REVIEW";
+
+  return (
+    <dialog
+      open
+      aria-labelledby="review-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 m-0 p-0 w-full h-full max-w-none max-h-none border-0"
+    >
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <h2 id="review-title" className="text-base font-semibold text-gray-900 mb-1">
+          {reviewing ? "Review document" : "Document text"}
+        </h2>
+        <p className="text-sm text-gray-500 mb-2 truncate">{doc.filename}</p>
+        <p className="text-xs text-gray-500 mb-4">
+          This is the exact text the AI will read, including any text hidden in the PDF (white or
+          tiny fonts) that a PDF viewer doesn&apos;t show. Consecutive passages overlap by about 50
+          words.
+        </p>
+
+        {flagged > 0 && (
+          <p className="mb-3 bg-amber-50 text-amber-800 px-3 py-2 rounded-lg text-sm">
+            {flagged === 1 ? "1 passage contains" : `${flagged} passages contain`} phrases that
+            look like instructions to an AI. Check {flagged === 1 ? "it" : "them"}
+            {reviewing ? " before approving" : ""}.
+          </p>
+        )}
+
+        <div className="flex-1 overflow-y-auto space-y-3 min-h-24">
+          {loading && <p className="text-sm text-gray-400">Loading text…</p>}
+          {error && <p className="text-sm text-red-600">Couldn&apos;t load the text.</p>}
+          {!loading && !error && chunks.length === 0 && (
+            <p className="text-sm text-gray-500">
+              No text could be extracted (for example, a scanned PDF), so nothing from this
+              document will reach the AI.
+            </p>
+          )}
+          {chunks.map((chunk) => (
+            <section
+              key={chunk.chunkIndex}
+              aria-label={`Passage ${chunk.chunkIndex + 1}`}
+              className={`border rounded-lg p-3 ${
+                chunk.flags.length > 0 ? "border-amber-300 bg-amber-50/50" : "border-gray-100"
+              }`}
+            >
+              <p className="text-xs font-medium text-gray-400 mb-1">
+                Passage {chunk.chunkIndex + 1}
+              </p>
+              {chunk.flags.length > 0 && (
+                <p className="text-xs text-amber-800 mb-1">
+                  Looks like an instruction: {chunk.flags.map((f) => `“${f}”`).join(", ")}
+                </p>
+              )}
+              <p className="text-xs text-gray-700 whitespace-pre-wrap break-words">
+                {chunk.content}
+              </p>
+            </section>
+          ))}
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+          >
+            Close
+          </button>
+          {reviewing && (
+            <>
+              <button
+                type="button"
+                onClick={onReject}
+                className="px-4 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+              >
+                Reject…
+              </button>
+              <button
+                type="button"
+                disabled={loading || !!error}
+                onClick={onApprove}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40"
+              >
+                Approve
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 interface DeleteModalProps {
   filename: string;
   onConfirm: () => void;
@@ -147,6 +261,7 @@ export default function DocumentsPage() {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Document | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<Document | null>(null);
 
   const { data, previousData, loading, networkStatus, error, refetch, startPolling, stopPolling } = useQuery<{
     documents: Document[];
@@ -165,8 +280,8 @@ export default function DocumentsPage() {
   }, [inProgress, startPolling, stopPolling]);
 
   const [approve] = useMutation(APPROVE_DOCUMENT_MUTATION, {
-    onCompleted: () => { void refetch(); },
-    onError: (e) => setMutationError(e.message),
+    onCompleted: () => { setReviewTarget(null); void refetch(); },
+    onError: (e) => { setReviewTarget(null); setMutationError(e.message); },
   });
   const [reject] = useMutation(REJECT_DOCUMENT_MUTATION, {
     onCompleted: () => { setRejectTarget(null); void refetch(); },
@@ -215,6 +330,22 @@ export default function DocumentsPage() {
             reject({ variables: { id: rejectTarget.id, reason } }).catch(() => {})
           }
           onCancel={() => setRejectTarget(null)}
+        />
+      )}
+
+      {reviewTarget && (
+        <ReviewModal
+          doc={reviewTarget}
+          onApprove={() =>
+            /* v8 ignore next */
+            approve({ variables: { id: reviewTarget.id } }).catch(() => {})
+          }
+          onReject={() => {
+            setMutationError(null);
+            setRejectTarget(reviewTarget);
+            setReviewTarget(null);
+          }}
+          onClose={() => setReviewTarget(null)}
         />
       )}
 
@@ -349,12 +480,10 @@ export default function DocumentsPage() {
                         <>
                           <button
                             type="button"
-                            onClick={() =>
-                              approve({ variables: { id: doc.id } }).catch(() => {})
-                            }
+                            onClick={() => { setMutationError(null); setReviewTarget(doc); }}
                             className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                           >
-                            Approve
+                            Review
                           </button>
                           <button
                             type="button"
@@ -364,6 +493,15 @@ export default function DocumentsPage() {
                             Reject
                           </button>
                         </>
+                      )}
+                      {doc.status === "READY" && (
+                        <button
+                          type="button"
+                          onClick={() => setReviewTarget(doc)}
+                          className="px-3 py-1 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          View text
+                        </button>
                       )}
                       <button
                         type="button"

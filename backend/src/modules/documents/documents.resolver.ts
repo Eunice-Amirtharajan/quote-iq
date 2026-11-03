@@ -1,7 +1,7 @@
 import { Resolver, Mutation, Args, Query } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
-import { DocumentType } from './document.entity';
+import { DocumentChunkType, DocumentType } from './document.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -20,6 +20,18 @@ export class DocumentsResolver {
   @Roles(Role.SALES_MANAGER)
   async documents(@CurrentUser() user: User): Promise<DocumentType[]> {
     return this.documentsService.findAll(user) as Promise<DocumentType[]>;
+  }
+
+  @Query(() => [DocumentChunkType], {
+    description:
+      'The extracted passages of a document, as the AI will read them (managers only)',
+  })
+  @Roles(Role.SALES_MANAGER)
+  async documentChunks(
+    @Args('id') id: string,
+    @CurrentUser() user: User,
+  ): Promise<DocumentChunkType[]> {
+    return this.documentsService.findChunks(id, user);
   }
 
   @Query(() => Boolean, {

@@ -1,4 +1,16 @@
-import { describeError, escapeXml, unescapeXml } from './helper';
+import { describeError, escapeXml, stripTags, unescapeXml } from './helper';
+
+describe('stripTags', () => {
+  it('removes tags and trims', () => {
+    expect(stripTags('  <b>Acme</b> <script>x</script>Corp ')).toBe(
+      'Acme xCorp',
+    );
+  });
+
+  it('leaves a lone angle bracket, which escapeXml handles at the prompt', () => {
+    expect(stripTags('Support for < 50 users')).toBe('Support for < 50 users');
+  });
+});
 
 describe('unescapeXml', () => {
   it('reverses escapeXml', () => {

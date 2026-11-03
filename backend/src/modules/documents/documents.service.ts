@@ -18,6 +18,7 @@ import type { User } from '@prisma/client';
 import { AIService } from '../ai/ai.service';
 import { ROOT_CONTEXT, SpanStatusCode, context } from '@opentelemetry/api';
 import { tracer } from '../../common/tracing/tracer';
+import { instructionLikePhrases } from './review-flags';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const ALLOWED_MIME = 'application/pdf';
@@ -236,7 +237,7 @@ export class DocumentsService implements OnModuleInit, OnModuleDestroy {
     }
 
     // 2. Extract text — fail-open: image-based or malformed PDFs yield empty text
-    // Manager can review the file manually at PENDING_REVIEW and reject if needed
+    // The review dialog then shows the manager that no text was extracted, and they can reject it
     let text = '';
     try {
       text = await this.extraction.extractText(buffer);
@@ -374,6 +375,30 @@ export class DocumentsService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.document.findMany({
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * The stored chunks, exactly as they will be embedded and sent to the model, so a manager reviews
+   * what the AI will read rather than the rendered PDF (which can hide text the extractor still finds).
+   */
+  async findChunks(docId: string, user: User) {
+    if (user.role !== Role.SALES_MANAGER) {
+      throw new ForbiddenException('Only Sales Managers can review documents');
+    }
+    const doc = await this.prisma.document.findUnique({
+      where: { id: docId },
+      select: { id: true },
+    });
+    if (!doc) throw new NotFoundException(`Document ${docId} not found`);
+    const chunks = await this.prisma.documentChunk.findMany({
+      where: { documentId: docId },
+      orderBy: { chunkIndex: 'asc' },
+      select: { chunkIndex: true, content: true },
+    });
+    return chunks.map((c) => ({
+      ...c,
+      flags: instructionLikePhrases(c.content),
+    }));
   }
 
   private chunkText(text: string, chunkSize = 500, overlap = 50): string[] {

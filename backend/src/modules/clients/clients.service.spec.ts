@@ -197,6 +197,33 @@ describe('ClientsService', () => {
       );
     });
 
+    it('strips tags from the name, like quotation fields', async () => {
+      mockPrismaService.client.upsert.mockResolvedValue(mockClient);
+
+      await service.findOrCreate('<b>Acme</b> Corp');
+
+      expect(mockPrismaService.client.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { name: 'Acme Corp' } }),
+      );
+    });
+
+    it.each([
+      ['empty after trimming', '   '],
+      ['only a tag', '<b></b>'],
+      ['over 100 characters', 'A'.repeat(101)],
+    ])('rejects a name that is %s', async (_case, name) => {
+      await expect(service.findOrCreate(name)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(mockPrismaService.client.upsert).not.toHaveBeenCalled();
+    });
+
+    it('accepts a 100-character name', async () => {
+      mockPrismaService.client.upsert.mockResolvedValue(mockClient);
+      await service.findOrCreate('A'.repeat(100));
+      expect(mockPrismaService.client.upsert).toHaveBeenCalled();
+    });
+
     it('omits email update when email is undefined', async () => {
       mockPrismaService.client.upsert.mockResolvedValue(mockClient);
 
