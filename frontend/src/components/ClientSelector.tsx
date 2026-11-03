@@ -111,7 +111,7 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
           }
           if (e.key === "Enter") {
             e.preventDefault();
-            if (showCreate) handleCreate();
+            if (showCreate) handleCreate().catch(() => {});
           }
         }}
       />
@@ -148,7 +148,7 @@ export default function ClientSelector({ value, onChange, canCreate = false }: R
               aria-selected={false}
               onMouseDown={(e) => {
                 e.preventDefault();
-                handleCreate();
+                handleCreate().catch(() => {});
               }}
               className="px-3 py-2 cursor-pointer hover:bg-blue-50 text-blue-600 border-t border-gray-100"
             >

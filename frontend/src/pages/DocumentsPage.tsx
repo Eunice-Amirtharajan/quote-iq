@@ -129,13 +129,12 @@ function ReviewModal({ doc, onApprove, onReject, onClose }: Readonly<ReviewModal
   const reviewing = doc.status === "PENDING_REVIEW";
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="review-title"
-        className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col"
-      >
+    <dialog
+      open
+      aria-labelledby="review-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 m-0 p-0 w-full h-full max-w-none max-h-none border-0"
+    >
+      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
         <h2 id="review-title" className="text-base font-semibold text-gray-900 mb-1">
           {reviewing ? "Review document" : "Document text"}
         </h2>
@@ -215,7 +214,7 @@ function ReviewModal({ doc, onApprove, onReject, onClose }: Readonly<ReviewModal
           )}
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
 

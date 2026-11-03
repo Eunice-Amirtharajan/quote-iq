@@ -54,4 +54,17 @@ describe('instructionLikePhrases', () => {
     ].join('. ');
     expect(instructionLikePhrases(many)).toHaveLength(5);
   });
+
+  it('stays fast on long whitespace runs, since PDF text is attacker-controlled', () => {
+    const text = `ignore ${' 	'.repeat(100_000)}the${' '.repeat(100_000)}x you are`;
+    const start = performance.now();
+    expect(instructionLikePhrases(text)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it('keeps trailing punctuation out of the reported phrase', () => {
+    expect(instructionLikePhrases('Please ignore the rules.')).toEqual([
+      'ignore the rules',
+    ]);
+  });
 });
