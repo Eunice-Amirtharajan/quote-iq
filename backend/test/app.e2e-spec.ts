@@ -2015,4 +2015,84 @@ describe('QuoteIQ E2E', () => {
       expect(row.title).not.toBe('Stale');
     });
   });
+
+  describe('Concurrent status changes (atomic transition on Postgres)', () => {
+    let prisma: PrismaService;
+    let sentId: string;
+
+    const gql = (cookie: string, query: string) =>
+      request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', cookie)
+        .send({ query });
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+      const res = await gql(
+        authCookie,
+        `
+        mutation {
+          createQuotation(input: {
+            title: "Concurrent Status"
+            clientId: "${e2eClientId}"
+            taxRate: 0
+            items: [{ description: "Item" quantity: 1 unitPrice: 100 }]
+          }) { id }
+        }
+      `,
+      );
+      sentId = res.body.data.createQuotation.id as string;
+      await gql(
+        authCookie,
+        `mutation { updateQuotationStatus(id: "${sentId}", input: { status: SENT }) { id } }`,
+      );
+    });
+
+    afterAll(async () => {
+      await prisma.quotation.deleteMany({ where: { id: sentId } });
+    });
+
+    it('lets exactly one of six simultaneous approve/reject requests win', async () => {
+      const targets = [
+        'APPROVED',
+        'REJECTED',
+        'APPROVED',
+        'REJECTED',
+        'APPROVED',
+        'REJECTED',
+      ];
+      const responses = await Promise.all(
+        targets.map((status) =>
+          gql(
+            managerCookie,
+            `mutation { updateQuotationStatus(id: "${sentId}", input: { status: ${status} }) { status } }`,
+          ),
+        ),
+      );
+
+      const winners = responses.filter((r) => !r.body.errors);
+      const losers = responses.filter((r) => r.body.errors);
+      expect(winners).toHaveLength(1);
+      expect(losers).toHaveLength(5);
+      for (const r of losers) {
+        // Lost the race (409) or arrived after it was settled (400 illegal transition)
+        expect(r.body.errors[0].message).toMatch(
+          /changed by someone else|cannot transition/,
+        );
+      }
+
+      const row = await prisma.quotation.findUniqueOrThrow({
+        where: { id: sentId },
+      });
+      expect(row.status).toBe(
+        winners[0].body.data.updateQuotationStatus.status,
+      );
+      // One decision in the history, not one per request
+      expect(
+        await prisma.statusHistory.count({
+          where: { quotationId: sentId, fromStatus: 'SENT' },
+        }),
+      ).toBe(1);
+    });
+  });
 });
