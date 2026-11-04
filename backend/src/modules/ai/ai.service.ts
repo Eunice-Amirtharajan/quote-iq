@@ -103,6 +103,13 @@ interface GroqCompletion {
 // Bump when buildPrompt's wording, the output schema or the summary cap changes: cached summaries
 // from another version are regenerated. The guard test in ai.service.spec.ts fails until you do.
 export const SUMMARY_PROMPT_VERSION = 'summary-v2';
+// Lessons Q&A refuses before calling the model when even the closest entry is further than this.
+// Measured 2026-11-04 on the 216 real entries: 14 in-scope questions scored 0.31-0.67, 12 off-topic
+// ones 0.76-0.92 (including playbook questions and "wire a circuit breaker in my house"); 0.72 is
+// the middle of that gap. Not the playbook's 0.7: a different corpus, measured separately.
+const LESSONS_MAX_DISTANCE = 0.72;
+const LESSONS_NO_MATCH =
+  'No relevant lessons-learned entries found for this question.';
 const PLAYBOOK_REFUSAL =
   'I could not find a relevant answer in the uploaded playbook documents.';
 const EMBEDDING_MODEL = 'text-embedding-3-small';
@@ -1603,26 +1610,31 @@ Answer in 2–4 sentences. Be direct and factual.`;
     }
   }
 
-  async searchLessonsLearned(
-    query: string,
-  ): Promise<Array<{ source: string; content: string; score: number }>> {
+  async searchLessonsLearned(query: string): Promise<{
+    chunks: Array<{ source: string; content: string; score: number }>;
+    bestDistance: number;
+  }> {
     const vector = toPgVector(await this.embed(query, 'lessons_search'));
 
     const [vectorResults, keywordResults] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ source: string; content: string }>>`
-      SELECT source, content
+      this.prisma.$queryRaw<
+        Array<{ source: string; content: string; distance: number | null }>
+      >`
+      SELECT source, content, embedding <=> ${vector}::vector AS distance
       FROM "PlaybookChunk"
       ORDER BY embedding <=> ${vector}::vector
       LIMIT 10
     `,
       this.keywordLessons(query),
     ]);
+    // Cosine distance of the closest entry (2 = opposite); no vectors at all counts as no match
+    const bestDistance = vectorResults[0]?.distance ?? 2;
     const scoreMap = new Map<
       string,
       { source: string; content: string; score: number }
     >();
-    vectorResults.forEach((r, i) => {
-      scoreMap.set(r.source, { ...r, score: 1 / (60 + i) });
+    vectorResults.forEach(({ source, content }, i) => {
+      scoreMap.set(source, { source, content, score: 1 / (60 + i) });
     });
     keywordResults.forEach((r, i) => {
       const existing = scoreMap.get(r.source);
@@ -1634,7 +1646,10 @@ Answer in 2–4 sentences. Be direct and factual.`;
       }
     });
 
-    return [...scoreMap.values()].sort((a, b) => b.score - a.score).slice(0, 5);
+    const chunks = [...scoreMap.values()]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+    return { chunks, bestDistance };
   }
 
   /**
@@ -1969,14 +1984,11 @@ ${context}
         );
       }
 
-      const chunks = await this.searchLessonsLearned(trimmed);
-      if (chunks.length === 0) {
-        return {
-          answer:
-            'No relevant lessons-learned entries found for this question.',
-          sources: [],
-          grounded: true,
-        };
+      const { chunks, bestDistance } = await this.searchLessonsLearned(trimmed);
+      // Nothing close enough: refuse without calling the model, as the playbook does. Weakly
+      // related entries invite an answer built from them
+      if (chunks.length === 0 || bestDistance > LESSONS_MAX_DISTANCE) {
+        return { answer: LESSONS_NO_MATCH, sources: [], grounded: true };
       }
 
       const context = chunks

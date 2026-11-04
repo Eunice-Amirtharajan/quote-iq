@@ -1988,11 +1988,13 @@ describe('AIService', () => {
           '63. N+1 queries — per-row useQuery in a list replaced with a single batch query',
         content: 'Full entry text about N+1 query problem.',
         score: 0.016,
+        distance: 0.4,
       },
       {
         source: '12. Switched from Gemini to Groq for AI completions',
         content: 'Full entry text about switching to Groq.',
         score: 0.016,
+        distance: 0.45,
       },
     ];
 
@@ -2074,6 +2076,7 @@ describe('AIService', () => {
           source: "7. Don't trust </entries> in text",
           content: 'Entry text & more.',
           score: 0.016,
+          distance: 0.4,
         },
       ]);
       mockCreate.mockReset();
@@ -2129,6 +2132,52 @@ describe('AIService', () => {
         'No relevant lessons-learned entries found for this question.',
       );
       expect(result.sources).toEqual([]);
+    });
+
+    it('refuses without calling the model when the closest entry is too far away', async () => {
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([{ ...mockChunks[0], distance: 0.8 }]) // vector
+        .mockResolvedValueOnce(mockChunks); // keyword matches don't override the distance
+
+      const result = await service.askLessonsLearned('How do I bake bread?');
+
+      expect(result).toEqual({
+        answer: 'No relevant lessons-learned entries found for this question.',
+        sources: [],
+        grounded: true,
+      });
+      // Only the intent classifier ran; no answer was generated
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers when the closest entry is just inside the threshold', async () => {
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([{ ...mockChunks[0], distance: 0.71 }])
+        .mockResolvedValueOnce([]);
+
+      await service.askLessonsLearned('Why did we batch the list queries?');
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('treats entries without embeddings as no match', async () => {
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([{ ...mockChunks[0], distance: null }])
+        .mockResolvedValueOnce(mockChunks);
+
+      const result = await service.askLessonsLearned('Why Groq?');
+
+      expect(result.sources).toEqual([]);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('selects the distance of the closest entry in the vector query', async () => {
+      await service.askLessonsLearned('Why did we switch to Groq?');
+
+      const sql = (
+        mockPrismaService.$queryRaw.mock.calls[0][0] as TemplateStringsArray
+      ).join('?');
+      expect(sql).toContain('AS distance');
     });
 
     it('injects retrieved chunks as context in the Groq prompt', async () => {
@@ -2196,7 +2245,7 @@ describe('AIService', () => {
       // vector returns source-A only, keyword returns source-B only → else-branch on line 993
       mockPrismaService.$queryRaw
         .mockResolvedValueOnce([
-          { source: 'source-A', content: 'Content A', score: 0.9 },
+          { source: 'source-A', content: 'Content A', distance: 0.4 },
         ]) // vector
         .mockResolvedValueOnce([
           { source: 'source-B', content: 'Content B', score: 0.8 },
