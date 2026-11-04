@@ -20,4 +20,11 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Application code must not log to the browser console: it ships to every user, and a stray
+    // debug log once printed the signed-in user's details on every login (pending work H14)
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: { 'no-console': 'error' },
+  },
 ])
