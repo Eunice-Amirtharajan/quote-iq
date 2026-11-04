@@ -61,6 +61,10 @@ const DEAL_SIZE_PROCEED_THRESHOLD = 20;
 const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
 // Per-attempt timeouts; the fallback chain moves to the next model when one is hit
 const GROQ_COMPLETION_TIMEOUT_MS = 25_000;
+// The whole fallback chain shares one deadline: without it, three models timing out in turn kept a
+// request waiting ~75s. A model attempt gets min(25s, time left); none starts with under 2s left.
+const GROQ_CHAIN_DEADLINE_MS = 30_000;
+const GROQ_MIN_ATTEMPT_MS = 2_000;
 const GROQ_CLASSIFIER_TIMEOUT_MS = 10_000;
 // Output caps per feature, so a runaway answer can't run to the model's limit. The largest Groq
 // models are reasoning models (gpt-oss): hidden reasoning tokens count against the cap too.
@@ -456,19 +460,22 @@ strong contradicting signals. Justify your reasoning.
       );
     }
     // The whole fallback chain is one breaker call: it fails only when every model failed
+    const deadline = Date.now() + GROQ_CHAIN_DEADLINE_MS;
     return this.groqBreaker.execute(() =>
-      this.tryModelsInOrder(models, messages, feature),
+      this.tryModelsInOrder(models, messages, feature, deadline),
     );
   }
 
   /**
    * Fallback chain: one model at a time, in pinned order. A transient error or a retired model
-   * moves on to the next model; any other error, or a failure of the last model, is thrown.
+   * moves on to the next model; any other error, or a failure of the last model, is thrown. So is
+   * the last error once the chain's deadline leaves too little time for another attempt.
    */
   private async tryModelsInOrder(
     models: string[],
     messages: ChatMessage[],
     feature: GroqFeature,
+    deadline: number,
     index = 0,
   ): Promise<GroqCompletion> {
     const model = models[index];
@@ -478,13 +485,27 @@ strong contradicting signals. Justify your reasoning.
         index === 0 ? 'primary' : 'fallback',
         messages,
         feature,
+        Math.min(GROQ_COMPLETION_TIMEOUT_MS, deadline - Date.now()),
       );
     } catch (err) {
       if (isModelGone(err)) this.retireModel(model);
       const isLast = index === models.length - 1;
       const tryNext = this.isTransientError(err) || isModelGone(err);
       if (isLast || !tryNext) throw err;
-      return this.tryModelsInOrder(models, messages, feature, index + 1);
+      if (deadline - Date.now() < GROQ_MIN_ATTEMPT_MS) {
+        this.logger.warn(
+          `Groq ${feature}: the ${GROQ_CHAIN_DEADLINE_MS / 1000}s deadline is used up after ${model}, not trying ${models[index + 1]}`,
+          AIService.name,
+        );
+        throw err;
+      }
+      return this.tryModelsInOrder(
+        models,
+        messages,
+        feature,
+        deadline,
+        index + 1,
+      );
     }
   }
 
@@ -494,6 +515,7 @@ strong contradicting signals. Justify your reasoning.
     tier: 'primary' | 'fallback',
     messages: ChatMessage[],
     feature: GroqFeature,
+    timeoutMs: number,
   ): Promise<GroqCompletion> {
     try {
       this.logger.info(`Trying Groq model: ${model}`, AIService.name);
@@ -505,7 +527,7 @@ strong contradicting signals. Justify your reasoning.
           max_tokens: MAX_OUTPUT_TOKENS[feature],
           ...reasoningParams(model, REASONING[feature]),
         },
-        { timeout: GROQ_COMPLETION_TIMEOUT_MS },
+        { timeout: timeoutMs },
       );
       this.recordTokens(
         'groq',
