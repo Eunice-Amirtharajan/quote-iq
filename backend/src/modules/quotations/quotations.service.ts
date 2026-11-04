@@ -441,10 +441,8 @@ export class QuotationsService {
     );
 
     try {
-      // Sequential calls, not a $transaction: written when the Neon HTTP driver had no transactions.
-      // The WebSocket adapter supports them now (create() uses one for the outbox).
-      // Guards (state machine + role check) run before any write so a failed
-      // validation never leaves partial state.
+      // Guards (state machine + role check) run on this read; the write below re-checks the
+      // status atomically, so a concurrent transition can't slip in between.
       const current = await this.prisma.quotation.findFirst({ where: { id } });
       if (!current) {
         this.logger.warn(
@@ -471,26 +469,41 @@ export class QuotationsService {
         `Status transition — ${current.status} -> ${status} on quotation: ${id}`,
         QuotationsService.name,
       );
-      await this.prisma.statusHistory.create({
-        data: {
-          quotationId: id,
-          fromStatus: current.status,
-          toStatus: status,
-          note,
-          changedById: userId,
-        },
-      });
-      const quotation = await this.prisma.quotation.update({
-        where: { id },
-        data: { status },
-        include: { items: true, createdBy: true, client: true },
+      const quotation = await this.prisma.$transaction(async (tx) => {
+        // Claim the transition in one statement: it only applies if the status is still the one
+        // checked above. Two simultaneous transitions from the same status (one manager approving,
+        // another rejecting) used to both pass the check and both write history.
+        const { count } = await tx.quotation.updateMany({
+          where: { id, status: current.status },
+          data: { status },
+        });
+        if (count === 0) {
+          throw new ConflictException(
+            'The quotation status was changed by someone else — please refresh and try again.',
+          );
+        }
+        await tx.statusHistory.create({
+          data: {
+            quotationId: id,
+            fromStatus: current.status,
+            toStatus: status,
+            note,
+            changedById: userId,
+          },
+        });
+        // Status is part of the summary context, so cached insights are stale
+        await tx.aIInsight.deleteMany({ where: { quotationId: id } });
+        const result = await tx.quotation.findUnique({
+          where: { id },
+          include: { items: true, createdBy: true, client: true },
+        });
+        return result!;
       });
 
-      // Mail sends run after the DB write succeeds. Kept outside the catch so
+      // Mail sends run after the commit. Kept outside the catch so
       // a user.findMany failure never produces an error response after the
       // status transition is already committed.
       void this.sendStatusEmail(quotation, status, note);
-      await this.prisma.aIInsight.deleteMany({ where: { quotationId: id } });
 
       // Regenerate embedding — outcome field in corpus text has changed
       this.refreshEmbedding(id, 'status change');

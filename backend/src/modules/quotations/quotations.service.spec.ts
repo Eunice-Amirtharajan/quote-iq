@@ -983,12 +983,13 @@ describe('QuotationsService', () => {
     beforeEach(() => {
       // default: no managers found — existing tests that don't assert on email still pass
       mockPrismaService.user.findMany.mockResolvedValue([]);
+      mockPrismaService.quotation.updateMany.mockResolvedValue({ count: 1 });
     });
 
     it('records status history and updates quotation', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue(sentQuotation);
+      mockPrismaService.quotation.findUnique.mockResolvedValue(sentQuotation);
 
       await service.updateStatus(
         'q-1',
@@ -999,13 +1000,13 @@ describe('QuotationsService', () => {
       );
 
       expect(mockPrismaService.statusHistory.create).toHaveBeenCalled();
-      expect(mockPrismaService.quotation.update).toHaveBeenCalled();
+      expect(mockPrismaService.quotation.updateMany).toHaveBeenCalled();
     });
 
     it('updates quotation status correctly', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue(sentQuotation);
+      mockPrismaService.quotation.findUnique.mockResolvedValue(sentQuotation);
 
       const result = await service.updateStatus(
         'q-1',
@@ -1048,7 +1049,7 @@ describe('QuotationsService', () => {
           Role.SALES_REP,
         ),
       ).rejects.toThrow(ForbiddenException);
-      expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.quotation.updateMany).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException when SALES_REP tries to REJECT', async () => {
@@ -1063,13 +1064,15 @@ describe('QuotationsService', () => {
           Role.SALES_REP,
         ),
       ).rejects.toThrow(ForbiddenException);
-      expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.quotation.updateMany).not.toHaveBeenCalled();
     });
 
     it('allows SALES_MANAGER to APPROVE', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue(approvedQuotation);
+      mockPrismaService.quotation.findUnique.mockResolvedValue(
+        approvedQuotation,
+      );
 
       const result = await service.updateStatus(
         'q-1',
@@ -1095,7 +1098,7 @@ describe('QuotationsService', () => {
           Role.SALES_REP,
         ),
       ).rejects.toThrow(BadRequestException);
-      expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.quotation.updateMany).not.toHaveBeenCalled();
     });
 
     it('does not log error for domain exceptions (NotFoundException)', async () => {
@@ -1153,7 +1156,7 @@ describe('QuotationsService', () => {
     it('emails all managers when status transitions to SENT', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue({
+      mockPrismaService.quotation.findUnique.mockResolvedValue({
         ...richQuotation,
         status: QuotationStatus.SENT,
       });
@@ -1181,7 +1184,7 @@ describe('QuotationsService', () => {
     it('emails the rep when status transitions to APPROVED', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue({
+      mockPrismaService.quotation.findUnique.mockResolvedValue({
         ...richQuotation,
         status: QuotationStatus.APPROVED,
       });
@@ -1205,7 +1208,7 @@ describe('QuotationsService', () => {
     it('emails the rep with note when status transitions to REJECTED', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue({
+      mockPrismaService.quotation.findUnique.mockResolvedValue({
         ...richQuotation,
         status: QuotationStatus.REJECTED,
       });
@@ -1229,7 +1232,7 @@ describe('QuotationsService', () => {
     it('invalidates AiInsight cache on successful status update', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue(sentQuotation);
+      mockPrismaService.quotation.findUnique.mockResolvedValue(sentQuotation);
 
       await service.updateStatus(
         'q-1',
@@ -1247,7 +1250,7 @@ describe('QuotationsService', () => {
     it('skips email when createdBy is null on the updated quotation', async () => {
       mockPrismaService.quotation.findFirst.mockResolvedValue(draftQuotation);
       mockPrismaService.statusHistory.create.mockResolvedValue({});
-      mockPrismaService.quotation.update.mockResolvedValue({
+      mockPrismaService.quotation.findUnique.mockResolvedValue({
         ...sentQuotation,
         createdBy: null,
       });
@@ -1265,6 +1268,80 @@ describe('QuotationsService', () => {
         expect.stringContaining('createdBy missing'),
         QuotationsService.name,
       );
+    });
+
+    it('claims the transition in one conditional write on the status it checked', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
+      mockPrismaService.statusHistory.create.mockResolvedValue({});
+      mockPrismaService.quotation.findUnique.mockResolvedValue(
+        approvedQuotation,
+      );
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.APPROVED,
+        undefined,
+        'manager-1',
+        Role.SALES_MANAGER,
+      );
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.quotation.updateMany).toHaveBeenCalledWith({
+        where: { id: 'q-1', status: QuotationStatus.SENT },
+        data: { status: QuotationStatus.APPROVED },
+      });
+      expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
+    });
+
+    it('writes history and clears insights only after the claim, inside the transaction', async () => {
+      const order: string[] = [];
+      mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
+      mockPrismaService.quotation.updateMany.mockImplementationOnce(() => {
+        order.push('claim');
+        return Promise.resolve({ count: 1 });
+      });
+      mockPrismaService.statusHistory.create.mockImplementationOnce(() => {
+        order.push('history');
+        return Promise.resolve({});
+      });
+      mockPrismaService.aIInsight.deleteMany.mockImplementationOnce(() => {
+        order.push('insights');
+        return Promise.resolve({ count: 0 });
+      });
+      mockPrismaService.quotation.findUnique.mockImplementationOnce(() => {
+        order.push('reload');
+        return Promise.resolve(approvedQuotation);
+      });
+
+      await service.updateStatus(
+        'q-1',
+        QuotationStatus.APPROVED,
+        undefined,
+        'manager-1',
+        Role.SALES_MANAGER,
+      );
+
+      expect(order).toEqual(['claim', 'history', 'insights', 'reload']);
+    });
+
+    it('throws ConflictException and writes nothing when another transition got there first', async () => {
+      mockPrismaService.quotation.findFirst.mockResolvedValue(sentQuotation);
+      mockPrismaService.quotation.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.updateStatus(
+          'q-1',
+          QuotationStatus.REJECTED,
+          'Too expensive',
+          'manager-2',
+          Role.SALES_MANAGER,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPrismaService.statusHistory.create).not.toHaveBeenCalled();
+      expect(mockPrismaService.aIInsight.deleteMany).not.toHaveBeenCalled();
+      expect(mockMailService.sendMail).not.toHaveBeenCalled();
+      expect(mockLogger.error).not.toHaveBeenCalled();
     });
   });
 
