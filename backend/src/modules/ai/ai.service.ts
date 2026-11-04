@@ -1634,11 +1634,19 @@ Answer in 2–4 sentences. Be direct and factual.`;
     `;
   }
 
+  /**
+   * Embeds the document's chunks that don't have a vector yet, so a retry after a partial failure
+   * picks up where the last attempt stopped. Throws on the first chunk that fails.
+   */
   async generateDocumentEmbeddings(documentId: string): Promise<void> {
-    const chunks = await this.prisma.documentChunk.findMany({
-      where: { documentId },
-      orderBy: { chunkIndex: 'asc' },
-    });
+    const chunks = await this.prisma.$queryRaw<
+      Array<{ id: string; chunkIndex: number; content: string }>
+    >`
+      SELECT id, "chunkIndex", content
+      FROM "DocumentChunk"
+      WHERE "documentId" = ${documentId} AND embedding IS NULL
+      ORDER BY "chunkIndex"
+    `;
     if (chunks.length === 0) return;
 
     const CONCURRENCY = 5;
