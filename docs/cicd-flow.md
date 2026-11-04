@@ -5,7 +5,7 @@ flowchart TD
     Dev([Push to main or pull request])
     Dev --> GH[GitHub receives push]
 
-    GH --> GHA[GitHub Actions: ci.yml]
+    GH --> GHA[GitHub Actions: ci.yml<br/>actions pinned by commit SHA, token read-only by default<br/>a new push to a PR cancels its superseded run]
     GHA --> Secret[Job 1: secret-scan<br/>Gitleaks, full git history]
     Secret --> Test[Job 2: test]
 
@@ -27,7 +27,7 @@ flowchart TD
     Sonar --> CIPass{All jobs<br/>passed?}
     PW --> CIPass
     MCP --> CIPass
-    CIPass -->|No| Block[CI failed<br/>Railway + Vercel deploy independently]
+    CIPass -->|No| Block[CI failed<br/>PR merge blocked: main requires green checks<br/>so nothing reaches main and nothing deploys]
 
     Dev -->|PR touching AI code, documents,<br/>evals or the sample playbook| Eval[llm-eval.yml: LLM eval gate<br/>seed playbook with real embeddings<br/>23 scenarios, Groq answers, gpt-4o-mini judge<br/>npm run eval:gate vs baseline.json]
     Eval --> EvalPass{Regression vs<br/>baseline?}
