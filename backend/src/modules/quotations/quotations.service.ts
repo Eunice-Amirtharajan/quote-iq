@@ -762,67 +762,6 @@ export class QuotationsService {
       totalsData,
       sanitizedItems,
     );
-    const currentVersion = await this.prisma.quotation.findFirst({
-      where: { id },
-      select: {
-        version: true,
-        title: true,
-        clientId: true,
-        notes: true,
-        taxRate: true,
-      },
-    });
-    if (currentVersion?.version !== input.version) {
-      throw new ConflictException(
-        'Version mismatch. The quotation has been modified by someone else — please refresh and try again.',
-      );
-    }
-
-    // Snapshot current state before overwriting. Sequential, not a $transaction: written when the
-    // Neon HTTP driver had no transactions; the WebSocket adapter supports them now.
-    const currentItems = await this.prisma.quotationItem.findMany({
-      where: { quotationId: id },
-      select: {
-        description: true,
-        quantity: true,
-        unitPrice: true,
-        lineTotal: true,
-        sortOrder: true,
-      },
-      orderBy: { sortOrder: 'asc' },
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (this.prisma as any).quotationSnapshot.create({
-      data: {
-        quotationId: id,
-        content: {
-          version: currentVersion.version,
-          title: currentVersion.title,
-          clientId: currentVersion.clientId,
-          notes: currentVersion.notes ?? null,
-          taxRate: currentVersion.taxRate,
-          items: currentItems,
-        },
-      },
-    });
-
-    const updated = await this.prisma.quotation.update({
-      where: { id },
-      data: {
-        ...data,
-        version: { increment: 1 },
-      },
-      include: { items: true, createdBy: true, client: true },
-    });
-
-    if (!updated) {
-      throw new NotFoundException(`Quotation ${id} not found`);
-    }
-
-    await this.prisma.aIInsight.deleteMany({
-      where: { quotationId: id },
-    });
-
     const changed = this.getChangedFields(
       title,
       clientId,
@@ -830,14 +769,69 @@ export class QuotationsService {
       taxRate,
       sanitizedItems,
     );
-    await this.prisma.statusHistory.create({
-      data: {
-        quotationId: id,
-        fromStatus: QuotationStatus.DRAFT,
-        toStatus: QuotationStatus.DRAFT,
-        note: `Edited: ${changed.join(', ')}`,
-        changedById: userId,
-      },
+
+    // One transaction for the whole edit, starting with an atomic version claim. The UPDATE ...
+    // WHERE version = expected both checks and bumps the version, and holds the row lock until
+    // commit: a concurrent edit with the same version waits, then matches 0 rows and gets a 409.
+    // (It used to read the version, compare, then update by id alone: two edits that read the
+    // same version both passed, and the second silently overwrote the first.)
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.quotation.updateMany({
+        where: { id, version: input.version, status: QuotationStatus.DRAFT },
+        data: { version: { increment: 1 } },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          'Version mismatch. The quotation has been modified by someone else — please refresh and try again.',
+        );
+      }
+
+      // The row is ours now, so these reads see the state this edit replaces
+      const previous = await tx.quotation.findFirst({
+        where: { id },
+        select: { title: true, clientId: true, notes: true, taxRate: true },
+      });
+      const previousItems = await tx.quotationItem.findMany({
+        where: { quotationId: id },
+        select: {
+          description: true,
+          quantity: true,
+          unitPrice: true,
+          lineTotal: true,
+          sortOrder: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      await tx.quotationSnapshot.create({
+        data: {
+          quotationId: id,
+          content: {
+            version: input.version,
+            title: previous!.title,
+            clientId: previous!.clientId,
+            notes: previous!.notes ?? null,
+            taxRate: previous!.taxRate,
+            items: previousItems,
+          },
+        },
+      });
+
+      const result = await tx.quotation.update({
+        where: { id },
+        data,
+        include: { items: true, createdBy: true, client: true },
+      });
+      await tx.aIInsight.deleteMany({ where: { quotationId: id } });
+      await tx.statusHistory.create({
+        data: {
+          quotationId: id,
+          fromStatus: QuotationStatus.DRAFT,
+          toStatus: QuotationStatus.DRAFT,
+          note: `Edited: ${changed.join(', ')}`,
+          changedById: userId,
+        },
+      });
+      return result;
     });
 
     // The embedding is built from title, client and items, so an edit makes it stale; without
