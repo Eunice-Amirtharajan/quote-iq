@@ -2741,11 +2741,7 @@ describe('AIService', () => {
       mockPrismaService.$queryRaw.mockResolvedValueOnce([
         { embedding: '[0.1,0.2]', searchText: 'title: Deal A' },
       ]);
-      // role filter — all ids except q-1
-      mockPrismaService.$queryRaw.mockResolvedValueOnce([
-        { id: 'q-2' },
-        { id: 'q-3' },
-      ]);
+      // no id lookup for a manager: the scope is "not this quotation"
       // vector leg
       mockPrismaService.$queryRaw.mockResolvedValueOnce([
         { quotationId: 'q-2' },
@@ -2784,6 +2780,48 @@ describe('AIService', () => {
       expect(result[0].id).toBe('q-2');
       expect(result).toHaveLength(2);
       expect(result[0].status).toBe('APPROVED');
+
+      // Both legs filter with "not this quotation", not a list of every id
+      const vectorLeg = mockPrismaService.$queryRaw.mock.calls[1];
+      const scope = vectorLeg[1] as { strings: string[]; values: unknown[] };
+      expect(scope.strings.join('?')).toContain('"quotationId" <> ?');
+      expect(scope.values).toEqual(['q-1']);
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalledTimes(3);
+    });
+
+    it('limits a sales rep to their own quotations, as an explicit list', async () => {
+      mockPrismaService.$queryRaw.mockReset();
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          { embedding: '[0.1,0.2]', searchText: 'title: Deal A' },
+        ])
+        .mockResolvedValueOnce([{ id: 'q-2' }, { id: 'q-3' }]) // the rep's other quotations
+        .mockResolvedValueOnce([{ quotationId: 'q-2' }])
+        .mockResolvedValueOnce([]);
+      mockPrismaService.quotation.findMany = jest.fn().mockResolvedValueOnce([
+        {
+          id: 'q-2',
+          title: 'Own Deal',
+          client: { name: 'Acme' },
+          total: 1,
+          status: 'SENT',
+        },
+      ]);
+
+      const result = await service.similarQuotations('q-1', 'u-1', 'SALES_REP');
+
+      expect(result.map((r) => r.id)).toEqual(['q-2']);
+      const ownQuery = mockPrismaService.$queryRaw.mock.calls[1];
+      expect((ownQuery[0] as TemplateStringsArray).join('?')).toContain(
+        '"createdById" = ?',
+      );
+      expect(ownQuery).toContain('u-1');
+      const scope = mockPrismaService.$queryRaw.mock.calls[2][1] as {
+        strings: string[];
+        values: unknown[];
+      };
+      expect(scope.strings.join('?')).toContain('= ANY(?::text[])');
+      expect(scope.values).toEqual([['q-2', 'q-3']]);
     });
   });
 
