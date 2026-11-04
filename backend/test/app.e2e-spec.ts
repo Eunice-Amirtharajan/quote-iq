@@ -9,6 +9,7 @@ import { MailService } from '../src/common/mail/mail.service';
 import { corsOptions } from '../src/common/cors/cors-options';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { DocumentsService } from '../src/modules/documents/documents.service';
+import { ScoreGateway } from '../src/modules/gateway/score.gateway';
 import {
   AIService,
   SUMMARY_PROMPT_VERSION,
@@ -2094,5 +2095,118 @@ describe('QuoteIQ E2E', () => {
         }),
       ).toBe(1);
     });
+  });
+
+  describe('Scoring consumer retries (real RabbitMQ)', () => {
+    let prisma: PrismaService;
+    let ai: AIService;
+    let gateway: ScoreGateway;
+    const created: string[] = [];
+    const previousDelay = process.env.SCORING_RETRY_DELAY_MS;
+
+    const createQuote = async (title: string) => {
+      const res = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({
+          query: `mutation { createQuotation(input: {
+            title: "${title}"
+            clientId: "${e2eClientId}"
+            taxRate: 0
+            items: [{ description: "Item" quantity: 1 unitPrice: 100 }]
+          }) { id } }`,
+        });
+      const id = res.body.data.createQuotation.id as string;
+      created.push(id);
+      return id;
+    };
+
+    const waitFor = async <T>(read: () => Promise<T | null>, ms: number) => {
+      const until = Date.now() + ms;
+      while (Date.now() < until) {
+        const value = await read();
+        if (value) return value;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return null;
+    };
+
+    beforeAll(() => {
+      prisma = app.get(PrismaService);
+      ai = app.get(AIService);
+      gateway = app.get(ScoreGateway);
+      process.env.SCORING_RETRY_DELAY_MS = '300';
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    afterAll(async () => {
+      process.env.SCORING_RETRY_DELAY_MS = previousDelay;
+      await prisma.quotation.deleteMany({ where: { id: { in: created } } });
+    });
+
+    // Fails only for quotations with this title, so other tests' events aren't affected
+    const failFirst = (title: string, failures: number, error: Error) => {
+      const attempts: number[] = [];
+      const original = ai.getConversionScore.bind(ai);
+      jest.spyOn(ai, 'getConversionScore').mockImplementation(async (id) => {
+        const q = await prisma.quotation.findUnique({
+          where: { id },
+          select: { title: true },
+        });
+        if (q?.title === title) {
+          attempts.push(Date.now());
+          if (attempts.length <= failures) throw error;
+        }
+        return original(id);
+      });
+      jest.spyOn(ai, 'generateQuotationEmbedding').mockResolvedValue(undefined);
+      jest.spyOn(gateway, 'emitScoreReady').mockImplementation(() => undefined);
+      return attempts;
+    };
+
+    it('retries a transient failure after a delay and succeeds on the third attempt', async () => {
+      const title = `Retry Scoring ${randomUUID()}`;
+      const attempts = failFirst(
+        title,
+        2,
+        new Error('Connection terminated unexpectedly'),
+      );
+      const id = await createQuote(title);
+
+      const insight = await waitFor(
+        () =>
+          prisma.aIInsight.findFirst({
+            where: { quotationId: id, insightType: 'CONVERSION_SCORE' },
+          }),
+        15_000,
+      );
+
+      expect(insight).not.toBeNull();
+      expect(attempts).toHaveLength(3);
+      // The retries were delayed (300ms, then 600ms), not an immediate requeue loop
+      expect(attempts[1] - attempts[0]).toBeGreaterThanOrEqual(250);
+      expect(attempts[2] - attempts[1]).toBeGreaterThanOrEqual(550);
+    }, 30_000);
+
+    it('stops after three attempts: the message goes to the DLQ and is not retried again', async () => {
+      const title = `Retry Exhausted ${randomUUID()}`;
+      const attempts = failFirst(title, 99, new Error('still down'));
+      const id = await createQuote(title);
+
+      await waitFor(
+        () => Promise.resolve(attempts.length >= 3 ? true : null),
+        15_000,
+      );
+      // Give a 4th attempt time to show up if the cap didn't hold
+      await new Promise((r) => setTimeout(r, 2_000));
+
+      expect(attempts).toHaveLength(3);
+      expect(
+        await prisma.aIInsight.findFirst({
+          where: { quotationId: id, insightType: 'CONVERSION_SCORE' },
+        }),
+      ).toBeNull();
+    }, 30_000);
   });
 });

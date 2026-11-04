@@ -6,6 +6,15 @@ export const QUEUE = 'quoteiq.scoring';
 export const ROUTING_KEY = 'quote.created';
 export const DLX = 'quoteiq.dlx';
 export const DLQ = 'quoteiq.scoring.dlq';
+// Transient consumer failures wait here, then dead-letter back to QUEUE (only that queue,
+// via the default exchange). The delay is per message (`expiration`), not a queue TTL:
+// changing a queue's x-arguments later makes the broker refuse the redeclaration.
+export const RETRY_EXCHANGE = 'quoteiq.retry';
+export const RETRY_QUEUE = 'quoteiq.scoring.retry';
+
+/** Base delay before a transient failure is retried; doubles on each further attempt */
+export const scoringRetryDelayMs = (): number =>
+  Number(process.env.SCORING_RETRY_DELAY_MS) || 5_000;
 
 @Global()
 @Module({
@@ -21,6 +30,11 @@ export const DLQ = 'quoteiq.scoring.dlq';
           },
           {
             name: DLX,
+            type: 'direct',
+            options: { durable: true },
+          },
+          {
+            name: RETRY_EXCHANGE,
             type: 'direct',
             options: { durable: true },
           },
@@ -43,6 +57,18 @@ export const DLQ = 'quoteiq.scoring.dlq';
             },
             exchange: EXCHANGE,
             routingKey: ROUTING_KEY,
+          },
+          {
+            name: RETRY_QUEUE,
+            options: {
+              durable: true,
+              arguments: {
+                'x-dead-letter-exchange': '',
+                'x-dead-letter-routing-key': QUEUE,
+              },
+            },
+            exchange: RETRY_EXCHANGE,
+            routingKey: RETRY_QUEUE,
           },
         ],
         connectionInitOptions: { wait: false },
