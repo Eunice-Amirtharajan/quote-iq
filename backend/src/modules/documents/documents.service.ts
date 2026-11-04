@@ -43,6 +43,9 @@ class PipelineStepError extends Error {
 // lost its process (crash, deploy, OOM). Also the age after which delete is allowed mid-scan.
 const STRANDED_AFTER_MS = 10 * 60 * 1000;
 const SWEEP_EVERY_MS = 5 * 60 * 1000;
+// Embedding an approved document is retried this many times before it's marked FAILED
+const EMBED_ATTEMPTS = 3;
+const EMBED_RETRY_DELAY_MS = 5_000;
 
 @Injectable()
 export class DocumentsService implements OnModuleInit, OnModuleDestroy {
@@ -61,7 +64,10 @@ export class DocumentsService implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     // Run each sweep from an empty trace context, so it doesn't join the startup trace
     const sweep = () =>
-      context.with(ROOT_CONTEXT, () => void this.failStrandedDocuments());
+      context.with(ROOT_CONTEXT, () => {
+        void this.failStrandedDocuments();
+        void this.reindexIncompleteDocuments();
+      });
     sweep();
     this.sweepTimer = setInterval(sweep, SWEEP_EVERY_MS);
     this.sweepTimer.unref();
@@ -101,6 +107,37 @@ export class DocumentsService implements OnModuleInit, OnModuleDestroy {
       return count;
     } catch (err) {
       this.logger.error({ err }, 'Stranded-document sweep failed');
+      return 0;
+    }
+  }
+
+  /**
+   * The same gap after approval: if the process dies while embedding, the document stays READY
+   * with chunks that have no vector. This re-runs indexing for READY documents that still have
+   * such chunks 10 min after their last change; indexing either completes or marks them FAILED,
+   * so a document is never retried forever. With several replicas two may index the same
+   * document at once, which only repeats the same idempotent writes.
+   */
+  async reindexIncompleteDocuments(now = new Date()): Promise<number> {
+    try {
+      const cutoff = new Date(now.getTime() - STRANDED_AFTER_MS);
+      const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT DISTINCT d.id
+        FROM "Document" d
+        JOIN "DocumentChunk" c ON c."documentId" = d.id
+        WHERE d.status = 'READY'
+          AND c.embedding IS NULL
+          AND d."updatedAt" < ${cutoff}
+      `;
+      for (const { id } of rows) await this.indexDocument(id);
+      if (rows.length > 0) {
+        this.logger.warn(
+          `Re-indexed ${rows.length} READY document(s) that had chunks without embeddings`,
+        );
+      }
+      return rows.length;
+    } catch (err) {
+      this.logger.error({ err }, 'Re-index sweep failed');
       return 0;
     }
   }
@@ -283,16 +320,62 @@ export class DocumentsService implements OnModuleInit, OnModuleDestroy {
     }
     const doc = await this.leaveReview(docId, { status: DocumentStatus.READY });
 
-    // Kick off embedding generation asynchronously — does not block the response
-    /* istanbul ignore next 3 */
-    void this.ai.generateDocumentEmbeddings(docId).catch((err: unknown) => {
-      this.logger.error(
-        { docId, err },
-        'Background embedding generation failed',
-      );
-    });
+    // Embeddings are generated in the background; the response doesn't wait for them
+    void this.indexDocument(docId);
 
     return doc;
+  }
+
+  /**
+   * Embeds an approved document, retrying the chunks still missing a vector. If some can't be
+   * embedded, the document is marked FAILED: left READY, those chunks would be found by keyword
+   * search only, and nothing would tell the manager. Never throws: it runs in the background.
+   */
+  private async indexDocument(docId: string): Promise<void> {
+    for (let attempt = 1; attempt <= EMBED_ATTEMPTS; attempt++) {
+      try {
+        await this.ai.generateDocumentEmbeddings(docId);
+        return;
+      } catch (err) {
+        if (attempt === EMBED_ATTEMPTS) {
+          await this.failIndexing(docId, err);
+          return;
+        }
+        this.logger.warn(
+          { docId, attempt, err },
+          `Embedding failed (attempt ${attempt} of ${EMBED_ATTEMPTS}), retrying`,
+        );
+        await this.pause(EMBED_RETRY_DELAY_MS);
+      }
+    }
+  }
+
+  private async failIndexing(docId: string, err: unknown): Promise<void> {
+    this.logger.error(
+      { docId, err },
+      'Embedding failed after every attempt; marking the document FAILED',
+    );
+    try {
+      // Only if still READY: the document may have been deleted meanwhile
+      await this.prisma.document.updateMany({
+        where: { id: docId, status: DocumentStatus.READY },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason:
+            'Approved, but it could not be indexed for search. Delete the document and upload it again; if it keeps failing, contact an administrator.',
+        },
+      });
+    } catch (updateErr) {
+      this.logger.error(
+        { docId, updateErr },
+        'Could not mark document as FAILED',
+      );
+    }
+  }
+
+  /** Waits between embedding attempts (a separate method so tests can skip the wait). */
+  protected pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async rejectDocument(

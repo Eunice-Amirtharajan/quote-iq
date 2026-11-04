@@ -2228,7 +2228,7 @@ describe('AIService', () => {
     });
 
     it('calls OpenAI embeddings for each chunk and updates DB', async () => {
-      mockPrismaService.documentChunk.findMany.mockResolvedValue(mockChunks);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockChunks);
 
       await service.generateDocumentEmbeddings('doc-1');
 
@@ -2243,8 +2243,20 @@ describe('AIService', () => {
       expect(mockPrismaService.$executeRaw).toHaveBeenCalledTimes(2);
     });
 
+    it('only embeds chunks that have no vector yet, so a retry resumes', async () => {
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
+
+      await service.generateDocumentEmbeddings('doc-1');
+
+      const sql = (
+        mockPrismaService.$queryRaw.mock.calls[0][0] as TemplateStringsArray
+      ).join('?');
+      expect(sql).toContain('embedding IS NULL');
+      expect(mockPrismaService.$queryRaw.mock.calls[0][1]).toBe('doc-1');
+    });
+
     it('does nothing when document has no chunks', async () => {
-      mockPrismaService.documentChunk.findMany.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
 
       await service.generateDocumentEmbeddings('doc-empty');
 
@@ -2253,7 +2265,7 @@ describe('AIService', () => {
     });
 
     it('propagates OpenAI error when embedding fails', async () => {
-      mockPrismaService.documentChunk.findMany.mockResolvedValue(mockChunks);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockChunks);
       mockEmbeddingsCreate.mockRejectedValue(
         new Error('OpenAI quota exceeded'),
       );

@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { MailService } from '../src/common/mail/mail.service';
 import { corsOptions } from '../src/common/cors/cors-options';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { DocumentsService } from '../src/modules/documents/documents.service';
 import {
   AIService,
   SUMMARY_PROMPT_VERSION,
@@ -1747,6 +1748,113 @@ describe('QuoteIQ E2E', () => {
         'e2e-lesson-weak',
         'e2e-lesson-typo',
       ]);
+    });
+  });
+
+  describe('Document embeddings after approval (retry, fail visibly, re-index)', () => {
+    let prisma: PrismaService;
+    let documents: DocumentsService;
+    let embed: jest.SpyInstance;
+    const docIds: string[] = [];
+    const VECTOR = `[${Array(1536).fill(0.01).join(',')}]`;
+
+    const createReadyDoc = async (opts: { old: boolean }) => {
+      const manager = await prisma.user.findUniqueOrThrow({
+        where: { email: 'marcus@quoteiq.com' },
+      });
+      const key = `e2e/${randomUUID()}.pdf`;
+      const doc = await prisma.document.create({
+        data: {
+          filename: 'e2e-embedding.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1024,
+          storageKey: key,
+          storageUrl: `https://storage.invalid/${key}`,
+          status: 'READY',
+          uploadedById: manager.id,
+          chunks: {
+            create: [
+              { chunkIndex: 0, content: 'Already embedded passage.' },
+              { chunkIndex: 1, content: 'Passage still missing its vector.' },
+            ],
+          },
+        },
+      });
+      docIds.push(doc.id);
+      await prisma.$executeRaw`
+        UPDATE "DocumentChunk" SET embedding = ${VECTOR}::vector
+        WHERE "documentId" = ${doc.id} AND "chunkIndex" = 0
+      `;
+      if (opts.old) {
+        await prisma.$executeRaw`
+          UPDATE "Document" SET "updatedAt" = now() - interval '11 minutes'
+          WHERE id = ${doc.id}
+        `;
+      }
+      return doc.id;
+    };
+
+    const missingVectors = async (docId: string) => {
+      const [row] = await prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*) AS n FROM "DocumentChunk"
+        WHERE "documentId" = ${docId} AND embedding IS NULL
+      `;
+      return Number(row.n);
+    };
+
+    beforeAll(() => {
+      prisma = app.get(PrismaService);
+      documents = app.get(DocumentsService);
+      // The OpenAI call is the only fake: queries, writes and status changes hit Postgres
+      const ai: { embed: (...args: unknown[]) => Promise<number[]> } =
+        app.get(AIService);
+      embed = jest.spyOn(ai, 'embed');
+      jest
+        .spyOn(documents as unknown as { pause: () => Promise<void> }, 'pause')
+        .mockResolvedValue(undefined);
+    });
+
+    beforeEach(() => embed.mockReset());
+
+    afterAll(async () => {
+      jest.restoreAllMocks();
+      await prisma.document.deleteMany({ where: { id: { in: docIds } } });
+    });
+
+    it('re-indexes an old READY document, embedding only the chunk without a vector', async () => {
+      const docId = await createReadyDoc({ old: true });
+      const fresh = await createReadyDoc({ old: false });
+      embed.mockResolvedValue(Array(1536).fill(0.02));
+
+      const reindexed = await documents.reindexIncompleteDocuments();
+
+      expect(reindexed).toBeGreaterThanOrEqual(1);
+      expect(await missingVectors(docId)).toBe(0);
+      expect(embed).toHaveBeenCalledWith(
+        'Passage still missing its vector.',
+        'document_embedding',
+        expect.anything(),
+      );
+      expect(embed).not.toHaveBeenCalledWith(
+        'Already embedded passage.',
+        expect.anything(),
+        expect.anything(),
+      );
+      // Changed less than 10 min ago: it may still be indexing, so it's left alone
+      expect(await missingVectors(fresh)).toBe(1);
+    });
+
+    it('marks the document FAILED with a reason when embedding keeps failing', async () => {
+      const docId = await createReadyDoc({ old: true });
+      embed.mockRejectedValue(new Error('OpenAI down'));
+
+      await documents.reindexIncompleteDocuments();
+
+      const doc = await prisma.document.findUniqueOrThrow({
+        where: { id: docId },
+      });
+      expect(doc.status).toBe('FAILED');
+      expect(doc.rejectedReason).toMatch(/could not be indexed for search/);
     });
   });
 });

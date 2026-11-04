@@ -34,6 +34,7 @@ const mockPrisma = {
   },
   documentChunk: { create: jest.fn(), findMany: jest.fn() },
   $transaction: jest.fn(),
+  $queryRaw: jest.fn().mockResolvedValue([]),
 };
 
 const mockStorage: jest.Mocked<StorageService> = {
@@ -344,6 +345,147 @@ describe('DocumentsService', () => {
       } finally {
         jest.useRealTimers();
       }
+    });
+  });
+
+  describe('indexing after approval (embeddings)', () => {
+    type Indexing = { indexDocument(id: string): Promise<void> };
+    const index = (svc: DocumentsService, id = 'doc-1') =>
+      (svc as unknown as Indexing).indexDocument(id);
+    let pause: jest.SpyInstance;
+
+    beforeEach(() => {
+      pause = jest
+        .spyOn(
+          DocumentsService.prototype as unknown as {
+            pause: () => Promise<void>;
+          },
+          'pause',
+        )
+        .mockResolvedValue(undefined);
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    it('retries a failed embedding and leaves the document READY once it succeeds', async () => {
+      mockAI.generateDocumentEmbeddings
+        .mockRejectedValueOnce(new Error('OpenAI 429'))
+        .mockResolvedValueOnce(undefined);
+      const svc = makeService();
+
+      await index(svc);
+
+      expect(mockAI.generateDocumentEmbeddings).toHaveBeenCalledTimes(2);
+      expect(pause).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.document.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('marks the document FAILED after 3 failed attempts, only if it is still READY', async () => {
+      mockAI.generateDocumentEmbeddings.mockRejectedValue(
+        new Error('OpenAI down'),
+      );
+      mockPrisma.document.updateMany.mockResolvedValue({ count: 1 });
+      const svc = makeService();
+
+      await index(svc);
+
+      expect(mockAI.generateDocumentEmbeddings).toHaveBeenCalledTimes(3);
+      expect(pause).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.document.updateMany).toHaveBeenCalledWith({
+        where: { id: 'doc-1', status: DocumentStatus.READY },
+        data: {
+          status: DocumentStatus.FAILED,
+          rejectedReason: expect.stringContaining(
+            'could not be indexed for search',
+          ),
+        },
+      });
+    });
+
+    it('never throws, even when marking the document FAILED fails', async () => {
+      mockAI.generateDocumentEmbeddings.mockRejectedValue(new Error('down'));
+      mockPrisma.document.updateMany.mockRejectedValue(new Error('db down'));
+      const svc = makeService();
+
+      await expect(index(svc)).resolves.toBeUndefined();
+      expect(Logger.prototype.error).toHaveBeenCalledWith(
+        expect.objectContaining({ docId: 'doc-1' }),
+        'Could not mark document as FAILED',
+      );
+    });
+
+    it('waits between attempts', async () => {
+      pause.mockRestore();
+      jest.useFakeTimers();
+      try {
+        const svc = makeService() as unknown as {
+          pause(ms: number): Promise<void>;
+        };
+        let done = false;
+        const waiting = svc.pause(5_000).then(() => (done = true));
+        await jest.advanceTimersByTimeAsync(4_999);
+        expect(done).toBe(false);
+        await jest.advanceTimersByTimeAsync(1);
+        await waiting;
+        expect(done).toBe(true);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    describe('reindexIncompleteDocuments (crash mid-embedding)', () => {
+      const now = new Date('2026-11-04T12:00:00.000Z');
+
+      it('re-indexes READY documents with chunks still missing a vector after 10 min', async () => {
+        mockPrisma.$queryRaw.mockResolvedValueOnce([
+          { id: 'd1' },
+          { id: 'd2' },
+        ]);
+        mockAI.generateDocumentEmbeddings.mockResolvedValue(undefined);
+        const svc = makeService();
+
+        await expect(svc.reindexIncompleteDocuments(now)).resolves.toBe(2);
+
+        const [sql, cutoff] = mockPrisma.$queryRaw.mock.calls[0] as [
+          TemplateStringsArray,
+          Date,
+        ];
+        expect(sql.join('?')).toContain("d.status = 'READY'");
+        expect(sql.join('?')).toContain('c.embedding IS NULL');
+        expect(cutoff).toEqual(new Date('2026-11-04T11:50:00.000Z'));
+        expect(mockAI.generateDocumentEmbeddings.mock.calls).toEqual([
+          ['d1'],
+          ['d2'],
+        ]);
+      });
+
+      it('does nothing when every READY document is fully embedded', async () => {
+        mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+        const svc = makeService();
+        await expect(svc.reindexIncompleteDocuments(now)).resolves.toBe(0);
+        expect(mockAI.generateDocumentEmbeddings).not.toHaveBeenCalled();
+      });
+
+      it('logs and returns 0 when the database is down', async () => {
+        mockPrisma.$queryRaw.mockRejectedValueOnce(new Error('db down'));
+        const svc = makeService();
+        await expect(svc.reindexIncompleteDocuments(now)).resolves.toBe(0);
+        expect(Logger.prototype.error).toHaveBeenCalledWith(
+          expect.objectContaining({ err: expect.any(Error) }),
+          'Re-index sweep failed',
+        );
+      });
+
+      it('runs with the stranded-document sweep on startup', () => {
+        const svc = makeService();
+        const reindex = jest
+          .spyOn(svc, 'reindexIncompleteDocuments')
+          .mockResolvedValue(0);
+        svc.onModuleInit();
+        svc.onModuleDestroy();
+        expect(reindex).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
