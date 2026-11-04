@@ -1857,4 +1857,78 @@ describe('QuoteIQ E2E', () => {
       expect(doc.rejectedReason).toMatch(/could not be indexed for search/);
     });
   });
+
+  describe('Similar quotes on Postgres (scope inside the vector query)', () => {
+    let prisma: PrismaService;
+    let ai: AIService;
+    const ids: string[] = [];
+    let annaId: string;
+    let marcusId: string;
+    const vec = (shift: number) =>
+      `[${Array.from({ length: 1536 }, (_, i) => (i === 0 ? 1 : shift)).join(',')}]`;
+
+    const createQuote = async (
+      createdById: string,
+      n: number,
+      shift: number,
+    ) => {
+      const q = await prisma.quotation.create({
+        data: {
+          quotationNumber: `QT-E2E-SIM-${randomUUID()}`,
+          title: `Fleet licences ${n}`,
+          clientId: e2eClientId,
+          createdById,
+        },
+      });
+      ids.push(q.id);
+      await prisma.$executeRaw`
+        INSERT INTO "QuotationEmbedding" (id, "quotationId", "searchText", embedding, "updatedAt")
+        VALUES (gen_random_uuid(), ${q.id}, 'title: Fleet licences', ${vec(shift)}::vector, now())
+      `;
+      return q.id;
+    };
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+      ai = app.get(AIService);
+      annaId = (
+        await prisma.user.findUniqueOrThrow({
+          where: { email: 'anna@quoteiq.com' },
+        })
+      ).id;
+      marcusId = (
+        await prisma.user.findUniqueOrThrow({
+          where: { email: 'marcus@quoteiq.com' },
+        })
+      ).id;
+    });
+
+    afterAll(async () => {
+      await prisma.quotation.deleteMany({ where: { id: { in: ids } } });
+    });
+
+    it('a manager sees every other quotation, a rep only their own', async () => {
+      const source = await createQuote(annaId, 1, 0);
+      const annasOther = await createQuote(annaId, 2, 0.001);
+      const marcusQuote = await createQuote(marcusId, 3, 0.002);
+
+      const asManager = await ai.similarQuotations(
+        source,
+        marcusId,
+        'SALES_MANAGER',
+        50,
+      );
+      const managerIds = asManager.map((r) => r.id);
+      expect(managerIds).toEqual(
+        expect.arrayContaining([annasOther, marcusQuote]),
+      );
+      expect(managerIds).not.toContain(source);
+
+      const asRep = await ai.similarQuotations(source, annaId, 'SALES_REP', 50);
+      const repIds = asRep.map((r) => r.id);
+      expect(repIds).toContain(annasOther);
+      expect(repIds).not.toContain(marcusQuote);
+      expect(repIds).not.toContain(source);
+    });
+  });
 });
