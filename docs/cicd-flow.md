@@ -41,7 +41,7 @@ flowchart TD
 
     RailwayTrigger --> DockerBuild[Railway builds Docker image<br/>Multi-stage build]
     DockerBuild --> Stage1[Stage 1 - Builder<br/>npm ci<br/>npx prisma generate<br/>npm run build]
-    Stage1 --> Stage2[Stage 2 - Production<br/>npm ci --only=production<br/>Copy dist/ from builder, non-root user]
+    Stage1 --> Stage2[Stage 2 - Production<br/>npm ci --omit=dev<br/>Copy dist/ from builder, non-root user]
     Stage2 --> MigrateProd[npx prisma migrate deploy<br/>Apply pending migrations to Neon DB]
     MigrateProd --> Start[node dist/main<br/>Warms up the database, then listens on 4000]
     Start --> Health[Railway health check<br/>GET /health/ready - database reachable]
