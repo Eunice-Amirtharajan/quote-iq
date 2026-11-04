@@ -1449,24 +1449,88 @@ describe('QuotationsService', () => {
         .mockResolvedValueOnce(currentVersion);
       mockPrismaService.quotationItem.findMany.mockResolvedValue([]);
       mockPrismaService.quotation.update.mockResolvedValue(updatedQuotation);
+      // The version claim succeeds unless a test says otherwise
+      mockPrismaService.quotation.updateMany.mockResolvedValue({ count: 1 });
     });
 
-    it('calls update with version increment and correct fields', async () => {
+    it('claims the version atomically, then updates the fields', async () => {
       await service.update(
         'q-1',
         { title: 'Updated Title', clientId: CLIENT_UPDATE_UUID, version: 1 },
         'user-1',
       );
-      expect(mockPrismaService.quotation.update).toHaveBeenCalledWith(
+      // The check and the bump are one statement, so two edits can't both pass
+      expect(mockPrismaService.quotation.updateMany).toHaveBeenCalledWith({
+        where: { id: 'q-1', version: 1, status: QuotationStatus.DRAFT },
+        data: { version: { increment: 1 } },
+      });
+      const updateCall = mockPrismaService.quotation.update.mock.calls[0][0];
+      expect(updateCall.where).toEqual({ id: 'q-1' });
+      expect(updateCall.data).toEqual(
         expect.objectContaining({
-          where: { id: 'q-1' },
-          data: expect.objectContaining({
-            title: 'Updated Title',
-            client: { connect: { id: CLIENT_UPDATE_UUID } },
-            version: { increment: 1 },
-          }),
+          title: 'Updated Title',
+          client: { connect: { id: CLIENT_UPDATE_UUID } },
         }),
       );
+      expect(updateCall.data).not.toHaveProperty('version');
+    });
+
+    it('runs the claim, snapshot, update, cache clear and history in one transaction', async () => {
+      const order: string[] = [];
+      const track = (name: string, value: unknown) => () => {
+        order.push(name);
+        return Promise.resolve(value);
+      };
+      mockPrismaService.quotation.updateMany.mockImplementation(
+        track('claim', { count: 1 }),
+      );
+      mockPrismaService.quotationSnapshot.create.mockImplementation(
+        track('snapshot', {}),
+      );
+      mockPrismaService.quotation.update.mockImplementation(
+        track('update', updatedQuotation),
+      );
+      mockPrismaService.aIInsight.deleteMany.mockImplementation(
+        track('clear insights', { count: 0 }),
+      );
+      mockPrismaService.statusHistory.create.mockImplementation(
+        track('history', {}),
+      );
+      mockPrismaService.$transaction.mockClear();
+
+      await service.update(
+        'q-1',
+        { title: 'Updated Title', version: 1 },
+        'user-1',
+      );
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(order).toEqual([
+        'claim',
+        'snapshot',
+        'update',
+        'clear insights',
+        'history',
+      ]);
+      mockPrismaService.aIInsight.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.quotationSnapshot.create.mockResolvedValue({});
+    });
+
+    it('snapshots the state being replaced, under the version that was edited', async () => {
+      await service.update(
+        'q-1',
+        { title: 'Updated Title', version: 1 },
+        'user-1',
+      );
+      expect(mockPrismaService.quotationSnapshot.create).toHaveBeenCalledWith({
+        data: {
+          quotationId: 'q-1',
+          content: expect.objectContaining({
+            version: 1,
+            title: 'Original Title',
+          }),
+        },
+      });
     });
 
     it('returns the updated quotation', async () => {
@@ -1558,15 +1622,15 @@ describe('QuotationsService', () => {
       );
     });
 
-    it('throws ConflictException when input version does not match DB version', async () => {
-      mockPrismaService.quotation.findFirst
-        .mockReset()
-        .mockResolvedValueOnce(draftOwned)
-        .mockResolvedValueOnce({ version: 5 }); // DB has version 5, input sends 1
+    it('throws ConflictException and writes nothing when the version claim matches no row', async () => {
+      // Someone else's edit already moved the version (or the quotation left DRAFT)
+      mockPrismaService.quotation.updateMany.mockResolvedValue({ count: 0 });
       await expect(
         service.update('q-1', { title: 'Stale Edit', version: 1 }, 'user-1'),
       ).rejects.toThrow(ConflictException);
+      expect(mockPrismaService.quotationSnapshot.create).not.toHaveBeenCalled();
       expect(mockPrismaService.quotation.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.statusHistory.create).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when quotation not found', async () => {

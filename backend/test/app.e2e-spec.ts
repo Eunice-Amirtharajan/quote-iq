@@ -1931,4 +1931,88 @@ describe('QuoteIQ E2E', () => {
       expect(repIds).not.toContain(source);
     });
   });
+
+  describe('Concurrent edits (optimistic locking on Postgres)', () => {
+    let prisma: PrismaService;
+    let draftId: string;
+
+    const gqlAsRep = (query: string) =>
+      request(app.getHttpServer())
+        .post('/graphql')
+        .set('Cookie', authCookie)
+        .send({ query });
+
+    beforeAll(async () => {
+      prisma = app.get(PrismaService);
+      const res = await gqlAsRep(`
+        mutation {
+          createQuotation(input: {
+            title: "Concurrency Draft"
+            clientId: "${e2eClientId}"
+            taxRate: 0
+            items: [{ description: "Item" quantity: 1 unitPrice: 100 }]
+          }) { id }
+        }
+      `);
+      draftId = res.body.data.createQuotation.id as string;
+    });
+
+    afterAll(async () => {
+      await gqlAsRep(`mutation { deleteQuotation(id: "${draftId}") }`);
+    });
+
+    it('lets exactly one of five simultaneous edits with the same version win', async () => {
+      const titles = ['Edit A', 'Edit B', 'Edit C', 'Edit D', 'Edit E'];
+      const responses = await Promise.all(
+        titles.map((title) =>
+          gqlAsRep(`
+            mutation {
+              updateQuotation(id: "${draftId}", input: { title: "${title}", version: 1 }) {
+                title
+                version
+              }
+            }
+          `),
+        ),
+      );
+
+      const winners = responses.filter((r) => !r.body.errors);
+      const losers = responses.filter((r) => r.body.errors);
+      expect(winners).toHaveLength(1);
+      expect(losers).toHaveLength(4);
+      for (const r of losers) {
+        expect(r.body.errors[0].message).toMatch(/Version mismatch/);
+      }
+
+      // The database shows one edit, not five overwriting each other
+      const row = await prisma.quotation.findUniqueOrThrow({
+        where: { id: draftId },
+      });
+      expect(row.version).toBe(2);
+      expect(row.title).toBe(winners[0].body.data.updateQuotation.title);
+      expect(
+        await prisma.quotationSnapshot.count({
+          where: { quotationId: draftId },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.statusHistory.count({
+          where: { quotationId: draftId, note: { startsWith: 'Edited' } },
+        }),
+      ).toBe(1);
+    });
+
+    it('rejects a later edit that still sends the old version', async () => {
+      const res = await gqlAsRep(`
+        mutation {
+          updateQuotation(id: "${draftId}", input: { title: "Stale", version: 1 }) { title }
+        }
+      `);
+      expect(res.body.errors[0].message).toMatch(/Version mismatch/);
+      const row = await prisma.quotation.findUniqueOrThrow({
+        where: { id: draftId },
+      });
+      expect(row.title).not.toBe('Stale');
+    });
+  });
 });
