@@ -162,6 +162,9 @@
     "@graphql-tools/utils": "^12.1.0",
     "multer": "^2.5.0",
     "systeminformation": "^5.33.19",
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "gaxios": {
+      "rimraf": "^6.1.4"
+    }
   }
 }
