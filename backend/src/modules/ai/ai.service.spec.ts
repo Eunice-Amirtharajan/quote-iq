@@ -1008,6 +1008,55 @@ describe('AIService', () => {
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
+    describe('one deadline for the whole fallback chain', () => {
+      let now: number;
+      beforeEach(() => {
+        now = 1_000_000;
+        jest.spyOn(Date, 'now').mockImplementation(() => now);
+      });
+      afterEach(() => jest.mocked(Date.now).mockRestore());
+
+      const timeoutAfter = (ms: number) => () => {
+        now += ms;
+        return Promise.reject(new APIConnectionTimeoutError());
+      };
+
+      it('gives the next model only the time left', async () => {
+        mockCreate.mockImplementationOnce(timeoutAfter(20_000));
+        mockCreate.mockResolvedValueOnce(mockGroqResponse);
+
+        const result = await service.generateQuotationSummary('q-1');
+
+        expect(result.summary).toBe('Test summary');
+        expect(mockCreate.mock.calls[0][1]).toEqual({ timeout: 25_000 });
+        expect(mockCreate.mock.calls[1][1]).toEqual({ timeout: 10_000 });
+      });
+
+      it('stops trying models once too little time is left', async () => {
+        mockCreate.mockImplementationOnce(timeoutAfter(25_000));
+        mockCreate.mockImplementationOnce(timeoutAfter(4_000));
+
+        const err = await summarise();
+
+        expect(err).toBeInstanceOf(APIConnectionTimeoutError);
+        // Two of the three models: the third would have had 1s
+        expect(mockCreate.mock.calls.map((c) => c[1])).toEqual([
+          { timeout: 25_000 },
+          { timeout: 5_000 },
+        ]);
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('30s deadline is used up'),
+          AIService.name,
+        );
+      });
+
+      it('still tries every model when failures are fast', async () => {
+        mockCreate.mockRejectedValue(groqDown());
+        await summarise();
+        expect(mockCreate).toHaveBeenCalledTimes(3);
+      });
+    });
+
     it('sends the classifier and Q&A calls with timeouts', async () => {
       mockCreate.mockResolvedValueOnce({
         choices: [{ message: { content: 'Y' } }],
