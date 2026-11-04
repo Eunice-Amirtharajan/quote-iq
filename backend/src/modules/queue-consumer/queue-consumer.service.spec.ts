@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
-import { Nack } from '@golevelup/nestjs-rabbitmq';
+import { AmqpConnection, Nack } from '@golevelup/nestjs-rabbitmq';
 import { QueueConsumerService } from './queue-consumer.service';
 import { AIService } from '../ai/ai.service';
 import { AppLogger } from '../../common/logger/logger.service';
@@ -27,11 +27,23 @@ const mockLogger = {
   debug: jest.fn(),
 };
 
-const makeMsg = (deathCount?: number) => ({
+const mockAmqp = {
+  publish: jest.fn().mockResolvedValue(true),
+};
+
+// retryCount = how many times this message was already retried (our x-retry-count header)
+const makeMsg = (retryCount?: number) => ({
   properties: {
-    headers: deathCount != null ? { 'x-death': [{ count: deathCount }] } : {},
+    messageId: 'outbox-1',
+    headers:
+      retryCount != null
+        ? { 'x-retry-count': retryCount, 'x-correlation-id': 'cid-1' }
+        : {},
   },
 });
+
+const apiError = (status: number) =>
+  Object.assign(new Error(`API error ${status}`), { status });
 
 describe('QueueConsumerService', () => {
   let service: QueueConsumerService;
@@ -44,6 +56,7 @@ describe('QueueConsumerService', () => {
         { provide: AIService, useValue: mockAIService },
         { provide: ScoreGateway, useValue: mockGateway },
         { provide: AppLogger, useValue: mockLogger },
+        { provide: AmqpConnection, useValue: mockAmqp },
       ],
     }).compile();
 
@@ -76,7 +89,7 @@ describe('QueueConsumerService', () => {
       expect(result).toBeUndefined();
     });
 
-    it('nacks when generateQuotationEmbedding fails — embedding failure triggers retry', async () => {
+    it('retries when generateQuotationEmbedding fails (the embedding is part of the job)', async () => {
       mockAIService.getConversionScore.mockResolvedValueOnce({
         score: 55,
         label: ConversionLabel.MEDIUM,
@@ -90,8 +103,8 @@ describe('QueueConsumerService', () => {
         makeMsg(0),
       );
 
-      expect(result).toBeInstanceOf(Nack);
-      expect((result as Nack).requeue).toBe(false);
+      expect(result).toBeUndefined();
+      expect(mockAmqp.publish).toHaveBeenCalledTimes(1);
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to process quote.created'),
         expect.any(String),
@@ -100,17 +113,20 @@ describe('QueueConsumerService', () => {
     });
   });
 
-  describe('onQuoteCreated — permanent failure (NotFoundException)', () => {
-    it('nacks to DLQ immediately without retrying', async () => {
+  describe('onQuoteCreated — permanent failure', () => {
+    it('sends a deleted quotation (NotFoundException) straight to the DLQ without retrying', async () => {
       mockAIService.getConversionScore.mockRejectedValueOnce(
         new NotFoundException('Quotation q-deleted not found'),
       );
-      const payload = { quotationId: 'q-deleted', createdById: 'u-1' };
 
-      const result = await service.onQuoteCreated(payload, makeMsg());
+      const result = await service.onQuoteCreated(
+        { quotationId: 'q-deleted', createdById: 'u-1' },
+        makeMsg(),
+      );
 
       expect(result).toBeInstanceOf(Nack);
       expect((result as Nack).requeue).toBe(false);
+      expect(mockAmqp.publish).not.toHaveBeenCalled();
       expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('permanent'),
         expect.any(String),
@@ -118,26 +134,122 @@ describe('QueueConsumerService', () => {
       );
     });
 
-    it('nacks to DLQ even on first attempt — does not wait for MAX_RETRIES', async () => {
+    it.each([400, 401, 403, 422])(
+      'treats a %i from an API as permanent: retrying the same request cannot help',
+      async (status) => {
+        mockAIService.getConversionScore.mockRejectedValueOnce(
+          apiError(status),
+        );
+
+        const result = await service.onQuoteCreated(
+          { quotationId: 'q-1', createdById: 'u-1' },
+          makeMsg(0),
+        );
+
+        expect(result).toBeInstanceOf(Nack);
+        expect(mockAmqp.publish).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe('onQuoteCreated — transient failure', () => {
+    it('republishes to the retry queue with a 5s delay and acks the original', async () => {
       mockAIService.getConversionScore.mockRejectedValueOnce(
-        new NotFoundException('Quotation q-gone not found'),
+        new Error('Connection terminated unexpectedly'),
       );
 
       const result = await service.onQuoteCreated(
-        { quotationId: 'q-gone', createdById: 'u-1' },
-        makeMsg(0),
+        { quotationId: 'q-1', createdById: 'u-1' },
+        {
+          properties: {
+            messageId: 'outbox-1',
+            headers: {
+              'x-correlation-id': 'cid-1',
+              'x-death': [{ count: 1 }],
+            },
+          },
+        },
+      );
+
+      // Acked (undefined), not nacked: the retry copy carries the message on
+      expect(result).toBeUndefined();
+      expect(mockAmqp.publish).toHaveBeenCalledWith(
+        'quoteiq.retry',
+        'quoteiq.scoring.retry',
+        { quotationId: 'q-1', createdById: 'u-1' },
+        {
+          persistent: true,
+          messageId: 'outbox-1',
+          expiration: '5000',
+          headers: { 'x-correlation-id': 'cid-1', 'x-retry-count': 1 },
+        },
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('attempt:1 (retrying in 5000ms)'),
+        expect.any(String),
+        QueueConsumerService.name,
+      );
+    });
+
+    it('doubles the delay on the second attempt', async () => {
+      mockAIService.getConversionScore.mockRejectedValueOnce(apiError(503));
+
+      await service.onQuoteCreated(
+        { quotationId: 'q-1', createdById: 'u-1' },
+        makeMsg(1),
+      );
+
+      expect(mockAmqp.publish).toHaveBeenCalledWith(
+        'quoteiq.retry',
+        'quoteiq.scoring.retry',
+        expect.anything(),
+        expect.objectContaining({
+          expiration: '10000',
+          headers: expect.objectContaining({ 'x-retry-count': 2 }),
+        }),
+      );
+    });
+
+    it.each([408, 409, 429])(
+      'retries a %i (timeout, conflict, rate limit)',
+      async (status) => {
+        mockAIService.getConversionScore.mockRejectedValueOnce(
+          apiError(status),
+        );
+
+        const result = await service.onQuoteCreated(
+          { quotationId: 'q-1', createdById: 'u-1' },
+          makeMsg(0),
+        );
+
+        expect(result).toBeUndefined();
+        expect(mockAmqp.publish).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('sends the third failure to the DLQ instead of retrying again', async () => {
+      mockAIService.getConversionScore.mockRejectedValueOnce(
+        new Error('DB unavailable'),
+      );
+
+      const result = await service.onQuoteCreated(
+        { quotationId: 'q-1', createdById: 'u-1' },
+        makeMsg(2), // two retries already, so this is attempt 3 of 3
       );
 
       expect(result).toBeInstanceOf(Nack);
       expect((result as Nack).requeue).toBe(false);
-    });
-  });
-
-  describe('onQuoteCreated — transient failure', () => {
-    it('nacks with requeue:false on transient error before MAX_RETRIES', async () => {
-      mockAIService.getConversionScore.mockRejectedValueOnce(
-        new Error('Groq timeout'),
+      expect(mockAmqp.publish).not.toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('attempt:3 (retries exhausted'),
+        expect.any(String),
+        QueueConsumerService.name,
       );
+    });
+
+    it('falls back to the DLQ when the retry cannot be published, so nothing is lost', async () => {
+      mockAIService.getConversionScore.mockRejectedValueOnce(new Error('blip'));
+      mockAmqp.publish.mockRejectedValueOnce(new Error('channel closed'));
 
       const result = await service.onQuoteCreated(
         { quotationId: 'q-1', createdById: 'u-1' },
@@ -147,29 +259,15 @@ describe('QueueConsumerService', () => {
       expect(result).toBeInstanceOf(Nack);
       expect((result as Nack).requeue).toBe(false);
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to process quote.created'),
+        expect.stringContaining('Could not schedule a retry'),
         expect.any(String),
         QueueConsumerService.name,
       );
     });
-
-    it('nacks with requeue:false when MAX_RETRIES is reached', async () => {
-      mockAIService.getConversionScore.mockRejectedValueOnce(
-        new Error('DB unavailable'),
-      );
-
-      const result = await service.onQuoteCreated(
-        { quotationId: 'q-1', createdById: 'u-1' },
-        makeMsg(2), // deathCount=2 → attempt 3 = MAX_RETRIES
-      );
-
-      expect(result).toBeInstanceOf(Nack);
-      expect((result as Nack).requeue).toBe(false);
-    });
   });
 
-  describe('onQuoteCreated — x-death header', () => {
-    it('logs attempt:1 when no x-death header is present', async () => {
+  describe('onQuoteCreated — attempt numbering', () => {
+    it('logs attempt:1 when the message has no retry header', async () => {
       mockAIService.getConversionScore.mockRejectedValueOnce(new Error('err'));
 
       await service.onQuoteCreated(
@@ -183,7 +281,7 @@ describe('QueueConsumerService', () => {
       );
     });
 
-    it('logs attempt:2 when x-death count is 1', async () => {
+    it('logs attempt:2 for a message retried once', async () => {
       mockAIService.getConversionScore.mockRejectedValueOnce(new Error('err'));
 
       await service.onQuoteCreated(
@@ -197,6 +295,7 @@ describe('QueueConsumerService', () => {
       );
     });
   });
+
   describe('onQuoteCreated — correlation ID', () => {
     const msgWithCid = (cid: string) => ({
       properties: { headers: { 'x-correlation-id': cid } },
