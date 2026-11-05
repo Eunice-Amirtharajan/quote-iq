@@ -241,7 +241,8 @@ SUPABASE_URL=""
 SUPABASE_SERVICE_ROLE_KEY=""
 
 # Redis — token store for invite and password-reset flows
-# Redis Cloud free tier (30 MB, no HA, no persistence) is sufficient for short-lived tokens.
+# Production: Railway Redis in the same project, REDIS_URL=${{Redis.REDIS_URL}} (a Railway reference).
+# If Redis is unreachable, the app falls back to memory, so invites and resets keep working.
 # Connection string format: redis://default:<password>@<host>:<port>
 # If not set, an in-memory Map is used (tokens lost on restart — dev only).
 REDIS_URL=""
