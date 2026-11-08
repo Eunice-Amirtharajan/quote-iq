@@ -9,12 +9,10 @@ export interface User {
   role:  Role;
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   user:    User | null;
   setUser: (user: User | null) => void;
 }
 
-export const AuthContext = createContext<AuthContextType>({
-  user:    null,
-  setUser: () => {},
-});
+// No default: a component outside AuthProvider must fail loudly (see useAuth), not look logged out
+export const AuthContext = createContext<AuthContextType | null>(null);

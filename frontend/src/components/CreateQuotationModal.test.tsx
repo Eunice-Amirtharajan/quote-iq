@@ -327,6 +327,24 @@ describe('CreateQuotationModal', () => {
     expect(screen.getAllByPlaceholderText('Description')).toHaveLength(1);
   });
 
+  it('keeps each remaining row on its own DOM node when a row above it is removed', async () => {
+    const user = userEvent.setup();
+    renderModal([]);
+
+    await user.click(screen.getByText('+ Add item'));
+    await user.click(screen.getByText('+ Add item'));
+    const [first, , third] = screen.getAllByPlaceholderText('Description');
+    await user.type(first, 'A');
+    await user.type(third, 'C');
+
+    await user.click(screen.getAllByLabelText('Remove item')[0]);
+
+    // With index keys React would reuse row 1's node for row 2 and drop the last node
+    expect(third).toBeInTheDocument();
+    expect(third).toHaveValue('C');
+    expect(first).not.toBeInTheDocument();
+  });
+
   it('disables Add item button at the 10-item limit', async () => {
     const user = userEvent.setup();
     renderModal([]);
