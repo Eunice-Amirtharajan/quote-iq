@@ -8,6 +8,8 @@ import { sanitizeText } from "../utils/sanitize";
 import { newIdempotencyKey } from "../lib/idempotency-key";
 
 interface LineItem {
+  /** Client-only row identity for React's key; never sent to the API */
+  id: string;
   description: string;
   quantity: string;
   unitPrice: string;
@@ -33,7 +35,12 @@ const TITLE_MAX = 100;
 const DESC_MAX = 200;
 const NOTES_MAX = 500;
 const ITEMS_MAX = 10;
-const EMPTY_ITEM: LineItem = { description: "", quantity: "1", unitPrice: "" };
+// Index keys would hand a removed row's DOM and state to the row below it
+let nextItemId = 0;
+const newItem = (fields: Omit<LineItem, "id"> = { description: "", quantity: "1", unitPrice: "" }): LineItem => ({
+  id: `item-${nextItemId++}`,
+  ...fields,
+});
 
 // One Idempotency-Key per distinct submission: a double-click or a retry of the same input reuses
 // it, so the server returns the quotation it already created instead of a duplicate. Editing the
@@ -44,11 +51,13 @@ function toLineItems(
 ): LineItem[] {
   return [...items]
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((i) => ({
-      description: i.description,
-      quantity: String(i.quantity),
-      unitPrice: String(i.unitPrice),
-    }));
+    .map((i) =>
+      newItem({
+        description: i.description,
+        quantity: String(i.quantity),
+        unitPrice: String(i.unitPrice),
+      }),
+    );
 }
 
 export default function CreateQuotationModal({
@@ -65,7 +74,7 @@ export default function CreateQuotationModal({
   const [notes, setNotes] = useState(quotation?.notes ?? "");
   const [taxRate, setTaxRate] = useState(String(quotation?.taxRate ?? 0));
   const [items, setItems] = useState<LineItem[]>(
-    quotation ? toLineItems(quotation.items) : [{ ...EMPTY_ITEM }],
+    () => (quotation ? toLineItems(quotation.items) : [newItem()]),
   );
   const [formError, setFormError] = useState<string | null>(null);
   const idempotency = useRef<{ key: string; input: string } | null>(null);
@@ -99,7 +108,7 @@ export default function CreateQuotationModal({
 
   const addItem = () =>
     setItems((prev) =>
-      prev.length < ITEMS_MAX ? [...prev, { ...EMPTY_ITEM }] : prev,
+      prev.length < ITEMS_MAX ? [...prev, newItem()] : prev,
     );
 
   const removeItem = (index: number) =>
@@ -274,7 +283,7 @@ export default function CreateQuotationModal({
             </div>
             <div className="space-y-2">
               {items.map((item, idx) => (
-                <div key={`item-${idx}`} /* NOSONAR */ className="space-y-2">
+                <div key={item.id} className="space-y-2">
                   {/* Description — always full width */}
                   <input
                     type="text"

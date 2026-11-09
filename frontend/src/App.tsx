@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -12,6 +13,7 @@ import { useAuth } from "./hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
 import Layout from "./components/Layout";
 import { lazyWithPreload } from "./lib/lazy-with-preload";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Route-level code splitting: each page is its own chunk, so the first download is
 // just the shell (router, Apollo, auth, layout, login). Heavy page dependencies —
@@ -57,7 +59,8 @@ function QuotationDetailRoute() {
   const navigate = useNavigate();
   /* istanbul ignore next */
   if (!id) return <Navigate to="/quotations" replace />;
-  return <QuotationDetailPage id={id} onBack={() => navigate("/quotations")} />;
+  // key: a different quotation is a new page instance, so no state (e.g. the live score) carries over
+  return <QuotationDetailPage key={id} id={id} onBack={() => navigate("/quotations")} />;
 }
 
 function QuotationsRoute() {
@@ -71,7 +74,6 @@ function QuotationsRoute() {
 
 function DefaultRedirect() {
   const { user } = useAuth();
-  useEffect(() => {}, [user]);
   /* istanbul ignore next */
   if (!user) return null;
   return (
@@ -83,6 +85,8 @@ function DefaultRedirect() {
 }
 
 function AppRoutes() {
+  // Navigating away from a crashed page clears the error
+  const { pathname } = useLocation();
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
@@ -96,7 +100,8 @@ function AppRoutes() {
           element={
             <RequireAuth>
               <Layout>
-                {/* Inner boundary keeps the nav visible while a page chunk loads */}
+                {/* Inner boundaries keep the nav visible while a page chunk loads or after a page crashes */}
+                <ErrorBoundary resetKey={pathname}>
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/" element={<DefaultRedirect />} />
@@ -114,6 +119,7 @@ function AppRoutes() {
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>
+                </ErrorBoundary>
               </Layout>
             </RequireAuth>
           }

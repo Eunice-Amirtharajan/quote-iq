@@ -4,9 +4,11 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import type { MockLink } from "@apollo/client/testing";
 import ResetPasswordPage from "./ResetPasswordPage";
+import { AuthContext } from "../context/auth-context";
 import { RESET_PASSWORD_MUTATION } from "../graphql/mutations";
 
 const mockNavigate = vi.fn();
+const mockSetUser = vi.fn();
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return { ...actual, useNavigate: () => mockNavigate };
@@ -19,9 +21,11 @@ function renderPage(mocks: MockLink.MockedResponse[] = []) {
         <Route
           path="/reset-password/:token"
           element={
-            <MockedProvider mocks={mocks}>
-              <ResetPasswordPage />
-            </MockedProvider>
+            <AuthContext.Provider value={{ user: null, setUser: mockSetUser }}>
+              <MockedProvider mocks={mocks}>
+                <ResetPasswordPage />
+              </MockedProvider>
+            </AuthContext.Provider>
           }
         />
       </Routes>

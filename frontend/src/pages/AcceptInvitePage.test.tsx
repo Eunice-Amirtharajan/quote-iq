@@ -4,9 +4,11 @@ import { MockedProvider } from "@apollo/client/testing/react";
 import { vi } from "vitest";
 import type { MockLink } from "@apollo/client/testing";
 import AcceptInvitePage from "./AcceptInvitePage";
+import { AuthContext } from "../context/auth-context";
 import { ACCEPT_INVITE_MUTATION } from "../graphql/mutations";
 
 const mockNavigate = vi.fn();
+const mockSetUser = vi.fn();
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return { ...actual, useNavigate: () => mockNavigate };
@@ -19,9 +21,11 @@ function renderPage(mocks: MockLink.MockedResponse[] = []) {
         <Route
           path="/invite/:token"
           element={
-            <MockedProvider mocks={mocks}>
-              <AcceptInvitePage />
-            </MockedProvider>
+            <AuthContext.Provider value={{ user: null, setUser: mockSetUser }}>
+              <MockedProvider mocks={mocks}>
+                <AcceptInvitePage />
+              </MockedProvider>
+            </AuthContext.Provider>
           }
         />
       </Routes>
