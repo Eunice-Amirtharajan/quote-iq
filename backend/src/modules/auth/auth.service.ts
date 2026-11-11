@@ -24,9 +24,19 @@ import { describeError } from '../../common/helper/helper';
 const INVITE_TTL = 60 * 60 * 24; // 24 hours
 const RESET_TTL = 60 * 60; // 1 hour
 const BCRYPT_ROUNDS = 12;
+// Same rule as AcceptInvitePage and ResetPasswordPage; the browser check is only a convenience
+const MIN_PASSWORD_LENGTH = 8;
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
+}
+
+function assertPasswordPolicy(password: string): void {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new BadRequestException(
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+    );
+  }
 }
 
 @Injectable()
@@ -155,6 +165,7 @@ export class AuthService {
   }
 
   async acceptInvite(token: string, password: string): Promise<boolean> {
+    assertPasswordPolicy(password);
     const userId = await this.tokenStore.get(`invite:${token}`);
     if (!userId)
       throw new BadRequestException('Invalid or expired invite link');
@@ -205,6 +216,7 @@ export class AuthService {
   }
 
   async resetPassword(token: string, password: string): Promise<boolean> {
+    assertPasswordPolicy(password);
     const userId = await this.tokenStore.get(`reset:${token}`);
     if (!userId) throw new BadRequestException('Invalid or expired reset link');
 

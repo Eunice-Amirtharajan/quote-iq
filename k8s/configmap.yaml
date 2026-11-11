@@ -5,6 +5,9 @@ metadata:
   namespace: quoteiq
 data:
   NODE_ENV: "production"
+  # The LoadBalancer Service is layer 4 and adds no X-Forwarded-For, so trusting a hop would let
+  # clients set their own IP for the rate limiter. Change this if an Ingress is put in front.
+  TRUST_PROXY_HOPS: "0"
   PORT: "4000"
   JWT_EXPIRES_IN: "7d"
   CORS_ORIGIN: "https://quoteiq.cc"

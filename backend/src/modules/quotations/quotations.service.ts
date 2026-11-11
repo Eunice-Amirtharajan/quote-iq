@@ -206,8 +206,9 @@ export class QuotationsService {
   }
 
   async findByToken(token: string): Promise<PublicQuotationType | null> {
+    // The token is the secret behind a public link, so it never goes in the logs
     this.logger.info(
-      `Finding quotation with token:${token}`,
+      'Finding quotation by public token',
       QuotationsService.name,
     );
     try {
@@ -245,7 +246,7 @@ export class QuotationsService {
       };
     } catch (error) {
       this.logger.error(
-        `Failed to retrieve quotation with token:${token}`,
+        'Failed to retrieve quotation by public token',
         describeError(error),
         QuotationsService.name,
       );
