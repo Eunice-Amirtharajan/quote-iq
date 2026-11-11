@@ -279,6 +279,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/quoteiq_test
           JWT_SECRET: test-secret-key
           NODE_ENV: development
+          # The password-reset E2E test reads tokens from /__test__/token/:key
+          ENABLE_TEST_ENDPOINTS: 'true'
           PORT: 4000
           GROQ_API_KEY: test-groq-key
           OPENAI_API_KEY: test-openai-key

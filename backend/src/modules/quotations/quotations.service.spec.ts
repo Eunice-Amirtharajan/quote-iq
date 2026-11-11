@@ -419,6 +419,19 @@ describe('QuotationsService', () => {
       await expect(service.findByToken('token-1')).rejects.toThrow('DB error');
       expect(mockLogger.error).toHaveBeenCalled();
     });
+
+    it('never writes the public token to the logs', async () => {
+      const token = 'secret-public-token';
+      mockPrismaService.quotation.findFirst.mockRejectedValue(
+        new Error('DB error'),
+      );
+      await expect(service.findByToken(token)).rejects.toThrow('DB error');
+      const logged = JSON.stringify([
+        ...mockLogger.info.mock.calls,
+        ...mockLogger.error.mock.calls,
+      ]);
+      expect(logged).not.toContain(token);
+    });
   });
 
   describe('findOwner', () => {

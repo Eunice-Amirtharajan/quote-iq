@@ -441,6 +441,16 @@ describe('AuthService', () => {
       ).rejects.toThrow(BadRequestException);
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
+
+    it('rejects a password shorter than 8 characters, even when the browser check is skipped', async () => {
+      tokenStore.get.mockResolvedValue('u-123');
+
+      await expect(
+        service.acceptInvite('valid-token', 'short'),
+      ).rejects.toThrow('Password must be at least 8 characters.');
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+      expect(tokenStore.del).not.toHaveBeenCalled();
+    });
   });
 
   describe('requestPasswordReset', () => {
@@ -563,6 +573,16 @@ describe('AuthService', () => {
       await expect(
         service.resetPassword('bad-token', 'newpassword'),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a password shorter than 8 characters and keeps the reset link usable', async () => {
+      tokenStore.get.mockResolvedValue('u-1');
+
+      await expect(
+        service.resetPassword('valid-reset-token', '1234567'),
+      ).rejects.toThrow('Password must be at least 8 characters.');
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+      expect(tokenStore.del).not.toHaveBeenCalled();
     });
   });
 

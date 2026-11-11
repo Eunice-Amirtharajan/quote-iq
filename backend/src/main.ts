@@ -1,6 +1,8 @@
 // must be first — registers OTel SDK before any instrumented module loads
 import { shutdownTracing } from './tracing';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { warmUpDatabase } from './prisma/warm-up';
@@ -11,6 +13,10 @@ import { HealthService } from './modules/health/health.service';
 import cookieParser from 'cookie-parser';
 import { corsOptions } from './common/cors/cors-options';
 import helmet from 'helmet';
+import {
+  testEndpointsEnabled,
+  trustProxyHops,
+} from './common/config/runtime-flags';
 
 const KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes — Neon pauses at 5 min idle
 // Production: give the load balancer time to see readiness fail before the server closes
@@ -50,7 +56,10 @@ async function bootstrap() {
   assertEnvVariables('JWT_EXPIRES_IN');
   assertEnvVariables('CORS_ORIGIN');
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // req.ip (the throttler's key) must be the client, not the proxy in front of the app
+  const proxyHops = trustProxyHops(process.env);
+  if (proxyHops > 0) app.set('trust proxy', proxyHops);
   app.use(
     helmet({
       // GraphQL playground uses inline scripts — relax CSP in non-production only
@@ -77,29 +86,20 @@ async function bootstrap() {
     );
 
   // Test-only token endpoint — allows E2E tests to retrieve a freshly minted
-  // invite or reset token without reading the email. Never registered in production.
-  if (process.env.NODE_ENV !== 'production') {
+  // invite or reset token without reading the email. Needs ENABLE_TEST_ENDPOINTS=true and is
+  // never registered in production.
+  if (testEndpointsEnabled(process.env)) {
     const tokenStore = app.get(TokenStoreService);
-    app.getHttpAdapter().get(
-      '/__test__/token/:key',
-      async (
-        req: { params: { key: string } },
-        res: {
-          status: (c: number) => {
-            json: (b: unknown) => void;
-            send: (b: string) => void;
-          };
-          json: (b: unknown) => void;
-        },
-      ) => {
-        const value = await tokenStore.get(req.params.key);
+    app
+      .getHttpAdapter()
+      .get('/__test__/token/:key', async (req: Request, res: Response) => {
+        const value = await tokenStore.get(String(req.params.key));
         if (!value) {
           res.status(404).json({ error: 'not found' });
         } else {
           res.json({ value });
         }
-      },
-    );
+      });
   }
 
   // Before listen(): onModuleInit hooks (outbox relay, AI model load) run inside listen()
